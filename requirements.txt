@@ -1,0 +1,12 @@
+ipykernel
+ipywidgets
+numpy
+pandas
+llama_index
+pymongo
+transformers
+torch 
+torchvision 
+torchaudio
+accelerate
+bitsandbytes
