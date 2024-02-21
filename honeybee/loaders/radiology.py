@@ -1,10 +1,8 @@
 import logging
-import os
 
 import imageio.v3 as iio
 import numpy as np
 import onnxruntime as ort
-import pandas as pd
 from skimage.color import gray2rgb
 from skimage.transform import resize
 
@@ -54,28 +52,24 @@ class RemedisEmbeddings:
         return embedding_of_image
 
 
-def main():
-    manifest_df = pd.read_csv("/mnt/d/TCGA-LUAD/manifest.csv")
-    base_path = "/mnt/d/TCGA-LUAD/"  # Replace with your DICOM files path
-    rad_embeddings_model = RemedisEmbeddings(
-        "/mnt/d/Models/REMEDIS/onnx/cxr-50x1-remedis-s.onnx"
-    )
-    for index, row in manifest_df.iterrows():
-        series_path = os.path.join(
-            base_path, row["PatientID"], row["Modality"], row["SeriesInstanceUID"]
-        )
-        try:
-            vol = iio.imread(series_path, plugin="DICOM")
-            print(
-                f"Processing series {row['SeriesInstanceUID']} with shape {vol.shape} {vol.ndim}"
-            )
-            embeddings = rad_embeddings_model.get_embeddings(vol.astype(np.float32))
-            print(
-                f"Embeddings shape for series {row['SeriesInstanceUID']}: {embeddings.shape}"
-            )
-        except Exception as e:
-            logging.error(f"Error processing series {row['SeriesInstanceUID']}: {e}")
-
-
-if __name__ == "__main__":
-    main()
+# def main():
+#     manifest_df = pd.read_csv("/mnt/d/TCGA-LUAD/manifest.csv")
+#     base_path = "/mnt/d/TCGA-LUAD/"  # Replace with your DICOM files path
+#     rad_embeddings_model = RemedisEmbeddings(
+#         "/mnt/d/Models/REMEDIS/onnx/cxr-50x1-remedis-s.onnx"
+#     )
+#     for index, row in manifest_df.iterrows():
+#         series_path = os.path.join(
+#             base_path, row["PatientID"], row["Modality"], row["SeriesInstanceUID"]
+#         )
+#         try:
+#             vol = iio.imread(series_path, plugin="DICOM")
+#             print(
+#                 f"Processing series {row['SeriesInstanceUID']} with shape {vol.shape} {vol.ndim}"
+#             )
+#             embeddings = rad_embeddings_model.get_embeddings(vol.astype(np.float32))
+#             print(
+#                 f"Embeddings shape for series {row['SeriesInstanceUID']}: {embeddings.shape}"
+#             )
+#         except Exception as e:
+#             logging.error(f"Error processing series {row['SeriesInstanceUID']}: {e}")
