@@ -1,3 +1,6 @@
 /data
 .env
+.ruff_cache
+.vscode
+.aim
 __pycache__

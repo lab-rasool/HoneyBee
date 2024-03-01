@@ -10,3 +10,8 @@ torchvision
 torchaudio
 accelerate
 bitsandbytes
+pytesseract
+pdf2image
+PyPDF2
+pyarrow
+fastparquet

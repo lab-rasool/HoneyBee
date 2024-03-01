@@ -1,21 +1,22 @@
-import concurrent.futures
 import gc
 import json
-import os
-import random
+import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
 import onnxruntime as ort
+import pandas as pd
 import torch
 import torch.nn as nn
+from albumentations import Compose, Resize
 from cucim import CuImage
 from matplotlib import pyplot as plt
 from PIL import Image
 from skimage.transform import resize
 from torch.utils.data import Dataset
 from torchvision import models, transforms
+from tqdm import tqdm
 
 # def convert_models_to_onnx(source_dir, target_dir):
 #     import subprocess
@@ -35,37 +36,23 @@ from torchvision import models, transforms
 #                        target_dir="/mnt/d/Models/REMEDIS/onnx")
 
 
-def get_random_svs_file(
-    manifest_path="/mnt/d/TCGA-LUAD/manifest.json", data_path="/mnt/d/TCGA-LUAD/raw"
-):
-    with open(manifest_path, "r") as f:
-        manifest = json.load(f)
-    while True:
-        case = random.choice(manifest)
-        if "Slide Image" in case:
-            slide_uuids = case.get("Slide Image", [])
-            uuid = random.choice(slide_uuids)
-            print(f"Selected slide: {uuid}")
+class TissueDetector:
+    def __init__(self, model_path, device="cuda"):
+        self.device = torch.device(device)
+        self.model = self._load_model(model_path)
+        self.transforms = transforms.Compose(
+            [
+                transforms.Resize(224),
+                transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            ]
+        )
 
-
-def tissueDetector(
-    modelStateDictPath="/mnt/f/Projects/Multimodal-Transformer/models/deep-tissue-detector_densenet_state-dict.pt",
-):
-    data_transforms = transforms.Compose(
-        [
-            transforms.Resize(224),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-        ]
-    )
-    model = models.densenet121(weights=None)
-    model.classifier = nn.Linear(1024, 3)
-    model.load_state_dict(
-        torch.load(modelStateDictPath, map_location=torch.device("cuda"))
-    )
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = nn.DataParallel(model) if torch.cuda.device_count() > 1 else model
-    return device, model.to(device).eval(), data_transforms
+    def _load_model(self, model_path):
+        model = models.densenet121(weights=None)
+        model.classifier = nn.Linear(1024, 3)
+        model.load_state_dict(torch.load(model_path, map_location=self.device))
+        return model.to(self.device).eval()
 
 
 class WholeSlideImageDataset(Dataset):
@@ -92,12 +79,16 @@ class Slide:
         tileOverlap=0,
         max_patches=500,
         visualize=False,
+        tissue_detector=None,
     ):
         self.slide_image_path = slide_image_path
         self.slideFileName = Path(self.slide_image_path).stem
         self.tileSize = tileSize
         self.tileOverlap = round(tileOverlap * tileSize)
         self.tileDictionary = {}
+        self.tissue_detector = tissue_detector
+        if self.tissue_detector is None:
+            raise ValueError("Model path is required for tissue detection.")
 
         self.img = CuImage(slide_image_path)
         resolutions = self.img.resolutions
@@ -184,13 +175,11 @@ class Slide:
             else:
                 yield key
 
-    def appendTag(self, tileAddress, key, val):
-        self.tileDictionary[tileAddress][key] = val
-
-    def applyModel(
-        self, modelZip, batch_size, predictionKey="prediction", numWorkers=16
-    ):
-        device, model, data_transforms = modelZip
+    def applyModel(self, batch_size, predictionKey="prediction", numWorkers=16):
+        detector = TissueDetector(self.tissue_detector)
+        device = detector.device
+        model = detector.model
+        data_transforms = detector.transforms
         pathSlideDataset = WholeSlideImageDataset(self, transform=data_transforms)
         pathSlideDataloader = torch.utils.data.DataLoader(
             pathSlideDataset,
@@ -210,7 +199,10 @@ class Slide:
                     inputs["tileAddress"][0][index].item(),
                     inputs["tileAddress"][1][index].item(),
                 )
-                self.appendTag(tileAddress, predictionKey, batch_prediction[index, ...])
+                # self.appendTag(tileAddress, predictionKey, batch_prediction[index, ...])
+                self.tileDictionary[tileAddress][predictionKey] = batch_prediction[
+                    index, ...
+                ]
 
     def adoptKeyFromTileDictionary(self, upsampleFactor=1):
         for orphanTileAddress in self.iterateTiles():
@@ -230,11 +222,8 @@ class Slide:
         tissueDetectionUpsampleFactor=4,
         batchSize=20,
         numWorkers=1,
-        modelStateDictPath="/mnt/f/Projects/Multimodal-Transformer/models/deep-tissue-detector_densenet_state-dict.pt",
     ):
-        modelZip = tissueDetector(modelStateDictPath=modelStateDictPath)
         self.applyModel(
-            modelZip,
             batch_size=batchSize,
             predictionKey="tissue_detector",
             numWorkers=numWorkers,
@@ -289,96 +278,117 @@ class Slide:
             tile = np.asarray(
                 self.img.read_region(start_loc, [patch_size, patch_size], 0)
             )
-            if tile.ndim == 3 and tile.shape[2] == 3:
-                return resize(tile, (target_size, target_size), anti_aliasing=True)
+            if tile.ndim == 3 and tile.shape[2] == 3:  # Corrected condition
+                transform = Compose([Resize(height=target_size, width=target_size)])
+                tile = transform(image=tile)["image"]
+                return tile
             else:
                 return np.zeros((target_size, target_size, 3), dtype=np.uint8)
         except Exception as e:
             print(f"Error reading tile at {start_loc}: {e}")
             return np.zeros((target_size, target_size, 3), dtype=np.uint8)
 
-    def load_patches(self, target_patch_size):
+    def load_patches_concurrently(self, target_patch_size):
         tissue_coordinates = self.get_tissue_coordinates()
-        patches = []
-        with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-            futures = [
-                executor.submit(
-                    self.load_tile_thread, loc, self.tileSize, target_patch_size
-                )
-                for loc in tissue_coordinates
-            ]
-            for future in concurrent.futures.as_completed(futures):
-                patches.append(future.result())
-        patches = np.array(patches, dtype=np.float32)
-        return patches
+        num_patches = len(tissue_coordinates)
+        patches = np.zeros(
+            (num_patches, target_patch_size, target_patch_size, 3), dtype=np.uint8
+        )
+
+        def load_and_store_patch(index):
+            start_loc = tissue_coordinates[index]
+            patches[index] = self.load_tile_thread(
+                start_loc, self.tileSize, target_patch_size
+            )
+
+        with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+            executor.map(load_and_store_patch, range(num_patches))
+
+        return patches.astype(np.float32)
 
 
-class RemedisEmbeddings:
-    def __init__(self, model_path, memory_limit=24):
-        # check if GPU is available and set the providers accordingly
-        if torch.cuda.is_available():
-            total_memory = memory_limit * 1024 * 1024 * 1024  # 24GB
-            providers = [
-                (
-                    "CUDAExecutionProvider",
-                    {
-                        "device_id": 0,
-                        "arena_extend_strategy": "kNextPowerOfTwo",
-                        "gpu_mem_limit": total_memory,
-                        "cudnn_conv_algo_search": "EXHAUSTIVE",
-                        "do_copy_in_default_stream": True,
-                    },
-                ),
-                "CPUExecutionProvider",
-            ]
-        else:
-            providers = ["CPUExecutionProvider"]
-        self.model = ort.InferenceSession(model_path, providers=providers)
-        self.input_name = self.model.get_inputs()[0].name
-        self.output_name = self.model.get_outputs()[0].name
+def manifest_to_df(manifest_path, modality):
+    with open(manifest_path, "r") as f:
+        manifest = json.load(f)
 
-    def prepare_slide(self):
-        pass
+    # Initialize an empty DataFrame for the modality
+    modality_df = pd.DataFrame()
 
-    def get_embeddings(self):
-        pass
+    # Process each patient in the manifest
+    for patient in manifest:
+        patient_id = patient["PatientID"]
+        gdc_case_id = patient["gdc_case_id"]
+
+        # Check if the current patient has the requested modality
+        if modality in patient:
+            # Convert the list of dictionaries into a DataFrame
+            df = pd.DataFrame(patient[modality])
+            # Add 'PatientID' and 'gdc_case_id' columns
+            df["PatientID"] = patient_id
+            df["gdc_case_id"] = gdc_case_id
+
+            # Append the new data to the existing DataFrame for this modality
+            modality_df = pd.concat([modality_df, df], ignore_index=True)
+
+    # Check if the modality DataFrame is not empty before returning
+    if not modality_df.empty:
+        return modality_df
+    else:
+        return None
 
 
-def main():
-    slide_image_path = get_random_svs_file()
+def get_svs_paths(slide_df, DATA_DIR):
+    svs_paths = []
+    for index, row in slide_df.iterrows():
+        svs_path = f"{DATA_DIR}/raw/{row['PatientID']}/Slide Image/{row['id']}/{row['file_name']}"
+        svs_paths.append(svs_path)
+    return svs_paths
 
-    slide = Slide(
-        slide_image_path,
-        tileSize=512,
-        max_patches=500,
-        visualize=False,
+
+def load_model_and_predict(model_path, patches):
+    sess = ort.InferenceSession(
+        model_path,
+        providers=[
+            (
+                "CUDAExecutionProvider",
+                {
+                    "device_id": 0,
+                    # "arena_extend_strategy": "kNextPowerOfTwo",
+                    "gpu_mem_limit": 24 * 1024 * 1024 * 1024,  # 24GB
+                },
+            ),
+            "CPUExecutionProvider",
+        ],
     )
-    patches = slide.load_patches(target_patch_size=224)
-
-    # Load the ONNX model
-    model_path = "/mnt/d/Models/REMEDIS/onnx/path-50x1-remedis-s.onnx"
-    providers = [
-        (
-            "CUDAExecutionProvider",
-            {
-                "device_id": 0,
-                "arena_extend_strategy": "kNextPowerOfTwo",
-                "gpu_mem_limit": 24 * 1024 * 1024 * 1024,  # 24GB
-                "cudnn_conv_algo_search": "EXHAUSTIVE",
-                "do_copy_in_default_stream": True,
-            },
-        ),
-        "CPUExecutionProvider",
-    ]
-    sess = ort.InferenceSession(model_path, providers=providers)
     input_name = sess.get_inputs()[0].name
     label_name = sess.get_outputs()[0].name
     pred_onnx = sess.run([label_name], {input_name: patches})[0]
-    print(patches.shape, "->", pred_onnx.shape)
+    return pred_onnx
 
-    del sess
-    gc.collect()
-    torch.cuda.empty_cache()
+
+def main():
+    DATA_DIR = "/mnt/d/TCGA-LUAD"
+    MANIFEST_PATH = "/mnt/d/TCGA-LUAD/manifest.json"
+    slide_df = manifest_to_df(MANIFEST_PATH, "Slide Image")
+    svs_paths = get_svs_paths(slide_df, DATA_DIR)
+    # slide_image_path = np.random.choice(svs_paths)
+    print(f"Total slides: {len(svs_paths)}")
+
+    for slide_image_path in tqdm(svs_paths):
+        slide = Slide(
+            slide_image_path,
+            tileSize=512,
+            max_patches=500,
+            visualize=False,
+            tissue_detector="/mnt/f/Projects/Multimodal-Transformer/models/deep-tissue-detector_densenet_state-dict.pt",
+        )
+        patches = slide.load_patches_concurrently(target_patch_size=224)
+        model_path = "/mnt/d/Models/REMEDIS/onnx/path-50x1-remedis-s.onnx"
+        pred_onnx = load_model_and_predict(model_path, patches)
+        print(patches.shape, "->", pred_onnx.shape)
+
+        gc.collect()
+        torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
