@@ -1,6 +1,8 @@
 import gc
 import json
 import multiprocessing
+import os
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -16,24 +18,6 @@ from PIL import Image
 from skimage.transform import resize
 from torch.utils.data import Dataset
 from torchvision import models, transforms
-from tqdm import tqdm
-
-# def convert_models_to_onnx(source_dir, target_dir):
-#     import subprocess
-#     os.makedirs(target_dir, exist_ok=True)
-#     for model_name in os.listdir(source_dir):
-#         model_path = os.path.join(source_dir, model_name)
-#         onnx_model_path = os.path.join(target_dir, f"{model_name}.onnx")
-#         if os.path.exists(onnx_model_path):
-#             print(f"Skipping {model_name} as it already exists.")
-#             continue
-#         if os.path.isdir(model_path):
-#             subprocess.run(["python", "-m", "tf2onnx.convert",
-#                             "--saved-model", model_path,
-#                             "--output", onnx_model_path])
-#             print(f"Converted {model_name} to ONNX format.")
-# convert_models_to_onnx(source_dir="/mnt/d/Models/REMEDIS/Pretrained-Weights",
-#                        target_dir="/mnt/d/Models/REMEDIS/onnx")
 
 
 class TissueDetector:
@@ -82,15 +66,38 @@ class Slide:
         tissue_detector=None,
     ):
         self.slide_image_path = slide_image_path
-        self.slideFileName = Path(self.slide_image_path).stem
         self.tileSize = tileSize
         self.tileOverlap = round(tileOverlap * tileSize)
         self.tileDictionary = {}
         self.tissue_detector = tissue_detector
         if self.tissue_detector is None:
             raise ValueError("Model path is required for tissue detection.")
-
         self.img = CuImage(slide_image_path)
+
+        # Select the level with the most suitable number of patches
+        selected_level = self._select_level(max_patches)
+
+        # Read the slide at the selected level
+        self.slide = self.img.read_region(location=[0, 0], level=selected_level)
+        self.slide.height = int(self.slide.metadata["cucim"]["shape"][0])
+        self.slide.width = int(self.slide.metadata["cucim"]["shape"][1])
+        print(
+            f"Selected level {selected_level} with dimensions: {self.slide.height}x{self.slide.width}"
+        )
+
+        # Generate tile dictionary
+        self.numTilesInX = self.slide.width // (self.tileSize - self.tileOverlap)
+        self.numTilesInY = self.slide.height // (self.tileSize - self.tileOverlap)
+        self.tileDictionary = self._generate_tile_dictionary()
+
+        # Detect tissue
+        self.detectTissue()
+
+        # Visualize
+        if visualize:
+            self.visualize()
+
+    def _select_level(self, max_patches):
         resolutions = self.img.resolutions
         level_dimensions = resolutions["level_dimensions"]
         level_count = resolutions["level_count"]
@@ -99,8 +106,8 @@ class Slide:
         selected_level = 0
         for level in range(level_count):
             width, height = level_dimensions[level]
-            numTilesInX = width // tileSize
-            numTilesInY = height // tileSize
+            numTilesInX = width // self.tileSize
+            numTilesInY = height // self.tileSize
             print(
                 f"Level {level}: {numTilesInX}x{numTilesInY} ({numTilesInX*numTilesInY}) \t Resolution: {width}x{height}"
             )
@@ -108,20 +115,7 @@ class Slide:
                 selected_level = level
                 break
 
-        self.slide = self.img.read_region(location=[0, 0], level=selected_level)
-        self.slide.height = int(self.slide.metadata["cucim"]["shape"][0])
-        self.slide.width = int(self.slide.metadata["cucim"]["shape"][1])
-        print(
-            f"Selected level {selected_level} with dimensions: {self.slide.height}x{self.slide.width}"
-        )
-
-        self.numTilesInX = self.slide.width // (self.tileSize - self.tileOverlap)
-        self.numTilesInY = self.slide.height // (self.tileSize - self.tileOverlap)
-        self.tileDictionary = self._generate_tile_dictionary()
-
-        self.detectTissue()
-        if visualize:
-            self.visualize()
+        return selected_level
 
     def _generate_tile_dictionary(self):
         tile_dict = {}
@@ -175,15 +169,22 @@ class Slide:
             else:
                 yield key
 
-    def applyModel(self, batch_size, predictionKey="prediction", numWorkers=16):
-        detector = TissueDetector(self.tissue_detector)
+    def detectTissue(
+        self,
+        tissueDetectionUpsampleFactor=4,
+        batchSize=20,
+        numWorkers=1,
+    ):
+        # self.applyModel(batch_size=batchSize,predictionKey="tissue_detector",numWorkers=numWorkers,)
+        detector = self.tissue_detector
+        predictionKey = "tissue_detector"
         device = detector.device
         model = detector.model
         data_transforms = detector.transforms
         pathSlideDataset = WholeSlideImageDataset(self, transform=data_transforms)
         pathSlideDataloader = torch.utils.data.DataLoader(
             pathSlideDataset,
-            batch_size=batch_size,
+            batch_size=batchSize,
             shuffle=False,
             num_workers=numWorkers,
         )
@@ -199,12 +200,12 @@ class Slide:
                     inputs["tileAddress"][0][index].item(),
                     inputs["tileAddress"][1][index].item(),
                 )
-                # self.appendTag(tileAddress, predictionKey, batch_prediction[index, ...])
                 self.tileDictionary[tileAddress][predictionKey] = batch_prediction[
                     index, ...
                 ]
 
-    def adoptKeyFromTileDictionary(self, upsampleFactor=1):
+        # self.adoptKeyFromTileDictionary(upsampleFactor=tissueDetectionUpsampleFactor)
+        upsampleFactor = tissueDetectionUpsampleFactor
         for orphanTileAddress in self.iterateTiles():
             self.tileDictionary[orphanTileAddress].update(
                 {
@@ -216,19 +217,6 @@ class Slide:
                     * upsampleFactor,
                 }
             )
-
-    def detectTissue(
-        self,
-        tissueDetectionUpsampleFactor=4,
-        batchSize=20,
-        numWorkers=1,
-    ):
-        self.applyModel(
-            batch_size=batchSize,
-            predictionKey="tissue_detector",
-            numWorkers=numWorkers,
-        )
-        self.adoptKeyFromTileDictionary(upsampleFactor=tissueDetectionUpsampleFactor)
 
         self.predictionMap = np.zeros([self.numTilesInY, self.numTilesInX, 3])
         for address in self.iterateTiles():
@@ -253,26 +241,6 @@ class Slide:
                 {"tissueLevel": predictionMap1res[address[1], address[0]][2]}
             )
 
-    def visualize(self):
-        fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-        ax[0].imshow(self.slide)
-        ax[0].set_title("original")
-        ax[1].imshow(self.predictionMap)
-        ax[1].set_title("deep tissue detection")
-        plt.savefig(f"{self.slideFileName}.png", dpi=300)
-
-    def get_tissue_coordinates(self, threshold=0.8):
-        tissue_coordinates = []
-        for address in self.iterateTiles():
-            if self.tileDictionary[address]["tissueLevel"] > threshold:
-                tissue_coordinates.append(
-                    (
-                        self.tileDictionary[address]["x"],
-                        self.tileDictionary[address]["y"],
-                    )
-                )
-        return tissue_coordinates
-
     def load_tile_thread(self, start_loc, patch_size, target_size):
         try:
             tile = np.asarray(
@@ -289,7 +257,16 @@ class Slide:
             return np.zeros((target_size, target_size, 3), dtype=np.uint8)
 
     def load_patches_concurrently(self, target_patch_size):
-        tissue_coordinates = self.get_tissue_coordinates()
+        threshold = 0.8
+        tissue_coordinates = []
+        for address in self.iterateTiles():
+            if self.tileDictionary[address]["tissueLevel"] > threshold:
+                tissue_coordinates.append(
+                    (
+                        self.tileDictionary[address]["x"],
+                        self.tileDictionary[address]["y"],
+                    )
+                )
         num_patches = len(tissue_coordinates)
         patches = np.zeros(
             (num_patches, target_patch_size, target_patch_size, 3), dtype=np.uint8
@@ -305,6 +282,69 @@ class Slide:
             executor.map(load_and_store_patch, range(num_patches))
 
         return patches.astype(np.float32)
+
+    def visualize(self):
+        fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+        ax[0].imshow(self.slide)
+        ax[0].set_title("original")
+        ax[1].imshow(self.predictionMap)
+        ax[1].set_title("deep tissue detection")
+        plt.savefig(f"{Path(self.slide_image_path).stem}.png", dpi=300)
+
+
+class REMEDIS:
+    def __init__(self):
+        pass
+
+    def load_model_and_predict(model_path, patches):
+        sess = ort.InferenceSession(
+            model_path,
+            providers=[
+                (
+                    "CUDAExecutionProvider",
+                    {
+                        "device_id": 0,
+                        # "arena_extend_strategy": "kNextPowerOfTwo",
+                        "gpu_mem_limit": 24 * 1024 * 1024 * 1024,  # 24GB
+                    },
+                ),
+                "CPUExecutionProvider",
+            ],
+        )
+        input_name = sess.get_inputs()[0].name
+        label_name = sess.get_outputs()[0].name
+        pred_onnx = sess.run([label_name], {input_name: patches})[0]
+        return pred_onnx
+
+    def convert_models_to_onnx(self, source_dir, target_dir):
+        """
+        Example usage:
+        convert_models_to_onnx(
+            source_dir="/mnt/d/Models/REMEDIS/Pretrained-Weights",
+            target_dir="/mnt/d/Models/REMEDIS/onnx",
+        )
+        """
+
+        os.makedirs(target_dir, exist_ok=True)
+        for model_name in os.listdir(source_dir):
+            model_path = os.path.join(source_dir, model_name)
+            onnx_model_path = os.path.join(target_dir, f"{model_name}.onnx")
+            if os.path.exists(onnx_model_path):
+                print(f"Skipping {model_name} as it already exists.")
+                continue
+            if os.path.isdir(model_path):
+                subprocess.run(
+                    [
+                        "python",
+                        "-m",
+                        "tf2onnx.convert",
+                        "--saved-model",
+                        model_path,
+                        "--output",
+                        onnx_model_path,
+                    ]
+                )
+                print(f"Converted {model_name} to ONNX format.")
 
 
 def manifest_to_df(manifest_path, modality):
@@ -345,50 +385,37 @@ def get_svs_paths(slide_df, DATA_DIR):
     return svs_paths
 
 
-def load_model_and_predict(model_path, patches):
-    sess = ort.InferenceSession(
-        model_path,
-        providers=[
-            (
-                "CUDAExecutionProvider",
-                {
-                    "device_id": 0,
-                    # "arena_extend_strategy": "kNextPowerOfTwo",
-                    "gpu_mem_limit": 24 * 1024 * 1024 * 1024,  # 24GB
-                },
-            ),
-            "CPUExecutionProvider",
-        ],
-    )
-    input_name = sess.get_inputs()[0].name
-    label_name = sess.get_outputs()[0].name
-    pred_onnx = sess.run([label_name], {input_name: patches})[0]
-    return pred_onnx
-
-
 def main():
+    # --- THIS CAN BE IGNORED ---
     DATA_DIR = "/mnt/d/TCGA-LUAD"
     MANIFEST_PATH = "/mnt/d/TCGA-LUAD/manifest.json"
     slide_df = manifest_to_df(MANIFEST_PATH, "Slide Image")
     svs_paths = get_svs_paths(slide_df, DATA_DIR)
-    # slide_image_path = np.random.choice(svs_paths)
     print(f"Total slides: {len(svs_paths)}")
 
-    for slide_image_path in tqdm(svs_paths):
-        slide = Slide(
-            slide_image_path,
-            tileSize=512,
-            max_patches=500,
-            visualize=False,
-            tissue_detector="/mnt/f/Projects/Multimodal-Transformer/models/deep-tissue-detector_densenet_state-dict.pt",
-        )
-        patches = slide.load_patches_concurrently(target_patch_size=224)
-        model_path = "/mnt/d/Models/REMEDIS/onnx/path-50x1-remedis-s.onnx"
-        pred_onnx = load_model_and_predict(model_path, patches)
-        print(patches.shape, "->", pred_onnx.shape)
+    # --- CONFIGURATION ---
+    slide_image_path = np.random.choice(svs_paths)
+    tissue_detector_model_path = "/mnt/f/Projects/Multimodal-Transformer/models/deep-tissue-detector_densenet_state-dict.pt"
+    embedding_model_path = "/mnt/d/Models/REMEDIS/onnx/path-50x1-remedis-s.onnx"
 
-        gc.collect()
-        torch.cuda.empty_cache()
+    # --- PROCESS THE SLIDE & GET PATCHES ---
+    tissue_detector = TissueDetector(model_path=tissue_detector_model_path)
+    slide = Slide(
+        slide_image_path,
+        tileSize=512,
+        max_patches=500,
+        visualize=False,
+        tissue_detector=tissue_detector,
+    )
+    patches = slide.load_patches_concurrently(target_patch_size=224)
+
+    # --- GENERATE EMBEDDINGS FOR THE PATCHES ---
+    pred_onnx = REMEDIS.load_model_and_predict(embedding_model_path, patches)
+    print(patches.shape, "->", pred_onnx.shape)
+
+    # --- CLEANUP ---
+    gc.collect()
+    torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":

@@ -123,9 +123,10 @@ def get_clinical_json_from_minds():
 
 
 def main():
+    embedding_model = ClinicalEmbeddings(model_name="UFNLP/gatortron-base")
+
     json_objects = get_clinical_json_from_minds()
     clinical_df = []
-    embedding_model = ClinicalEmbeddings(model_name="UFNLP/gatortron-base")
     for case_id, patient_data in tqdm(json_objects.items()):
         summary = generate_summary_from_json(patient_data)
 
