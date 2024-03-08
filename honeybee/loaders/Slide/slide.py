@@ -1,4 +1,5 @@
 import multiprocessing
+import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -37,6 +38,7 @@ class Slide:
         max_patches=500,
         visualize=False,
         tissue_detector=None,
+        path_to_store_visualization="./visualizations",
     ):
         self.slide_image_path = slide_image_path
         self.tileSize = tileSize
@@ -46,6 +48,7 @@ class Slide:
         if self.tissue_detector is None:
             raise ValueError("Model path is required for tissue detection.")
         self.img = CuImage(slide_image_path)
+        self.path_to_store_visualization = path_to_store_visualization
 
         # Select the level with the most suitable number of patches
         selected_level = self._select_level(max_patches)
@@ -257,9 +260,13 @@ class Slide:
         return patches.astype(np.float32)
 
     def visualize(self):
+        os.makedirs(self.path_to_store_visualization, exist_ok=True)
         fig, ax = plt.subplots(1, 2, figsize=(10, 5))
         ax[0].imshow(self.slide)
         ax[0].set_title("original")
         ax[1].imshow(self.predictionMap)
         ax[1].set_title("deep tissue detection")
-        plt.savefig(f"{Path(self.slide_image_path).stem}.png", dpi=300)
+        plt.savefig(
+            f"{self.path_to_store_visualization}/{Path(self.slide_image_path).stem}.png",
+            dpi=300,
+        )

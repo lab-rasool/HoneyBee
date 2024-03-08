@@ -5,9 +5,18 @@ import numpy as np
 import pandas as pd
 import torch
 
-from honeybee.loaders.Slide import Slide
-from honeybee.models.REMEDIS import REMEDIS
-from honeybee.models.TissueDetector import TissueDetector
+# Models to include:
+# - TissueDetector (H&E, IHC, etc.)
+# - REMEDIS
+# - HuggingFace models like GatorTron & ClinicalT5
+# - SeNMo
+# - KimiaNet
+# Loaders to include:
+# - Slide (WSI: SVS, NIFTI, etc.)
+# - Scan (CT, MRI, etc.)
+
+from honeybee.loaders import Slide, Scan, PDFreport
+from honeybee.models import REMEDIS, TissueDetector, HuggingFaceEmbedder
 
 
 def manifest_to_df(manifest_path, modality):
@@ -40,24 +49,28 @@ def manifest_to_df(manifest_path, modality):
         return None
 
 
-def get_svs_paths(slide_df, DATA_DIR):
-    svs_paths = []
+def get_paths(slide_df, DATA_DIR, MODALITY):
+    paths = []
     for index, row in slide_df.iterrows():
-        svs_path = f"{DATA_DIR}/raw/{row['PatientID']}/Slide Image/{row['id']}/{row['file_name']}"
-        svs_paths.append(svs_path)
-    return svs_paths
+        if MODALITY == "CT":
+            path = f"{DATA_DIR}/raw/{row['PatientID']}/{MODALITY}/{row['SeriesInstanceUID']}/{row['SeriesInstanceUID']}/"
+        else:
+            path = f"{DATA_DIR}/raw/{row['PatientID']}/{MODALITY}/{row['id']}/{row['file_name']}"
+        paths.append(path)
+    return paths
 
 
-def main():
+def WSI_example():
     # --- THIS CAN BE IGNORED ---
     DATA_DIR = "/mnt/d/TCGA-LUAD"
     MANIFEST_PATH = "/mnt/d/TCGA-LUAD/manifest.json"
-    slide_df = manifest_to_df(MANIFEST_PATH, "Slide Image")
-    svs_paths = get_svs_paths(slide_df, DATA_DIR)
-    print(f"Total slides: {len(svs_paths)}")
+    MODALITY = "Slide Image"
+    df = manifest_to_df(MANIFEST_PATH, MODALITY)
+    paths = get_paths(df, DATA_DIR, MODALITY)
+    print(f"Total files: {len(paths)}")
 
     # --- CONFIGURATION ---
-    slide_image_path = np.random.choice(svs_paths)
+    slide_image_path = np.random.choice(paths)
     tissue_detector_model_path = "/mnt/f/Projects/Multimodal-Transformer/models/deep-tissue-detector_densenet_state-dict.pt"
     embedding_model_path = "/mnt/d/Models/REMEDIS/onnx/path-50x1-remedis-s.onnx"
 
@@ -81,5 +94,60 @@ def main():
     torch.cuda.empty_cache()
 
 
+def RAD_example():
+    # --- THIS CAN BE IGNORED ---
+    DATA_DIR = "/mnt/d/TCGA-LUAD"
+    MANIFEST_PATH = "/mnt/d/TCGA-LUAD/manifest.json"
+    MODALITY = "CT"
+    df = manifest_to_df(MANIFEST_PATH, MODALITY)
+    paths = get_paths(df, DATA_DIR, MODALITY)
+    print(f"Total files: {len(paths)}")
+
+    # --- CONFIGURATION ---
+    ct_image_path = np.random.choice(paths)
+    print(ct_image_path)
+    embedding_model_path = "/mnt/d/Models/REMEDIS/onnx/cxr-50x1-remedis-s.onnx"
+
+    # --- PROCESS THE CT IMAGE & GET PATCHES ---
+    scanner = Scan(ct_image_path, modality="CT")
+    patches = scanner.load_patches(target_patch_size=224)
+
+    # --- GENERATE EMBEDDINGS FOR THE PATCHES ---
+    pred_onnx = REMEDIS.load_model_and_predict(embedding_model_path, patches)
+    print(patches.shape, "->", pred_onnx.shape)
+
+    # --- CLEANUP ---
+    gc.collect()
+    torch.cuda.empty_cache()
+
+
+def PATHOLOGY_REPORT_example():
+    # --- THIS CAN BE IGNORED ---
+    DATA_DIR = "/mnt/d/TCGA-LUAD"
+    MANIFEST_PATH = "/mnt/d/TCGA-LUAD/manifest.json"
+    MODALITY = "Pathology Report"
+    df = manifest_to_df(MANIFEST_PATH, MODALITY)
+    file_paths = get_paths(df, DATA_DIR, MODALITY)
+    print(f"Total files: {len(file_paths)}")
+
+    # --- CONFIGURATION ---
+    pdf_file_path = np.random.choice(file_paths)
+    print(pdf_file_path)
+    embedding_model = HuggingFaceEmbedder(model_name="UFNLP/gatortron-base")
+
+    # --- PROCESS THE PDF REPORT & GET CHUNKS ---
+
+    # --- GENERATE EMBEDDINGS FOR THE CHUNKS ---
+    test_string = "This is a test string."
+    embeddings = embedding_model.generate_embeddings([test_string])
+    print("->", embeddings.shape)
+
+    # --- CLEANUP ---
+    gc.collect()
+    torch.cuda.empty_cache()
+
+
 if __name__ == "__main__":
-    main()
+    # WSI_example()
+    # RAD_example()
+    PATHOLOGY_REPORT_example()

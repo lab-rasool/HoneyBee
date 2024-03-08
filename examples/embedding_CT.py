@@ -94,12 +94,6 @@ def get_modality_paths(df, modality, DATA_DIR):
 
 
 def main():
-    DATA_DIR = "D:\\TCGA-LUAD"
-    MANIFEST_PATH = "D:\\TCGA-LUAD\\manifest.json"
-    CT_df = manifest_to_df(MANIFEST_PATH, "CT")
-    CT_paths = get_modality_paths(CT_df, DATA_DIR, "CT")
-    CT_image_path = np.random.choice(CT_paths)
-
     manifest_df = pd.read_csv("/mnt/d/TCGA-LUAD/manifest.csv")
     base_path = "/mnt/d/TCGA-LUAD/"  # Replace with your DICOM files path
     rad_embeddings_model = RemedisEmbeddings(
