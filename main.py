@@ -136,11 +136,12 @@ def PATHOLOGY_REPORT_example():
     embedding_model = HuggingFaceEmbedder(model_name="UFNLP/gatortron-base")
 
     # --- PROCESS THE PDF REPORT & GET CHUNKS ---
+    pdf_report = PDFreport(chunk_size=512, chunk_overlap=10)
+    report_text = pdf_report.load(pdf_file_path)
 
     # --- GENERATE EMBEDDINGS FOR THE CHUNKS ---
-    test_string = "This is a test string."
-    embeddings = embedding_model.generate_embeddings([test_string])
-    print("->", embeddings.shape)
+    embeddings = embedding_model.generate_embeddings(report_text)
+    print(len(report_text), "->", embeddings.shape)
 
     # --- CLEANUP ---
     gc.collect()
