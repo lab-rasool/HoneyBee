@@ -131,6 +131,7 @@ def WSI():
 
     # --- CONFIGURATION ---
     tissue_detector_model_path = "/mnt/f/Projects/Multimodal-Transformer/models/deep-tissue-detector_densenet_state-dict.pt"
+    tissue_detector = TissueDetector(model_path=tissue_detector_model_path)
     embedding_model_path = "/mnt/d/Models/REMEDIS/onnx/path-50x1-remedis-s.onnx"
 
     df["embedding"] = None
@@ -139,7 +140,6 @@ def WSI():
     for index, row in tqdm(df.iterrows(), total=len(df), desc="Processing"):
         try:
             slide_image_path = f"{DATA_DIR}/raw/{row['PatientID']}/{MODALITY}/{row['id']}/{row['file_name']}"
-            tissue_detector = TissueDetector(model_path=tissue_detector_model_path)
             slide = Slide(
                 slide_image_path,
                 tileSize=512,
@@ -164,12 +164,13 @@ def WSI():
             table = pa.Table.from_pandas(df.iloc[[index]])
             writer.write_table(table)
 
+        # --- CLEANUP ---
+        del slide, patches, embedding, table
+        gc.collect()
+        torch.cuda.empty_cache()
+
     if writer is not None:
         writer.close()
-
-    # --- CLEANUP ---
-    gc.collect()
-    torch.cuda.empty_cache()
 
     dataset = datasets.load_dataset(
         "parquet",
@@ -214,30 +215,30 @@ def main():
     # MODALITY = "Pathology Report"
     # PATHOLOGY_REPORT()
     MODALITY = "Slide Image"
-    WSI()
+    # WSI()
 
     # --- LOAD THE DATASET FROM HUGGING FACE ---
-    dataset = datasets.load_from_disk(f"hf_dataset/{MODALITY}")
-    # dataset = datasets.load_dataset(
-    #     "parquet",
-    #     data_files=f"data/parquet/{MODALITY}.parquet",
-    #     split="train",
-    # )
+    # dataset = datasets.load_from_disk(f"hf_dataset/{MODALITY}")
+    dataset = datasets.load_dataset(
+        "parquet",
+        data_files=f"data/parquet/{MODALITY}.parquet",
+        split="train",
+    )
     # dataset = datasets.load_dataset(
     #     "Aakash-Tripathi/luad",
     #     split="train",
     # )
 
-    # for i in range(3):
-    #     embedding = np.frombuffer(dataset["embedding"][i], dtype=np.float32)
-    #     embedding = embedding.reshape(dataset["embedding_shape"][i])
-    #     print(embedding.shape)
+    for i in range(3):
+        embedding = np.frombuffer(dataset["embedding"][i], dtype=np.float32)
+        embedding = embedding.reshape(dataset["embedding_shape"][i])
+        print(embedding.shape)
 
-    # --- Hugging Face dataset -> PyTorch DataLoader ---
-    torch_dataset = CustomDataset(dataset)
-    data_loader = DataLoader(torch_dataset, batch_size=64, shuffle=True)
-    for data in data_loader:
-        print(data["embedding"].shape)
+    # # --- Hugging Face dataset -> PyTorch DataLoader ---
+    # torch_dataset = CustomDataset(dataset)
+    # data_loader = DataLoader(torch_dataset, batch_size=64, shuffle=True)
+    # for data in data_loader:
+    #     print(data["embedding"].shape)
 
 
 if __name__ == "__main__":
