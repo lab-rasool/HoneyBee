@@ -21,7 +21,7 @@ class PDFreport:
                 text += pytesseract.image_to_string(image)
 
         return text
-    
+
     def chunk(self, text):
         text_splitter = RecursiveCharacterTextSplitter(
             separators="\n",
@@ -31,7 +31,7 @@ class PDFreport:
         )
         chunks = text_splitter.split_text(text)
         return chunks
-    
+
     def load(self, pdf_file):
         report_text = self.read(pdf_file)
         if len(report_text) > 0:
@@ -39,4 +39,3 @@ class PDFreport:
             return report_chunks
         else:
             return None
-        

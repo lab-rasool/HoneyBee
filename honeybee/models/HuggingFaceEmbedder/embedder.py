@@ -1,6 +1,7 @@
 from transformers import AutoTokenizer, AutoModel
 import torch
 
+
 class HuggingFaceEmbedder:
     def __init__(self, model_name, device="cuda"):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)

@@ -115,8 +115,7 @@ def main():
     report_embeddings_binary = []
     pdf_file_paths = get_file_paths(report_df, DATA_DIR)
     for pdf_file_path in tqdm(pdf_file_paths):
-        
-        #---------------------------------------------
+        # ---------------------------------------------
         report_text = get_pdf_text(pdf_file_path)
         if len(report_text) > 0:
             report_texts.append(report_text)
