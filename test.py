@@ -218,12 +218,12 @@ def main():
     # WSI()
 
     # --- LOAD THE DATASET FROM HUGGING FACE ---
-    # dataset = datasets.load_from_disk(f"hf_dataset/{MODALITY}")
-    dataset = datasets.load_dataset(
-        "parquet",
-        data_files=f"data/parquet/{MODALITY}.parquet",
-        split="train",
-    )
+    dataset = datasets.load_from_disk(f"hf_dataset/{MODALITY}")
+    # dataset = datasets.load_dataset(
+    #     "parquet",
+    #     data_files=f"data/parquet/{MODALITY}.parquet",
+    #     split="train",
+    # )
     # dataset = datasets.load_dataset(
     #     "Aakash-Tripathi/luad",
     #     split="train",
