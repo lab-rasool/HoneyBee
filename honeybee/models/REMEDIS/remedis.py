@@ -16,7 +16,6 @@ class REMEDIS:
                     "CUDAExecutionProvider",
                     {
                         "device_id": 0,
-                        # "arena_extend_strategy": "kNextPowerOfTwo",
                         "gpu_mem_limit": 24 * 1024 * 1024 * 1024,  # 24GB
                     },
                 ),

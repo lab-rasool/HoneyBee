@@ -4,6 +4,7 @@ import pandas as pd
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from tqdm import tqdm
 
+
 def process_group(group):
     common_fields = {}
     nested_objects = []
@@ -78,7 +79,7 @@ def get_clinical_json_from_minds():
     tables = minds.get_tables()
     json_objects = {}
     for table in tqdm(tables, desc="Getting data from tables"):
-        query = f"SELECT * FROM nihnci.{table} WHERE project_id='TCGA-LUAD'"
+        query = f"SELECT * FROM minds.{table} WHERE project_id='TCGA-LUAD'"
         df = minds.query(query)
         for case_id, group in tqdm(df.groupby("case_submitter_id"), leave=False):
             if case_id not in json_objects:

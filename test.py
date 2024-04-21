@@ -24,13 +24,9 @@ from honeybee.loaders import (
     get_chunk_text,
     get_clinical_json_from_minds,
 )
-from honeybee.models import REMEDIS, HuggingFaceEmbedder, TissueDetector
+from honeybee.models import REMEDIS, UNI, HuggingFaceEmbedder, TissueDetector
 
 load_dotenv()
-
-max_patches = 500
-embedding_dim = 7 * 7 * 2048
-num_samples = 10
 
 
 def manifest_to_df(manifest_path, modality):
@@ -103,7 +99,9 @@ def PATHOLOGY_REPORT():
 
         if writer is None:
             table = pa.Table.from_pandas(df.iloc[[index]])
-            writer = pq.ParquetWriter(f"data/parquet/{MODALITY}.parquet", table.schema)
+            writer = pq.ParquetWriter(
+                f"/mnt/d/TCGA-LUAD/parquet/{MODALITY}.parquet", table.schema
+            )
         else:
             table = pa.Table.from_pandas(df.iloc[[index]])
             writer.write_table(table)
@@ -116,10 +114,10 @@ def PATHOLOGY_REPORT():
 
     dataset = datasets.load_dataset(
         "parquet",
-        data_files=f"data/parquet/{MODALITY}.parquet",
+        data_files=f"/mnt/d/TCGA-LUAD/parquet/{MODALITY}.parquet",
         split="train",
     )
-    dataset.save_to_disk(f"hf_dataset/{MODALITY}")
+    dataset.save_to_disk(f"/mnt/d/TCGA-LUAD/hf_dataset/{MODALITY}")
 
 
 def WSI():
@@ -159,7 +157,9 @@ def WSI():
 
         if writer is None:
             table = pa.Table.from_pandas(df.iloc[[index]])
-            writer = pq.ParquetWriter(f"data/parquet/{MODALITY}.parquet", table.schema)
+            writer = pq.ParquetWriter(
+                f"/mnt/d/TCGA-LUAD/parquet/{MODALITY}.parquet", table.schema
+            )
         else:
             table = pa.Table.from_pandas(df.iloc[[index]])
             writer.write_table(table)
@@ -174,10 +174,93 @@ def WSI():
 
     dataset = datasets.load_dataset(
         "parquet",
-        data_files=f"data/parquet/{MODALITY}.parquet",
+        data_files=f"/mnt/d/TCGA-LUAD/parquet/{MODALITY}.parquet",
         split="train",
     )
-    dataset.save_to_disk(f"hf_dataset/{MODALITY}")
+    dataset.save_to_disk(f"/mnt/d/TCGA-LUAD/hf_dataset/{MODALITY}")
+
+
+def CT():
+    # --- THIS CAN BE IGNORED ---
+    DATA_DIR = "/mnt/d/TCGA-LUAD"
+    MANIFEST_PATH = "/mnt/d/TCGA-LUAD/manifest.json"
+    MODALITY = "CT"
+    df = manifest_to_df(MANIFEST_PATH, MODALITY)
+
+    # --- CONFIGURATION ---
+    embedding_model_path = "/mnt/d/Models/REMEDIS/onnx/cxr-50x1-remedis-s.onnx"
+
+    # Define a consistent schema
+    schema = pa.schema(
+        [
+            ("StudyInstanceUID", pa.string()),
+            ("SeriesInstanceUID", pa.string()),
+            ("SeriesDate", pa.string()),
+            ("BodyPartExamined", pa.string()),
+            ("SeriesNumber", pa.string()),
+            ("Collection", pa.string()),
+            ("Manufacturer", pa.string()),
+            ("ManufacturerModelName", pa.string()),
+            ("SoftwareVersions", pa.string()),
+            ("Visibility", pa.string()),
+            ("ImageCount", pa.int64()),
+            ("PatientID", pa.string()),
+            ("gdc_case_id", pa.string()),
+            ("ProtocolName", pa.string()),
+            ("SeriesDescription", pa.string()),
+            ("embedding", pa.binary()),
+            ("embedding_shape", pa.list_(pa.int64())),
+            ("__index_level_0__", pa.int64()),
+        ]
+    )
+
+    df["embedding"] = None
+    df["embedding_shape"] = None
+    writer = None
+    for index, row in tqdm(df.iterrows(), total=len(df), desc="Processing"):
+        try:
+            file_path = f"{DATA_DIR}/raw/{row['PatientID']}/{MODALITY}/{row['SeriesInstanceUID']}/{row['SeriesInstanceUID']}"
+            scanner = Scan(file_path, modality="CT")
+            patches = scanner.load_patches(target_patch_size=224)
+            embedding = REMEDIS.load_model_and_predict(embedding_model_path, patches)
+            df.at[index, "embedding_shape"] = embedding.shape
+            embedding = embedding.reshape(-1)
+            embedding = embedding.tobytes()
+            df.at[index, "embedding"] = embedding
+        except Exception as e:
+            print(f"Error: {e}")
+            df.at[index, "embedding"] = None
+            scanner = None
+            patches = None
+            embedding = None
+            table = None
+
+        if writer is None:
+            table = pa.Table.from_pandas(df.iloc[[index]])
+            writer = pq.ParquetWriter(
+                f"/mnt/d/TCGA-LUAD/parquet/{MODALITY}.parquet", schema
+            )
+        else:
+            try:
+                table = pa.Table.from_pandas(df.iloc[[index]], schema=schema)
+                writer.write_table(table)
+            except Exception as e:
+                print(f"Error writing to Parquet: {e}")
+
+        # --- CLEANUP ---
+        del scanner, patches, embedding, table
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    if writer is not None:
+        writer.close()
+
+    dataset = datasets.load_dataset(
+        "parquet",
+        data_files=f"/mnt/d/TCGA-LUAD/parquet/{MODALITY}.parquet",
+        split="train",
+    )
+    dataset.save_to_disk(f"/mnt/d/TCGA-LUAD/hf_dataset/{MODALITY}")
 
 
 class CustomDataset(Dataset):
@@ -211,14 +294,138 @@ class CustomDataset(Dataset):
         return {"embedding": embedding}
 
 
+def uni_wsi():
+    # --- THIS CAN BE IGNORED ---
+    DATA_DIR = "/mnt/d/TCGA-LUAD"
+    MANIFEST_PATH = "/mnt/d/TCGA-LUAD/manifest.json"
+    MODALITY = "Slide Image"
+    df = manifest_to_df(MANIFEST_PATH, MODALITY)
+
+    # --- CONFIGURATION ---
+    tissue_detector_model_path = "/mnt/f/Projects/Multimodal-Transformer/models/deep-tissue-detector_densenet_state-dict.pt"
+    tissue_detector = TissueDetector(model_path=tissue_detector_model_path)
+    embedding_model_path = (
+        "/mnt/d/ckpts/vit_large_patch16_224.dinov2.uni_mass100k/pytorch_model.bin"
+    )
+    uni = UNI()
+
+    df["embedding"] = None
+    df["embedding_shape"] = None
+    writer = None
+    for index, row in tqdm(df.iterrows(), total=len(df), desc="Processing"):
+        try:
+            slide_image_path = f"{DATA_DIR}/raw/{row['PatientID']}/{MODALITY}/{row['id']}/{row['file_name']}"
+            slide = Slide(
+                slide_image_path,
+                tileSize=512,
+                max_patches=100,
+                visualize=False,
+                tissue_detector=tissue_detector,
+            )
+            patches = slide.load_patches_concurrently(target_patch_size=224)
+
+            if patches.shape[0] == 0:
+                # try to extract patches again with a larger max_patches
+                slide = Slide(
+                    slide_image_path,
+                    tileSize=512,
+                    max_patches=1000,
+                    visualize=True,
+                    tissue_detector=tissue_detector,
+                )
+                patches = slide.load_patches_concurrently(target_patch_size=224)
+
+                if patches.shape[0] == 0:
+                    # log the slide_image_path in a file
+                    with open("empty_patches.txt", "a") as f:
+                        f.write(f"{slide_image_path}\n")
+                    raise ValueError("No patches extracted.")
+
+            embedding = uni.load_model_and_predict(embedding_model_path, patches)
+            df.at[index, "embedding_shape"] = embedding.shape
+            embedding = embedding.reshape(-1)
+            embedding = np.array(embedding, dtype=np.float32)
+            embedding = embedding.tobytes()
+            df.at[index, "embedding"] = embedding
+        except Exception as e:
+            print(f"Error: {e}")
+            df.at[index, "embedding"] = None
+            continue
+
+        if writer is None:
+            table = pa.Table.from_pandas(df.iloc[[index]])
+            writer = pq.ParquetWriter(
+                "/mnt/d/TCGA-LUAD/parquet/uni_Slide Image.parquet", table.schema
+            )
+        else:
+            table = pa.Table.from_pandas(df.iloc[[index]])
+            writer.write_table(table)
+
+        # --- CLEANUP ---
+        del slide, patches, embedding, table
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    if writer is not None:
+        writer.close()
+
+    dataset = datasets.load_dataset(
+        "parquet",
+        data_files="/mnt/d/TCGA-LUAD/parquet/uni_Slide Image.parquet",
+        split="train",
+    )
+    dataset.save_to_disk("/mnt/d/TCGA-LUAD/parquet/uni_Slide Image")
+
+
+def CLINICAL_example():
+    embedding_model = HuggingFaceEmbedder(model_name="UFNLP/gatortron-base")
+    json_objects = get_clinical_json_from_minds()
+    df = []
+    for case_id, patient_data in tqdm(json_objects.items()):
+        summary = generate_summary_from_json(patient_data)
+
+        if len(summary) > 0:
+            summary_chunks = get_chunk_text(summary)
+            chunk_embeddings = []
+            for chunk in summary_chunks:
+                chunk_embedding = embedding_model.generate_embeddings([chunk])
+                chunk_embeddings.append(chunk_embedding)
+            clinical_embedding = np.array(chunk_embeddings)
+        else:
+            clinical_embedding = None
+        patient_data["text"] = summary
+        patient_data["embedding_shape"] = clinical_embedding.shape
+
+        clinical_embedding = clinical_embedding.reshape(-1)
+        clinical_embedding = np.array(clinical_embedding, dtype=np.float32)
+        clinical_embedding = clinical_embedding.tobytes()
+        patient_data["embedding"] = clinical_embedding
+
+        # Create a new dictionary for DataFrame conversion, excluding lists
+        patient_data_for_df = {
+            key: value
+            for key, value in patient_data.items()
+            if not isinstance(value, list)
+        }
+        df.append(patient_data_for_df)
+
+    clinical_df = pd.DataFrame(df)
+    clinical_df.to_parquet(
+        "/mnt/d/TCGA-LUAD/parquet/Clinical Data.parquet", index=False
+    )
+
+
 def main():
     # MODALITY = "Pathology Report"
+    # MODALITY = "Slide Image"
     # PATHOLOGY_REPORT()
-    MODALITY = "Slide Image"
     # WSI()
+    # CT()
+    # uni_wsi()
+    CLINICAL_example()
 
     # --- LOAD THE DATASET FROM HUGGING FACE ---
-    dataset = datasets.load_from_disk(f"hf_dataset/{MODALITY}")
+    # dataset = datasets.load_from_disk(f"hf_dataset/{MODALITY}")
     # dataset = datasets.load_dataset(
     #     "parquet",
     #     data_files=f"data/parquet/{MODALITY}.parquet",
@@ -229,14 +436,31 @@ def main():
     #     split="train",
     # )
 
-    for i in range(3):
-        embedding = np.frombuffer(dataset["embedding"][i], dtype=np.float32)
-        embedding = embedding.reshape(dataset["embedding_shape"][i])
-        print(embedding.shape)
+    # # --- LOAD PARQUET IN CHUNKS ---
+    # parquet_file = pq.ParquetFile("/mnt/d/TCGA-LUAD/parquet/uni_Slide Image.parquet")
 
-    # # --- Hugging Face dataset -> PyTorch DataLoader ---
+    # parquet = pq.read_table(f'data/parquet/{MODALITY}.parquet')
+    # df = parquet.to_pandas()
+    # # delete the embedding column
+    # del df["embedding"]
+    # # save the dataframe to a csv file
+    # df.to_csv(f'{MODALITY}.csv', index=False)
+
+    # for batch in parquet_file.iter_batches(batch_size=1):
+    #     batch_df = batch.to_pandas()
+    #     embedding = np.frombuffer(batch_df["embedding"].iloc[0], dtype=np.float32)
+    #     embedding = embedding.reshape(batch_df["embedding_shape"].iloc[0])
+    #     print(embedding.shape)
+
+    # # --- Hugging Face dataset directly ---
+    # for i in range(3):
+    #     embedding = np.frombuffer(dataset["embedding"][i], dtype=np.float32)
+    #     embedding = embedding.reshape(dataset["embedding_shape"][i])
+    #     print(embedding.shape)
+
+    # --- Hugging Face dataset -> PyTorch DataLoader ---
     # torch_dataset = CustomDataset(dataset)
-    # data_loader = DataLoader(torch_dataset, batch_size=64, shuffle=True)
+    # data_loader = DataLoader(torch_dataset, batch_size=32, shuffle=True)
     # for data in data_loader:
     #     print(data["embedding"].shape)
 

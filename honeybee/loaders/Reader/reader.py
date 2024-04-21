@@ -1,7 +1,10 @@
+import re
+
+import pytesseract
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from pdf2image import convert_from_path
+from PIL import Image
 from PyPDF2 import PdfReader
-import pytesseract
 
 
 class PDFreport:
@@ -13,12 +16,27 @@ class PDFreport:
         text = ""
         reader = PdfReader(pdf_file)
         for page in reader.pages:
-            text += page.extract_text()
+            try:
+                text += page.extract_text() or ""
+            except:
+                pass
 
-        if len(text) == 0:
+        if not text:
             images = convert_from_path(pdf_file)
             for image in images:
-                text += pytesseract.image_to_string(image)
+                # Pre-process image (e.g., grayscale conversion, resizing, thresholding)
+                processed_image = image.convert("L")
+                processed_image = processed_image.resize(
+                    tuple(2 * s for s in processed_image.size), Image.Resampling.LANCZOS
+                )
+                processed_image = processed_image.point(lambda p: p > 128 and 255)
+
+                text += pytesseract.image_to_string(processed_image)
+
+        # Clean up extracted text
+        text = re.sub(r"\s+", " ", text)
+        text = re.sub(r"\n+", "\n", text)
+        text = re.sub(r"[^a-zA-Z0-9\s.,;:!?\n-]", "", text)
 
         return text
 
