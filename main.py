@@ -138,7 +138,7 @@ def WSI_example():
                 slide_image_path,
                 tileSize=512,
                 max_patches=500,
-                visualize=False,
+                visualize=True,
                 tissue_detector=tissue_detector,
             )
             patches = slide.load_patches_concurrently(target_patch_size=224)
@@ -262,13 +262,13 @@ if __name__ == "__main__":
     print(f"\033c\n{'='*40}\n WSI Example \n{'='*40}")
     WSI_example()
 
-    print(f"\n{'='*40}\n RAD Example \n{'='*40}")
-    RAD_example()
+    # print(f"\n{'='*40}\n RAD Example \n{'='*40}")
+    # RAD_example()
 
-    print(f"\n{'='*40}\n Pathology Report Example \n{'='*40}")
-    PATHOLOGY_REPORT_example()
+    # print(f"\n{'='*40}\n Pathology Report Example \n{'='*40}")
+    # PATHOLOGY_REPORT_example()
 
-    print(f"\n{'='*40}\n Clinical Example \n{'='*40}")
-    CLINICAL_example()
+    # print(f"\n{'='*40}\n Clinical Example \n{'='*40}")
+    # CLINICAL_example()
 
-    print(f"\n{'='*40}\n All Done! \n{'='*40}")
+    # print(f"\n{'='*40}\n All Done! \n{'='*40}")

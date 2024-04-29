@@ -9,9 +9,12 @@ import torch
 from albumentations import Compose, Resize
 from cucim import CuImage
 from PIL import Image
-from skimage.transform import resize
 from torch.utils.data import Dataset
+from skimage.transform import resize
 
+import torch
+import torch.nn as nn
+from torchvision import models, transforms
 
 class WholeSlideImageDataset(Dataset):
     def __init__(self, slideClass, transform=None):
@@ -72,6 +75,8 @@ class Slide:
         # Visualize
         if visualize:
             self.visualize()
+
+        # TODO: Add annotation functionality
 
     def _select_level(self, max_patches):
         resolutions = self.img.resolutions
@@ -270,3 +275,39 @@ class Slide:
             f"{self.path_to_store_visualization}/{Path(self.slide_image_path).stem}.png",
             dpi=300,
         )
+
+
+
+# Temporarily here for testing
+# delete this code block
+class TissueDetector:
+    def __init__(self, model_path, device="cuda"):
+        self.device = torch.device(device)
+        self.model = self._load_model(model_path)
+        self.transforms = transforms.Compose(
+            [
+                transforms.Resize(224),
+                transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            ]
+        )
+
+    def _load_model(self, model_path):
+        model = models.densenet121(weights=None)
+        model.classifier = nn.Linear(1024, 3)
+        model.load_state_dict(torch.load(model_path, map_location=self.device))
+        return model.to(self.device).eval()
+
+
+if __name__ == "__main__":
+    slide_image_path = "/mnt/d/TCGA-LUAD/raw/TCGA-55-6986/Slide Image/b16d4f6b-a3ee-418e-8f0b-29810f239619/TCGA-55-6986-11A-01-TS1.60ad707f-6453-4765-acde-2dd13c14d172.svs"
+    tissue_detector_model_path = "/mnt/f/Projects/Multimodal-Transformer/models/deep-tissue-detector_densenet_state-dict.pt"
+    tissue_detector = TissueDetector(model_path=tissue_detector_model_path)
+
+    slide = Slide(
+        slide_image_path,
+        tileSize=512,
+        max_patches=500,
+        visualize=False,
+        tissue_detector=tissue_detector,
+    )

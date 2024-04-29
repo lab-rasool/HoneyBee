@@ -97,13 +97,23 @@ def PATHOLOGY_REPORT():
             report_texts.append(None)
             df.at[index, "embedding"] = None
 
+        # Ensure the writer is initialized with the correct schema
         if writer is None:
-            table = pa.Table.from_pandas(df.iloc[[index]])
+            schema = pa.Table.from_pandas(df.iloc[[index]]).schema
             writer = pq.ParquetWriter(
-                f"/mnt/d/TCGA-LUAD/parquet/{MODALITY}.parquet", table.schema
+                f"/mnt/d/TCGA-LUAD/parquet/{MODALITY}.parquet", schema
             )
-        else:
-            table = pa.Table.from_pandas(df.iloc[[index]])
+
+        table = pa.Table.from_pandas(df.iloc[[index]], schema=schema)
+        try:
+            writer.write_table(table)
+        except ValueError as e:
+            print(f"Schema mismatch error: {e}")
+            # Re-initialize writer with new schema if needed
+            schema = table.schema
+            writer = pq.ParquetWriter(
+                f"/mnt/d/TCGA-LUAD/parquet/{MODALITY}.parquet", schema
+            )
             writer.write_table(table)
 
     if writer is not None:
@@ -138,6 +148,7 @@ def WSI():
     for index, row in tqdm(df.iterrows(), total=len(df), desc="Processing"):
         try:
             slide_image_path = f"{DATA_DIR}/raw/{row['PatientID']}/{MODALITY}/{row['id']}/{row['file_name']}"
+            print(slide_image_path)
             slide = Slide(
                 slide_image_path,
                 tileSize=512,
@@ -186,9 +197,13 @@ def CT():
     MANIFEST_PATH = "/mnt/d/TCGA-LUAD/manifest.json"
     MODALITY = "CT"
     df = manifest_to_df(MANIFEST_PATH, MODALITY)
+    # Ensure the output directory exists
+    output_dir = "/mnt/d/TCGA-LUAD/parquet/"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     # --- CONFIGURATION ---
-    embedding_model_path = "/mnt/d/Models/REMEDIS/onnx/cxr-50x1-remedis-s.onnx"
+    embedding_model_path = "/mnt/d/Models/REMEDIS/onnx/cxr-50x1-remedis-m.onnx"
 
     # Define a consistent schema
     schema = pa.schema(
@@ -221,14 +236,14 @@ def CT():
         try:
             file_path = f"{DATA_DIR}/raw/{row['PatientID']}/{MODALITY}/{row['SeriesInstanceUID']}/{row['SeriesInstanceUID']}"
             scanner = Scan(file_path, modality="CT")
-            patches = scanner.load_patches(target_patch_size=224)
+            patches = scanner.load_patches(target_patch_size=448)
             embedding = REMEDIS.load_model_and_predict(embedding_model_path, patches)
             df.at[index, "embedding_shape"] = embedding.shape
             embedding = embedding.reshape(-1)
             embedding = embedding.tobytes()
             df.at[index, "embedding"] = embedding
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"\033[91mError: {e}\033[0m")
             df.at[index, "embedding"] = None
             scanner = None
             patches = None
@@ -241,11 +256,8 @@ def CT():
                 f"/mnt/d/TCGA-LUAD/parquet/{MODALITY}.parquet", schema
             )
         else:
-            try:
-                table = pa.Table.from_pandas(df.iloc[[index]], schema=schema)
-                writer.write_table(table)
-            except Exception as e:
-                print(f"Error writing to Parquet: {e}")
+            table = pa.Table.from_pandas(df.iloc[[index]], schema=schema)
+            writer.write_table(table)
 
         # --- CLEANUP ---
         del scanner, patches, embedding, table
@@ -414,14 +426,21 @@ def CLINICAL_example():
         "/mnt/d/TCGA-LUAD/parquet/Clinical Data.parquet", index=False
     )
 
+    dataset = datasets.load_dataset(
+        "parquet",
+        data_files="/mnt/d/TCGA-LUAD/parquet/Clinical Data.parquet",
+        split="train",
+    )
+    dataset.save_to_disk("/mnt/d/TCGA-LUAD/hf_dataset/Clinical Data")
+
 
 def main():
     # MODALITY = "Pathology Report"
     # MODALITY = "Slide Image"
     # PATHOLOGY_REPORT()
     # WSI()
-    # CT()
-    # uni_wsi()
+    CT()
+    uni_wsi()
     CLINICAL_example()
 
     # --- LOAD THE DATASET FROM HUGGING FACE ---
