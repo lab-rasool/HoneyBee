@@ -24,7 +24,6 @@ class UNI:
         # convert patches from ndarray to torch.Tensor
         patches = torch.tensor(patches, dtype=torch.float32)
         patches = patches.permute(0, 3, 1, 2)
-        print(patches.shape)
 
         # use patches as input
         # patches should be a torch.Tensor with shape [batch_size, 3, 224, 224]
