@@ -5,8 +5,6 @@
 
 __pycache__
 
-data.json
-
 *.h5
 *.parquet
 *.svs
@@ -14,8 +12,4 @@ data.json
 
 /data
 /cache
-/examples/visualizations
-/pg_essay_deeplake
-/hf_dataset
-/placeholder
-/tiles
+/visualizations
