@@ -9,12 +9,9 @@ import torch
 from albumentations import Compose, Resize
 from cucim import CuImage
 from PIL import Image
-from torch.utils.data import Dataset
 from skimage.transform import resize
+from torch.utils.data import Dataset
 
-import torch
-import torch.nn as nn
-from torchvision import models, transforms
 
 class WholeSlideImageDataset(Dataset):
     def __init__(self, slideClass, transform=None):
@@ -42,7 +39,9 @@ class Slide:
         visualize=False,
         tissue_detector=None,
         path_to_store_visualization="./visualizations",
+        verbose=False,
     ):
+        self.verbose = verbose
         self.slide_image_path = slide_image_path
         self.tileSize = tileSize
         self.tileOverlap = round(tileOverlap * tileSize)
@@ -53,16 +52,20 @@ class Slide:
         self.img = CuImage(slide_image_path)
         self.path_to_store_visualization = path_to_store_visualization
 
+        self.slideFileName = Path(slide_image_path).stem
+        self.slideFilePath = Path(slide_image_path)
+
         # Select the level with the most suitable number of patches
-        selected_level = self._select_level(max_patches)
+        self.selected_level = self._select_level(max_patches)
 
         # Read the slide at the selected level
-        self.slide = self.img.read_region(location=[0, 0], level=selected_level)
+        self.slide = self.img.read_region(location=[0, 0], level=self.selected_level)
         self.slide.height = int(self.slide.metadata["cucim"]["shape"][0])
         self.slide.width = int(self.slide.metadata["cucim"]["shape"][1])
-        print(
-            f"Selected level {selected_level} with dimensions: {self.slide.height}x{self.slide.width}"
-        )
+        if self.verbose:
+            print(
+                f"Selected level {self.selected_level} with dimensions: {self.slide.height}x{self.slide.width}"
+            )
 
         # Generate tile dictionary
         self.numTilesInX = self.slide.width // (self.tileSize - self.tileOverlap)
@@ -82,16 +85,18 @@ class Slide:
         resolutions = self.img.resolutions
         level_dimensions = resolutions["level_dimensions"]
         level_count = resolutions["level_count"]
-        print(f"Resolutions: {resolutions}")
+        if self.verbose:
+            print(f"Resolutions: {resolutions}")
 
         selected_level = 0
         for level in range(level_count):
             width, height = level_dimensions[level]
             numTilesInX = width // self.tileSize
             numTilesInY = height // self.tileSize
-            print(
-                f"Level {level}: {numTilesInX}x{numTilesInY} ({numTilesInX*numTilesInY}) \t Resolution: {width}x{height}"
-            )
+            if self.verbose:
+                print(
+                    f"Level {level}: {numTilesInX}x{numTilesInY} ({numTilesInX*numTilesInY}) \t Resolution: {width}x{height}"
+                )
             if numTilesInX * numTilesInY <= max_patches:
                 selected_level = level
                 break
@@ -275,39 +280,3 @@ class Slide:
             f"{self.path_to_store_visualization}/{Path(self.slide_image_path).stem}.png",
             dpi=300,
         )
-
-
-
-# Temporarily here for testing
-# delete this code block
-class TissueDetector:
-    def __init__(self, model_path, device="cuda"):
-        self.device = torch.device(device)
-        self.model = self._load_model(model_path)
-        self.transforms = transforms.Compose(
-            [
-                transforms.Resize(224),
-                transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-            ]
-        )
-
-    def _load_model(self, model_path):
-        model = models.densenet121(weights=None)
-        model.classifier = nn.Linear(1024, 3)
-        model.load_state_dict(torch.load(model_path, map_location=self.device))
-        return model.to(self.device).eval()
-
-
-if __name__ == "__main__":
-    slide_image_path = "/mnt/d/TCGA-LUAD/raw/TCGA-55-6986/Slide Image/b16d4f6b-a3ee-418e-8f0b-29810f239619/TCGA-55-6986-11A-01-TS1.60ad707f-6453-4765-acde-2dd13c14d172.svs"
-    tissue_detector_model_path = "/mnt/f/Projects/Multimodal-Transformer/models/deep-tissue-detector_densenet_state-dict.pt"
-    tissue_detector = TissueDetector(model_path=tissue_detector_model_path)
-
-    slide = Slide(
-        slide_image_path,
-        tileSize=512,
-        max_patches=500,
-        visualize=False,
-        tissue_detector=tissue_detector,
-    )

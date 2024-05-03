@@ -12,7 +12,7 @@ import pyarrow.parquet as pq
 import torch
 import torch.nn.functional as F
 from dotenv import load_dotenv
-from huggingface_hub import HfApi, HfFolder
+from huggingface_hub import HfApi, HfFolder, login
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
@@ -193,8 +193,8 @@ def WSI():
 
 def CT():
     # --- THIS CAN BE IGNORED ---
-    DATA_DIR = "/mnt/d/TCGA-LUAD"
-    MANIFEST_PATH = "/mnt/d/TCGA-LUAD/manifest.json"
+    DATA_DIR = "/mnt/d/TCGA/raw/TCGA-LUAD"
+    MANIFEST_PATH = "/mnt/d/TCGA/raw/TCGA-LUAD/manifest.json"
     MODALITY = "CT"
     df = manifest_to_df(MANIFEST_PATH, MODALITY)
     # Ensure the output directory exists
@@ -386,7 +386,7 @@ def uni_wsi():
         data_files="/mnt/d/TCGA-LUAD/parquet/uni_Slide Image.parquet",
         split="train",
     )
-    dataset.save_to_disk("/mnt/d/TCGA-LUAD/parquet/uni_Slide Image")
+    dataset.save_to_disk("/mnt/d/TCGA-LUAD/hf_dataset/uni_Slide Image")
 
 
 def CLINICAL_example():
@@ -439,19 +439,32 @@ def main():
     # MODALITY = "Slide Image"
     # PATHOLOGY_REPORT()
     # WSI()
-    CT()
-    uni_wsi()
-    CLINICAL_example()
+    # CT()
+    # uni_wsi()
+    # CLINICAL_example()
+    pass
+
+    # api = HfApi()
+    # api.upload_folder(
+    #     folder_path="/mnt/d/TCGA-LUAD/parquet/",
+    #     repo_id="aakashtripathi/TCGA-LUAD",
+    #     repo_type="dataset",
+    #     multi_commits=True,
+    #     multi_commits_verbose=True,
+    # )
+
+    # # --- LOAD THE DATASET FROM HUGGING FACE ---
+    # dataset = datasets.load_dataset(
+    #     "aakashtripathi/TCGA-LUAD", "pathology_report", split="train"
+    # )
+    # print(dataset)
 
     # --- LOAD THE DATASET FROM HUGGING FACE ---
-    # dataset = datasets.load_from_disk(f"hf_dataset/{MODALITY}")
+    # dataset = datasets.load_from_disk("/mnt/d/TCGA-LUAD/hf_dataset/Slide Image")
+
     # dataset = datasets.load_dataset(
     #     "parquet",
     #     data_files=f"data/parquet/{MODALITY}.parquet",
-    #     split="train",
-    # )
-    # dataset = datasets.load_dataset(
-    #     "Aakash-Tripathi/luad",
     #     split="train",
     # )
 
@@ -472,7 +485,7 @@ def main():
     #     print(embedding.shape)
 
     # # --- Hugging Face dataset directly ---
-    # for i in range(3):
+    # for i in range(10):
     #     embedding = np.frombuffer(dataset["embedding"][i], dtype=np.float32)
     #     embedding = embedding.reshape(dataset["embedding_shape"][i])
     #     print(embedding.shape)
