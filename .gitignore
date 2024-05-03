@@ -9,6 +9,8 @@ data.json
 
 *.h5
 *.parquet
+*.svs
+*.xml
 
 /data
 /cache
@@ -16,3 +18,4 @@ data.json
 /pg_essay_deeplake
 /hf_dataset
 /placeholder
+/tiles
