@@ -14,3 +14,7 @@ __pycache__
 /cache
 /visualizations
 /results
+/logs
+
+/examples/bert-base-uncased-tcga
+/examples/gatortron-base-tcga
