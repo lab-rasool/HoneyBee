@@ -19,3 +19,17 @@ Additionally, it includes the following Sentence Transformer style embeddings fu
 1. REMEDIS Radiology
 1. [SeNMo]()
 
+## Citation
+
+If you use this code, please cite the following paper:
+
+```
+@article{honeybee,
+      title={HoneyBee: A Scalable Modular Framework for Creating Multimodal Oncology Datasets with Foundational Embedding Models}, 
+      author={Aakash Tripathi and Asim Waqas and Yasin Yilmaz and Ghulam Rasool},
+      year={2024},
+      eprint={2405.07460},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG}
+}
+```
