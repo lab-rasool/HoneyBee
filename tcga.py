@@ -246,9 +246,7 @@ def generate_slide_embeddings():
     MODALITY = "Slide Image"
     PARQUET = f"/mnt/d/TCGA/parquet/{MODALITY} (UNI).parquet"
     HE_DETECTOR_PATH = "/mnt/f/Projects/Multimodal-Transformer/models/deep-tissue-detector_densenet_state-dict.pt"
-    EMBEDDING_MODEL_PATH = (
-        "/mnt/d/ckpts/vit_large_patch16_224.dinov2.uni_mass100k/pytorch_model.bin"
-    )
+    EMBEDDING_MODEL_PATH = "/mnt/d/Models/pytorch_model.bin"
 
     df = manifest_to_df(MANIFEST_PATH, MODALITY)
     tissue_detector = TissueDetector(model_path=HE_DETECTOR_PATH)
@@ -334,17 +332,15 @@ def convert_parquet_to_dataset():
 
 
 def process_all_slide_images():
-    HE_DETECTOR_PATH = "/mnt/f/Projects/Multimodal-Transformer/models/deep-tissue-detector_densenet_state-dict.pt"
-    EMBEDDING_MODEL_PATH = (
-        "/mnt/d/ckpts/vit_large_patch16_224.dinov2.uni_mass100k/pytorch_model.bin"
-    )
+    HE_DETECTOR_PATH = "/mnt/d/Models/TissueDetector/HnE.pt"
+    EMBEDDING_MODEL_PATH = "/mnt/d/Models/UNI/pytorch_model.bin"
     MODALITY = "Slide Image"
 
     for PROJECT in tqdm(PROJECTS, desc="Projects", total=len(PROJECTS), leave=False):
         DATA_DIR = f"/mnt/d/TCGA-slides/raw/{PROJECT}"
         os.makedirs(DATA_DIR, exist_ok=True)
         MANIFEST_PATH = DATA_DIR + "/manifest.json"
-        PARQUET = f"/mnt/d/TCGA/parquet/{MODALITY} (UNI).parquet"
+        PARQUET = f"/mnt/d/TCGA/parquet/{PROJECT} {MODALITY} (UNI).parquet"
 
         # ---------------------------------------------------------------------
         # DOWNLOAD THE SLIDE IMAGES
@@ -353,9 +349,10 @@ def process_all_slide_images():
         query_cohort = minds.build_cohort(
             query=query,
             output_dir=DATA_DIR,
+            manifest=MANIFEST_PATH if os.path.exists(MANIFEST_PATH) else None,
         )
         query_cohort.stats()
-        query_cohort.download(threads=12, include=["Slide Image"])
+        query_cohort.download(threads=4, include=["Slide Image"])
 
         # ---------------------------------------------------------------------
         # GENERATE EMBEDDINGS FOR SLIDE IMAGES USING UNI
@@ -426,7 +423,7 @@ def process_all_slide_images():
         # ---------------------------------------------------------------------
         # DELETE THE RAW DATA
         # ---------------------------------------------------------------------
-        os.system(f"rm -rf {DATA_DIR}")
+        os.system(f"rm -rf {DATA_DIR}/raw/")
         gc.collect()
 
 
