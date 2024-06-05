@@ -432,8 +432,18 @@ if __name__ == "__main__":
     # generate_clinical_embeddings()
     # generate_slide_embeddings()
     # convert_parquet_to_dataset()
+    # process_all_slide_images()
 
-    process_all_slide_images()
+    tcga_query = """SELECT * FROM minds.clinical WHERE project_id LIKE '%%TCGA-%%'"""
+    print(tcga_query)
+    tcga_cohort = minds.build_cohort(
+        query=tcga_query,
+        output_dir="/mnt/d/allTCGA",
+        manifest="/mnt/d/allTCGA/manifest.json"
+        if os.path.exists("/mnt/d/allTCGA/manifest.json")
+        else None,
+    )
+    tcga_cohort.stats()
 
     # api = HfApi(token=os.getenv("HF_API_KEY"))
     # api.upload_folder(
