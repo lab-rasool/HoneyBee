@@ -434,24 +434,25 @@ if __name__ == "__main__":
     # convert_parquet_to_dataset()
     # process_all_slide_images()
 
-    tcga_query = """SELECT * FROM minds.clinical WHERE project_id LIKE '%%TCGA-%%'"""
-    print(tcga_query)
-    tcga_cohort = minds.build_cohort(
-        query=tcga_query,
-        output_dir="/mnt/d/allTCGA",
-        manifest="/mnt/d/allTCGA/manifest.json"
-        if os.path.exists("/mnt/d/allTCGA/manifest.json")
-        else None,
-    )
-    tcga_cohort.stats()
-
-    # api = HfApi(token=os.getenv("HF_API_KEY"))
-    # api.upload_folder(
-    #     folder_path="/mnt/d/TCGA/parquet/",
-    #     repo_id="Lab-Rasool/TCGA",
-    #     repo_type="dataset",
-    #     multi_commits=True,
-    #     multi_commits_verbose=True,
+    # tcga_query = """SELECT * FROM minds.clinical WHERE project_id LIKE '%%TCGA-%%'"""
+    # print(tcga_query)
+    # tcga_cohort = minds.build_cohort(
+    #     query=tcga_query,
+    #     output_dir="/mnt/d/allTCGA",
+    #     manifest="/mnt/d/allTCGA/manifest.json"
+    #     if os.path.exists("/mnt/d/allTCGA/manifest.json")
+    #     else None,
     # )
+    # tcga_cohort.stats()
+
+    api = HfApi(token=os.getenv("HF_API_KEY"))
+    api.upload_folder(
+        folder_path="/mnt/d/TCGA/parquet/Radiology (REMEDIS)",
+        path_in_repo="Radiology (REMEDIS)",
+        repo_id="Lab-Rasool/TCGA",
+        repo_type="dataset",
+        multi_commits=True,
+        multi_commits_verbose=True,
+    )
     # dataset = load_dataset("Lab-Rasool/TCGA", "slide_image", split="train")
     # print(dataset)

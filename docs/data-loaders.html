@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="HoneyBee - Data Loaders">
+    <title>HoneyBee - Data Loaders</title>
+    <link rel="stylesheet" href="./assets/css/styles.css">
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container">
+            <div class="top-bar-content">
+                <a href="index.html" class="logo-button">
+                    <img src="assets/HoneyBee.png" alt="HoneyBee Logo" class="logo-image">
+                    <span class="logo-text">HoneyBee</span>
+                </a>
+                <nav class="navbar" role="navigation" aria-label="Main navigation">
+                    <ul>
+                        <li><a href="data-loaders.html">Data Loaders</a></li>
+                        <li><a href="embedding-models.html">Embedding Models</a></li>
+                        <li><a href="datasets.html">Datasets</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                        <li><a href="https://github.com/lab-rasool/HoneyBee">GitHub</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>    
+
+    <main>
+        <div class="container">
+            <section id="loaders">
+                <h2>Data Loaders</h2>
+                <p>HoneyBee integrates multiple data modalities for oncology research, including clinical records, pathology imaging, and molecular data. The framework utilizes data loaders to streamline the preprocessing and analysis of these diverse data types.</p>
+                <ul class="tabs">
+                    <li><a href="#pdf-reader">PDF Reader</a></li>
+                    <li><a href="#wsi-reader">Whole Slide Image Reader</a></li>
+                    <li><a href="#dicom-reader">DICOM Reader</a></li>
+                </ul>
+
+                <div id="pdf-reader" class="tab-pane active">
+                    <h3>PDF Reader</h3>
+                    <p>The PDF reader in HoneyBee is designed to extract and preprocess text data from medical reports and clinical notes, ensuring the data is ready for analysis.</p>
+                    <pre><code class="language-python">
+from honeybee import PDFLoader
+
+pdf_loader = PDFLoader(file_path="path_to_pdf.pdf")
+document = pdf_loader.load()
+                    </code></pre>
+                </div>
+
+                <div id="wsi-reader" class="tab-pane">
+                    <h3>Whole Slide Image Reader</h3>
+                    <p>The WSI reader processes histopathology slides, normalizes stain colors, and extracts tissue segments for further analysis.</p>
+                    <pre><code class="language-python">
+from honeybee import WSI_Dataloader
+
+wsi_loader = WSI_Dataloader(file_path="path_to_wsi.svs")
+wsi = wsi_loader.load()
+                    </code></pre>
+                </div>
+
+                <div id="dicom-reader" class="tab-pane">
+                    <h3>DICOM Reader</h3>
+                    <p>The DICOM reader is essential for handling radiology images, such as CT, MRI, and PET scans, standardizing them for machine learning tasks.</p>
+                    <pre><code class="language-python">
+from honeybee import DICOMLoader
+
+dicom_loader = DICOMLoader(file_path="path_to_dicom.dcm")
+dicom_data = dicom_loader.load()
+                    </code></pre>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="footer-section">
+        <div class="container">
+            <p>&copy; 2024 HoneyBee Project</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="HoneyBee - Embedding Models">
+    <title>HoneyBee - Embedding Models</title>
+    <link rel="stylesheet" href="./assets/css/styles.css">
+</head>
+<body>
+    <div class="top-bar">
+        <div class="container">
+            <div class="top-bar-content">
+                <a href="index.html" class="logo-button">
+                    <img src="assets/HoneyBee.png" alt="HoneyBee Logo" class="logo-image">
+                    <span class="logo-text">HoneyBee</span>
+                </a>
+                <nav class="navbar" role="navigation" aria-label="Main navigation">
+                    <ul>
+                        <li><a href="data-loaders.html">Data Loaders</a></li>
+                        <li><a href="embedding-models.html">Embedding Models</a></li>
+                        <li><a href="datasets.html">Datasets</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                        <li><a href="https://github.com/lab-rasool/HoneyBee">GitHub</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>    
+
+    <main>
+        <div class="container">
+            <section id="embeddings">
+                <h2>Embedding Models</h2>
+                <p>HoneyBee employs state-of-the-art embedding models to transform raw medical data into feature-rich vectors that can be used in various machine learning applications.</p>
+                <ul class="tabs">
+                    <li><a href="#wsi-embeddings">Whole Slide Image Embeddings</a></li>
+                    <li><a href="#dicom-embeddings">DICOM Embeddings</a></li>
+                </ul>
+
+                <div id="wsi-embeddings" class="tab-pane active">
+                    <h3>Whole Slide Image Embeddings</h3>
+                    <p>The TissueDetector and UNI models are used to generate embeddings from WSIs, capturing key visual features critical for oncology research.</p>
+                    <pre><code class="language-python">
+from honeybee import TissueDetector, UNI, Slide
+
+tissue_detector = TissueDetector(model_path="path_to_tissue_detector.pt")
+slide = Slide("path_to_wsi.svs", tileSize=512, max_patches=100, visualize=False, tissue_detector=tissue_detector)
+patches = slide.load_patches_concurrently(target_patch_size=224)
+
+uni = UNI()
+embeddings = uni.load_model_and_predict("path_to_embedding_model.bin", patches)
+                    </code></pre>
+                </div>
+
+                <div id="dicom-embeddings" class="tab-pane">
+                    <h3>DICOM Embeddings</h3>
+                    <p>REMEDIS and other models are used to generate embeddings from DICOM files, capturing spatial features and structural information from radiology scans.</p>
+                    <pre><code class="language-python">
+from honeybee import DICOMLoader, EmbeddingGenerator
+
+dicom_loader = DICOMLoader(file_path="path_to_dicom.dcm")
+dicom_data = dicom_loader.load()
+
+embedding_generator = EmbeddingGenerator(model_name="Model_for_DICOM")
+embeddings = embedding_generator.generate(dicom_data)
+                    </code></pre>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="footer-section">
+        <div class="container">
+            <p>&copy; 2024 HoneyBee Project</p>
+        </div>
+    </footer>
+</body>
+</html>

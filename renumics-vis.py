@@ -1,39 +1,72 @@
+import datasets
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
+import torch
+from cuml.manifold.umap import UMAP
+from datasets import load_dataset
 from renumics import spotlight
+from transformers import AutoModel, ViTImageProcessor
 
 
-def average_pool_embeddings(embedding, shape):
-    """Average pool the embeddings across vectors to reduce each
-    to a single 1024-dimensional vector."""
-    embedding = embedding.reshape(shape)
-    return np.mean(embedding, axis=0)
+def extract_embeddings(model, feature_extractor, image_name="image"):
+    """Utility to compute embeddings."""
+    device = model.device
+
+    def pp(batch):
+        images = batch["image"]
+        inputs = feature_extractor(images=images, return_tensors="pt").to(device)
+        embeddings = model(**inputs).last_hidden_state[:, 0].cpu()
+
+        return {"embedding": embeddings}
+
+    return pp
 
 
-# Load the parquet file
-parquet_file = pq.ParquetFile("/mnt/d/TCGA-LUAD/parquet/uni_Slide Image.parquet")
+def huggingface_embedding(
+    df,
+    image_name="image",
+    inplace=False,
+    modelname="google/vit-base-patch16-224",
+    batched=True,
+    batch_size=24,
+):
+    feature_extractor = ViTImageProcessor.from_pretrained(modelname, do_normalize=True)
 
-# Container for processed DataFrames
-processed_batches = []
+    model = AutoModel.from_pretrained(modelname, output_hidden_states=True)
 
-# Process each batch
-for batch in parquet_file.iter_batches(
-    batch_size=100
-):  # Adjust batch_size based on memory capacity
-    batch_df = batch.to_pandas()
-    # Reshape and pool embeddings
-    batch_df["embedding"] = batch_df.apply(
-        lambda row: average_pool_embeddings(
-            np.frombuffer(row["embedding"], dtype=np.float32), row["embedding_shape"]
-        ),
-        axis=1,
-    )
-    # Append processed batch to the list
-    processed_batches.append(batch_df)
+    # create huggingface dataset from df
+    dataset = datasets.Dataset.from_pandas(df).cast_column(image_name, datasets.Image())
 
-# Concatenate all processed batches into a single DataFrame
-df = pd.concat(processed_batches, ignore_index=True)
+    # compute embedding
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    extract_fn = extract_embeddings(model.to(device), feature_extractor, image_name)
+    updated_dataset = dataset.map(extract_fn, batched=batched, batch_size=batch_size)
 
-# Use Spotlight to show the DataFrame
-spotlight.show(df, dtype={"embedding": spotlight.Embedding})
+    df_temp = updated_dataset.to_pandas()
+
+    if inplace:
+        df["embedding"] = df_temp["embedding"]
+        return
+
+    df_emb = pd.DataFrame()
+    df_emb["embedding"] = df_temp["embedding"]
+
+    return df_emb
+
+
+dataset = load_dataset("marmal88/skin_cancer", split="train")
+df = dataset.to_pandas()
+df_emb = huggingface_embedding(df, modelname="google/vit-base-patch16-224")
+df = pd.concat([df, df_emb], axis=1)
+
+embeddings = np.stack(df["embedding"].to_numpy())
+
+reducer = UMAP()
+reduced_embedding = reducer.fit_transform(embeddings)
+
+df["embedding_reduced"] = np.array(reduced_embedding).tolist()
+
+spotlight.show(
+    df,
+    dtype={"image": spotlight.Image, "embedding_reduced": spotlight.Embedding},
+)

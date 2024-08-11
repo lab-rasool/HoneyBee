@@ -5,9 +5,8 @@ from skimage.transform import resize
 
 
 class Scan:
-    def __init__(self, path, modality):
+    def __init__(self, path):
         self.path = path
-        self.modality = modality
 
     def prepare_volume_or_image(self, vol, target_size=(224, 224)):
         # Normalize the volume or image first
@@ -33,9 +32,7 @@ class Scan:
     def load_patches(self, target_patch_size):
         print(f"Loading patches from {self.path}")
         im_read = iio.imread(self.path, plugin="DICOM")
-        print(
-            f"Loaded {self.modality} with shape {im_read.shape} and {im_read.ndim} dimensions"
-        )
+        print(f"Loaded with shape {im_read.shape} and {im_read.ndim} dimensions")
         patches = self.prepare_volume_or_image(
             im_read, target_size=(target_patch_size, target_patch_size)
         )
