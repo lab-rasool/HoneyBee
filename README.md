@@ -1,6 +1,6 @@
 # HoneyBee
 
-<img src="docs\assets\HoneyBee.png" width="280px" align="right"/>
+<img src="docs\assets\images\HoneyBee.png" width="280px" align="right"/>
 
 Harmonized Oncology Network Enhancing Yield through Big Data Exploration and Evaluation (HONEYBEE) aims to provide a platform for the development of AI models for oncology. Including tools for medical data loading, embedding generation, huggingface instruction tuning dataset creation, and advanced RAG support. The current version includes the following dataloaders:
 
