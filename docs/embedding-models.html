@@ -6,6 +6,7 @@
     <meta name="description" content="HoneyBee - Embedding Models">
     <title>HoneyBee - Embedding Models</title>
     <link rel="stylesheet" href="./assets/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism-okaidia.min.css">
 </head>
 <body>
     <header class="header">
@@ -49,7 +50,7 @@
                     <li><a href="#dicom-embeddings">DICOM Embeddings</a></li>
                 </ul>
 
-                <div id="wsi-embeddings" class="tab-pane active">
+                <div id="wsi-embeddings" class="tab-pane">
                     <h3>Whole Slide Image Embeddings</h3>
                     <p>The TissueDetector and UNI models are used to generate embeddings from WSIs, capturing key visual features critical for oncology research.</p>
                     <pre><code class="language-python">
@@ -86,7 +87,8 @@ embeddings = embedding_generator.generate(dicom_data)
             <p>&copy; 2024 HoneyBee Project</p>
         </div>
     </footer>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/plugins/autoloader/prism-autoloader.min.js"></script>
     <script src="./assets/js/scripts.js"></script>
 </body>
 </html>

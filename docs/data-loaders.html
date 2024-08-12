@@ -6,6 +6,7 @@
     <meta name="description" content="HoneyBee - Data Loaders">
     <title>HoneyBee - Data Loaders</title>
     <link rel="stylesheet" href="./assets/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism-okaidia.min.css">
 </head>
 <body>
     <header class="header">
@@ -50,7 +51,7 @@
                     <li><a href="#dicom-reader">DICOM Reader</a></li>
                 </ul>
 
-                <div id="pdf-reader" class="tab-pane active">
+                <div id="pdf-reader" class="tab-pane">
                     <h3>PDF Reader</h3>
                     <p>The PDF reader in HoneyBee is designed to extract and preprocess text data from medical reports and clinical notes, ensuring the data is ready for analysis.</p>
                     <pre><code class="language-python">
@@ -92,6 +93,9 @@ dicom_data = dicom_loader.load()
         </div>
     </footer>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/plugins/autoloader/prism-autoloader.min.js"></script>
     <script src="./assets/js/scripts.js"></script>
+    
 </body>
 </html>

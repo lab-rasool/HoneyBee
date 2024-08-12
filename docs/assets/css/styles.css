@@ -1,10 +1,10 @@
 General Styling
 :root {
-    --primary-color: #4CAF50;
+    --primary-color: #2C3E50;
     --secondary-color: #282c34;
-    --accent-color: #FFD700;
+    --accent-color: #E74C3C;
     --text-color: #000000;
-    --background-color: rgb(255, 255, 255);
+    --background-color: #ECF0F1;
 }
 
 body {
@@ -16,11 +16,18 @@ body {
     line-height: 1.6;
 }
 
-
 .container {
-    width: 85%;
+    width: 90%;
     margin: auto;
     max-width: 1200px;
+}
+
+/* Header and Navigation */
+.header {
+    background-color: var(--secondary-color);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
 }
 
 /* Sticky Top Bar and Navbar */
@@ -122,6 +129,46 @@ body {
     .navbar a:first-child {
         border-top: none;
     }
+}
+
+/* Code Examples Page Styles */
+.tab-pane {
+    padding-top: 80px; /* To account for the fixed header */
+}
+
+.tab-pane h1 {
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.tab-pane {
+    margin-bottom: 3rem;
+    background-color: var(--light-gray);
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.tab-pane h2 {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+}
+
+.tab-pane p {
+    margin-bottom: 1rem;
+}
+
+pre[class*="language-"] {
+    margin: 0;
+    padding: 1.5rem;
+    border-radius: 5px;
+}
+
+code[class*="language-"] {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.9rem;
 }
 
 /* Hero Section */
@@ -323,6 +370,22 @@ a {
     
     .hamburger.active .bar:nth-child(3) {
         transform: translateY(-8px) rotate(-45deg);
+    }
+
+    .tab-pane h1 {
+        font-size: 2rem;
+    }
+
+    .tab-pane h2 {
+        font-size: 1.5rem;
+    }
+
+    pre[class*="language-"] {
+        padding: 1rem;
+    }
+
+    code[class*="language-"] {
+        font-size: 0.8rem;
     }
     
 }
