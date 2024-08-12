@@ -1,34 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="description" content="HoneyBee - A comprehensive medical data processing suite with data loaders and embedding models.">
-        <title>HoneyBee - Medical Data Processing Suite</title>
-        <link rel="stylesheet" href="./assets/css/styles.css">
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    </head>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="HoneyBee - A comprehensive medical data processing suite with data loaders and embedding models.">
+    <title>HoneyBee - Medical Data Processing Suite</title>
+    <link rel="stylesheet" href="./assets/css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
 <body>
-    <header class="top-bar">
-        <div class="container">
-            <div class="top-bar-content">
-                <a href="index.html" class="logo-button">
-                    <img src="assets/HoneyBee.png" alt="HoneyBee Logo" class="logo-image">
-                    <span class="logo-text">HoneyBee</span>
-                </a>
-                <nav class="navbar" role="navigation" aria-label="Main navigation">
-                    <button id="hamburger" class="hamburger">&#9776;</button>
-                    <ul id="nav-links">
-                        <li><a href="data-loaders.html">Data Loaders</a></li>
-                        <li><a href="embedding-models.html">Embedding Models</a></li>
-                        <li><a href="datasets.html">Datasets</a></li>
-                        <li><a href="contact.html">Contact</a></li>
-                        <li><a href="https://github.com/lab-rasool/HoneyBee">GitHub</a></li>
-                    </ul>
-                </nav>
+    <header class="header">
+        <nav class="navbar">
+            <a href="index.html" class="nav-logo">
+                <img src="assets/HoneyBee.png" alt="HoneyBee Logo" class="logo-image">
+                <span class="logo-text">HoneyBee</span>
+            </a>
+            <ul class="nav-menu" id="myLinks">
+                <li class="nav-item">
+                    <a href="data-loaders.html" class="nav-link">Data Loaders</a>
+                </li>
+                <li class="nav-item">
+                    <a href="embedding-models.html" class="nav-link">Embedding Models</a>
+                </li>
+                <li class="nav-item">
+                    <a href="datasets.html" class="nav-link">Datasets</a>
+                </li>
+                <li class="nav-item">
+                    <a href="contact.html" class="nav-link">Contact</a>
+                </li>
+                <li class="nav-item">
+                    <a href="https://github.com/lab-rasool/HoneyBee" class="nav-link">GitHub</a>
+                </li>
+            </ul>
+            <div class="hamburger">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
             </div>
-        </div>
+        </nav>
     </header>
+    
 
     <main>
         <div class="hero-section">
@@ -57,6 +69,6 @@
         </div>
     </footer>
 
-    <script src="./assets/js/scripts.js"></script>
+    <script>src=".assets/js/scripts.js"</script>
 </body>
 </html>
