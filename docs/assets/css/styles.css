@@ -51,17 +51,16 @@ body {
     color: var(--text-color);
 }
 .logo-image {
-    width: 80px;
-    height: 80px;
+    width: 50px;
+    height: 50px;
     margin-right: 10px;
     display: inline-block;
     vertical-align: middle;
 }
 .logo-text {
-    font-size: 2.0rem;
+    font-size: 1.5rem;
     font-weight: 700;
-    line-height: 80px;
-    color: var(--background-color);
+    margin-left: 10px;
 }
 .navbar {
     overflow: auto;
