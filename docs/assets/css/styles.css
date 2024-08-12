@@ -3,8 +3,8 @@ General Styling
     --primary-color: #4CAF50;
     --secondary-color: #282c34;
     --accent-color: #FFD700;
-    --text-color: #333;
-    --background-color: #f9f9f9;
+    --text-color: #000000;
+    --background-color: rgb(255, 255, 255);
 }
 
 body {
@@ -232,21 +232,18 @@ a {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1rem 1.5rem;
 }
 
 .hamburger {
     display: none;
 }
-
 .bar {
     display: block;
-    width: 25px;
+    width: 100%;
     height: 3px;
     margin: 5px auto;
-    -webkit-transition: all 0.3s ease-in-out;
     transition: all 0.3s ease-in-out;
-    background-color: #101010;
+    background-color: #ffffff; /* Ensure the bars are visible */
 }
 
 .nav-menu {
@@ -268,20 +265,19 @@ a {
 @media only screen and (max-width: 768px) {
     .nav-menu {
         position: fixed;
-        left: -100%;
-        top: 5rem;
+        left: 100%;
+        top: 3rem;
         flex-direction: column;
-        background-color: #fff;
         width: 100%;
         border-radius: 10px;
         text-align: center;
         transition: 0.3s;
-        box-shadow:
-            0 10px 27px rgba(0, 0, 0, 0.05);
+        background-color: #333;
     }
 
     .nav-menu.active {
         left: 0;
+        background-color: #000 !important; /* Set background color to black when active */
     }
 
     .nav-item {
@@ -290,20 +286,43 @@ a {
 
     .hamburger {
         display: block;
+        width: 30px;
+        height: 30px;
         cursor: pointer;
+        position: relative;
+        z-index: 1000;
+        background-color: #333; /* Default background color */
+        padding: 5px;
+        border-radius: 5px;
     }
-
+    
+    .hamburger.active {
+        background-color: #000; /* Force background to black when active */
+    }
+    
+    .hamburger.active .bar {
+        background-color: #fff;
+    }
+    
+    .bar {
+        display: block;
+        width: 100%;
+        height: 3px;
+        margin: 5px auto;
+        transition: all 0.3s ease-in-out;
+        background-color: #ffffff;
+    }
+    
     .hamburger.active .bar:nth-child(2) {
         opacity: 0;
     }
-
+    
     .hamburger.active .bar:nth-child(1) {
-        -webkit-transform: translateY(8px) rotate(45deg);
         transform: translateY(8px) rotate(45deg);
     }
-
+    
     .hamburger.active .bar:nth-child(3) {
-        -webkit-transform: translateY(-8px) rotate(-45deg);
         transform: translateY(-8px) rotate(-45deg);
     }
+    
 }

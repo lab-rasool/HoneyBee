@@ -46,7 +46,6 @@
             <div class="container">
                 <h1>Welcome to HoneyBee</h1>
                 <p>A scalable modular framework for building multimodal oncology datasets</p>
-                <!-- Replace the "Learn More" button with three new buttons -->
                 <a href="https://arxiv.org/abs/2405.07460" class="cta-button">ArXiv</a>
                 <a href="https://github.com/lab-rasool/HoneyBee" class="cta-button">GitHub</a>
                 <a href="https://huggingface.co/collections/Lab-Rasool/honeybee-66b9f15e8b908c4eeeec9cb4" class="cta-button">Datasets</a>
@@ -71,6 +70,23 @@
         </div>
     </footer>
 
-    <script>src=".assets/js/scripts.js"</script>
+    <script>
+        const hamburger = document.querySelector(".hamburger");
+        const navMenu = document.querySelector(".nav-menu");
+        const navLink = document.querySelectorAll(".nav-link");
+
+        hamburger.addEventListener("click", mobileMenu);
+        navLink.forEach(n => n.addEventListener("click", closeMenu));
+
+        function mobileMenu() {
+            hamburger.classList.toggle("active");
+            navMenu.classList.toggle("active");
+        }
+
+        function closeMenu() {
+            hamburger.classList.remove("active");
+            navMenu.classList.remove("active");
+        }
+    </script>
 </body>
 </html>
