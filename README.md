@@ -13,14 +13,16 @@ Harmonized Oncology Network Enhancing Yield through Big Data Exploration and Eva
 1. TIFF
 1. PDF
 1. Images
-1. MINDS-DB
+1. [MINDS](https://github.com/lab-rasool/MINDS)
+1. ... and more
 
 Additionally, it includes the following Sentence Transformer style embeddings functions for Foundational medical models
 
 1. HuggingFace text embeddings models (i.e. GatorTron, BioBERT, etc.)
-1. REMEDIS Pathology
-1. REMEDIS Radiology
-1. [SeNMo]()
+1. REMEDIS
+1. RadImageNet
+1. [SeNMo](https://github.com/lab-rasool/SeNMo)
+1. ... and more
 
 ## Citation
 
