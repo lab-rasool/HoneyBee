@@ -13,7 +13,27 @@ body {
     padding: 0;
     color: var(--text-color);
     background-color: var(--background-color);
+    position: relative; /* Ensure the pseudo-element is positioned relative to the body */
     line-height: 1.6;
+}
+
+/* Pseudo-element for background image */
+body::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url('../images/HoneyBee.png');
+    background-repeat: repeat;
+    background-size: 10px 10px; /* Size of the image itself */
+    background-position: center;
+    background-size: 150px 150px; /* Total space per tile, including spacing */
+    filter: grayscale(100%);
+    opacity: 0.025; /* Adjust the opacity to make the watermark less intrusive */
+    z-index: -1; /* Ensure the pseudo-element stays behind the content */
+    pointer-events: none; /* Prevent interaction with the pseudo-element */
 }
 
 .container {
