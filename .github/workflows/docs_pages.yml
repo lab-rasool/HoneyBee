@@ -14,7 +14,7 @@ concurrency:
 
 env:
   FORCE_COLOR: "1"
-  UV_SYSTEM_PYTHON: "1"  # make uv do global installs
+  UV_SYSTEM_PYTHON: "1"
 
 jobs:
   verbose:
@@ -30,14 +30,8 @@ jobs:
         python-version: "3"
     - name: Install graphviz
       run: sudo apt-get install --no-install-recommends --yes graphviz
-    - name: Install uv
-      run: >
-        curl --no-progress-meter --location --fail
-        --proto '=https' --tlsv1.2
-        "https://astral.sh/uv/install.sh"
-        | sh
     - name: Install dependencies
-      run: uv pip install .[docs]
+      run: pip install sphinx sphinx_rtd_theme furo
     - name: Render the documentation
       run: >
         sphinx-build
