@@ -1,27 +1,48 @@
-name: documentation
+name: Render documentation
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: "1"
+  UV_SYSTEM_PYTHON: "1"  # make uv do global installs
 
 jobs:
-  docs:
+  verbose:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-      - name: Install dependencies
-        run: |
-          pip install sphinx furo myst_parser
-      - name: Sphinx build
-        run: |
-          sphinx-build docs _build
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-        with:
-          publish_branch: gh-pages
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: _build/
-          force_orphan: true
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3"
+    - name: Install graphviz
+      run: sudo apt-get install --no-install-recommends --yes graphviz
+    - name: Install uv
+      run: >
+        curl --no-progress-meter --location --fail
+        --proto '=https' --tlsv1.2
+        "https://astral.sh/uv/install.sh"
+        | sh
+    - name: Install dependencies
+      run: uv pip install .[docs]
+    - name: Render the documentation
+      run: >
+        sphinx-build
+        -M html ./doc ./build/sphinx
+        --verbose
+        --jobs=auto
+        --show-traceback
+        --fail-on-warning
