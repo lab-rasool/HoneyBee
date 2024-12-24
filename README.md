@@ -1,4 +1,4 @@
-# <img src="doc\HoneyBee.png" style="vertical-align: -15px;" :height="40px" width="40px"> HONEYBEE
+# <img src="docs\assets\logo.png" style="vertical-align: -15px;" :height="40px" width="40px"> HONEYBEE
 
 > [!NOTE]
 > This is a work in progress, we are currently working on the aplha release. Please check back soon for updates.
