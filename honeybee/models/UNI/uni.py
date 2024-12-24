@@ -3,10 +3,7 @@ import torch
 
 
 class UNI:
-    def __init__(self) -> None:
-        pass
-
-    def load_model_and_predict(self, model_path, patches):
+    def __init__(self, model_path) -> None:
         model = timm.create_model(
             "vit_large_patch16_224",
             img_size=224,
@@ -19,7 +16,10 @@ class UNI:
         model.load_state_dict(
             torch.load(model_path, map_location=map_location), strict=True
         )
-        model.eval()
+        self.model = model
+
+    def load_model_and_predict(self, patches):
+        self.model.eval()
 
         # convert patches from ndarray to torch.Tensor
         patches = torch.tensor(patches, dtype=torch.float32)
@@ -28,6 +28,6 @@ class UNI:
         # use patches as input
         # patches should be a torch.Tensor with shape [batch_size, 3, 224, 224]
         with torch.inference_mode():
-            feature_emb = model(patches)
+            feature_emb = self.model(patches)
 
         return feature_emb

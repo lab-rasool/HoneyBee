@@ -47,8 +47,6 @@ class Slide:
         self.tileOverlap = round(tileOverlap * tileSize)
         self.tileDictionary = {}
         self.tissue_detector = tissue_detector
-        if self.tissue_detector is None:
-            raise ValueError("Model path is required for tissue detection.")
         self.img = CuImage(slide_image_path)
         self.path_to_store_visualization = path_to_store_visualization
 
@@ -72,14 +70,12 @@ class Slide:
         self.numTilesInY = self.slide.height // (self.tileSize - self.tileOverlap)
         self.tileDictionary = self._generate_tile_dictionary()
 
-        # Detect tissue
-        self.detectTissue()
+        if self.tissue_detector is not None:
+            self.detectTissue()
 
         # Visualize
         if visualize:
             self.visualize()
-
-        # TODO: Add annotation functionality
 
     def _select_level(self, max_patches):
         resolutions = self.img.resolutions
@@ -161,7 +157,6 @@ class Slide:
         batchSize=20,
         numWorkers=1,
     ):
-        # self.applyModel(batch_size=batchSize,predictionKey="tissue_detector",numWorkers=numWorkers,)
         detector = self.tissue_detector
         predictionKey = "tissue_detector"
         device = detector.device
@@ -190,7 +185,6 @@ class Slide:
                     index, ...
                 ]
 
-        # self.adoptKeyFromTileDictionary(upsampleFactor=tissueDetectionUpsampleFactor)
         upsampleFactor = tissueDetectionUpsampleFactor
         for orphanTileAddress in self.iterateTiles():
             self.tileDictionary[orphanTileAddress].update(
@@ -268,6 +262,26 @@ class Slide:
             executor.map(load_and_store_patch, range(num_patches))
 
         return patches.astype(np.float32)
+
+    def get_patch_coords(self):
+        # Extract coordinates of all patches
+        coords = []
+        for address in self.suitableTileAddresses():
+            coords.append(
+                (self.tileDictionary[address]["x"], self.tileDictionary[address]["y"])
+            )
+        return np.array(coords)
+
+    def get_visualization_image(self, level=None):
+        """
+        Retrieve a downsampled image for visualization.
+        If `level` is None, use the selected level.
+        """
+        if level is None:
+            level = self.selected_level
+        # Read the image at the specified level
+        region = self.img.read_region(location=[0, 0], level=level)
+        return np.asarray(region)
 
     def visualize(self):
         os.makedirs(self.path_to_store_visualization, exist_ok=True)

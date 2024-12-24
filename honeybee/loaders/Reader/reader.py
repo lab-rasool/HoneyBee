@@ -7,7 +7,32 @@ from PIL import Image
 from PyPDF2 import PdfReader
 
 
-class PDFreport:
+class PDF:
+    """
+    A class to handle reading and processing PDF reports.
+
+    Attributes:
+    -----------
+    chunk_size : int
+        The size of each text chunk.
+    chunk_overlap : int
+        The overlap size between text chunks.
+
+    Methods:
+    --------
+    __init__(chunk_size=1000, chunk_overlap=200):
+        Initializes the PDFreport with specified chunk size and overlap.
+
+    read(pdf_file):
+        Reads the text from a PDF file. If text extraction fails, it attempts to extract text from images in the PDF.
+
+    chunk(text):
+        Splits the given text into chunks based on the specified chunk size and overlap.
+
+    load(pdf_file):
+        Reads the PDF file, processes the text, and returns the text chunks.
+    """
+
     def __init__(self, chunk_size=1000, chunk_overlap=200):
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
