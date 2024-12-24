@@ -40,6 +40,6 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 html_theme = "furo"
 html_static_path = ["_static"]
 html_theme_options = {
-    "light_logo": "https://github.com/lab-rasool/HoneyBee/blob/main/docs/HoneyBee.png?raw=true",
-    "dark_logo": "https://github.com/lab-rasool/HoneyBee/blob/main/docs/HoneyBee.png?raw=true",
+    "light_logo": "HoneyBee.png",
+    "dark_logo": "HoneyBee.png",
 }
