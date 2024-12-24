@@ -4,6 +4,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 import os
 import sys
+from datetime import date
 
 sys.path.insert(0, os.path.abspath(".."))
 
@@ -11,8 +12,8 @@ sys.path.insert(0, os.path.abspath(".."))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "honeybee"
-copyright = "2024, Aakash Tripathi"
 author = "Aakash Tripathi"
+copyright = f"{date.today().year}, {author}"  # noqa: A001
 release = "0.1"
 
 # -- General configuration ---------------------------------------------------
@@ -38,6 +39,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "furo"
+html_title = "HoneyBee"
 html_static_path = ["_static"]
 html_theme_options = {
     "light_logo": "logo.png",
