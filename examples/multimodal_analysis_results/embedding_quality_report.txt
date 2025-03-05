@@ -1,0 +1,14 @@
+Embedding Quality Evaluation
+===========================
+
+Number of cancer types: 3
+Total samples: 547
+
+Metrics (higher is better except for Davies-Bouldin Index):
+
+  Modality  Silhouette Score  Davies-Bouldin Index  Calinski-Harabasz Index  K-means AMI  K-means ARI  K-means V-measure  DBSCAN AMI  DBSCAN ARI  DBSCAN V-measure  Avg Intercluster Distance
+  Clinical          0.319508              1.356717               234.407440     0.380713     0.426097           0.382970    0.438451    0.341478          0.443430                   7.833963
+ Pathology          0.056897              1.853883               154.723450     0.246109     0.196924           0.248825         NaN         NaN               NaN                   6.690423
+ Radiology          0.046800              5.711335                78.958672     0.243748     0.143209           0.246698         NaN         NaN               NaN                   6.524853
+ Molecular          0.135949              1.520896               209.095673     0.349578     0.278467           0.351811    0.295801    0.184344          0.302305                   9.544203
+Multimodal          0.433134              0.774778               434.489197     0.603973     0.607010           0.605368    0.480281    0.350654          0.485645                   7.229259
