@@ -1,6 +1,0 @@
-Modality,Avg Within-Cluster Scatter,Avg Between-Cluster Distance,Separation Ratio
-Clinical,4.376969,7.833963,1.7898146
-Pathology,4.651959,6.6904225,1.4381946
-Radiology,6.518181,6.524853,1.0010237
-Molecular,4.918621,9.544203,1.9404224
-Multimodal,2.4202545,7.229259,2.986983
