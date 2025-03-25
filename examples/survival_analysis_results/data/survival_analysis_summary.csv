@@ -1,0 +1,6 @@
+Modality,Cox_Train_C-index,Cox_Test_C-index,RSF_Train_C-index,RSF_Test_C-index,RSF_Training_Time
+clinical,0.6882,0.632,0.8536,0.6365,0.1432
+pathology,0.6641,0.6392,0.8564,0.605,0.142
+radiology,0.6407,0.5773,0.8547,0.5643,0.1478
+molecular,0.6513,0.5811,0.7787,0.6111,0.1453
+multimodal,0.6661,0.6566,0.8602,0.6272,0.1401
