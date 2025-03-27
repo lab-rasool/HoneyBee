@@ -28,12 +28,12 @@ jobs:
       - name: Detect package manager
         id: detect-package-manager
         run: |
-          if [ -f "${{ github.workspace }}/yarn.lock" ]; then
+          if [ -f "${{ github.workspace }}/honeybee-website/yarn.lock" ]; then
             echo "manager=yarn" >> $GITHUB_OUTPUT
             echo "command=install" >> $GITHUB_OUTPUT
             echo "runner=yarn" >> $GITHUB_OUTPUT
             exit 0
-          elif [ -f "${{ github.workspace }}/package.json" ]; then
+          elif [ -f "${{ github.workspace }}/honeybee-website/package.json" ]; then
             echo "manager=npm" >> $GITHUB_OUTPUT
             echo "command=ci" >> $GITHUB_OUTPUT
             echo "runner=npx --no-install" >> $GITHUB_OUTPUT
@@ -47,6 +47,7 @@ jobs:
         with:
           node-version: "20"
           cache: ${{ steps.detect-package-manager.outputs.manager }}
+          cache-dependency-path: honeybee-website/package-lock.json
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
@@ -55,18 +56,20 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            .next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+            honeybee-website/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('honeybee-website/**/package-lock.json', 'honeybee-website/**/yarn.lock') }}-${{ hashFiles('honeybee-website/**.[jt]s', 'honeybee-website/**.[jt]sx') }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-
+            ${{ runner.os }}-nextjs-${{ hashFiles('honeybee-website/**/package-lock.json', 'honeybee-website/**/yarn.lock') }}-
       - name: Install dependencies
+        working-directory: ./honeybee-website
         run: npm install
       - name: Build with Next.js
+        working-directory: ./honeybee-website
         run: npx next build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./out
+          path: ./honeybee-website/out
 
   deploy:
     environment:
