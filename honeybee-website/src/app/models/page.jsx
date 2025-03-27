@@ -26,7 +26,11 @@ export default function ModelsPage() {
       {loading ? (
         <div>Loading...</div>
       ) : (
-        // Render your models here
+        <div>
+          {models.map((model, index) => (
+            <div key={index}>{model.name}</div>
+          ))}
+        </div>
       )}
     </div>
   );
