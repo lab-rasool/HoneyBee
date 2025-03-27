@@ -16,5 +16,5 @@ __pycache__
 /results
 /logs
 
-/examples/bert-base-uncased-tcga
-/examples/gatortron-base-tcga
+/examples/benchmarking_analysis_results/models/
+/examples/survival_analysis_results/models/

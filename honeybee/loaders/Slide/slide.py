@@ -33,7 +33,7 @@ class Slide:
     def __init__(
         self,
         slide_image_path,
-        tileSize=512,
+        tile_size=512,
         tileOverlap=0,
         max_patches=500,
         visualize=False,
@@ -43,8 +43,8 @@ class Slide:
     ):
         self.verbose = verbose
         self.slide_image_path = slide_image_path
-        self.tileSize = tileSize
-        self.tileOverlap = round(tileOverlap * tileSize)
+        self.tileSize = tile_size
+        self.tileOverlap = round(tileOverlap * tile_size)
         self.tileDictionary = {}
         self.tissue_detector = tissue_detector
         self.img = CuImage(slide_image_path)
@@ -91,7 +91,7 @@ class Slide:
             numTilesInY = height // self.tileSize
             if self.verbose:
                 print(
-                    f"Level {level}: {numTilesInX}x{numTilesInY} ({numTilesInX*numTilesInY}) \t Resolution: {width}x{height}"
+                    f"Level {level}: {numTilesInX}x{numTilesInY} ({numTilesInX * numTilesInY}) \t Resolution: {width}x{height}"
                 )
             if numTilesInX * numTilesInY <= max_patches:
                 selected_level = level
@@ -271,17 +271,6 @@ class Slide:
                 (self.tileDictionary[address]["x"], self.tileDictionary[address]["y"])
             )
         return np.array(coords)
-
-    def get_visualization_image(self, level=None):
-        """
-        Retrieve a downsampled image for visualization.
-        If `level` is None, use the selected level.
-        """
-        if level is None:
-            level = self.selected_level
-        # Read the image at the specified level
-        region = self.img.read_region(location=[0, 0], level=level)
-        return np.asarray(region)
 
     def visualize(self):
         os.makedirs(self.path_to_store_visualization, exist_ok=True)

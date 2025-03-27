@@ -1,6 +1,9 @@
 import os
 import numpy as np
 import pandas as pd
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import StandardScaler
@@ -11,6 +14,10 @@ from sksurv.ensemble import RandomSurvivalForest
 import warnings
 import pickle
 from time import time
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
 
 warnings.filterwarnings("ignore")
 RANDOM_SEED = 42
@@ -21,7 +28,6 @@ EMBEDDINGS_DIR = "multimodal_analysis_results/embeddings"
 RESULTS_DIR = "survival_analysis_results"
 
 
-# Create directory structure for better organization
 def create_directory_structure():
     """Create organized directory structure for saving results."""
     # Main directories
@@ -209,7 +215,14 @@ def plot_survival_curves(patients_df, survival_days_col, modality, risk_scores=N
         patients_with_risk = patients_df.copy()
         patients_with_risk["risk_group"] = risk_tertiles
 
-        # Plot KM curves for each risk group
+        # Define color scheme for risk groups
+        risk_colors = {
+            "High": "#317EC2",  # Blue
+            "Intermediate": "#E6862AF6",  # Orange
+            "Low": "#C13930",  # Red
+        }
+
+        # Plot KM curves for each risk group with specific colors
         for risk_group in ["Low", "Intermediate", "High"]:
             group_data = patients_with_risk[
                 patients_with_risk["risk_group"] == risk_group
@@ -220,7 +233,7 @@ def plot_survival_curves(patients_df, survival_days_col, modality, risk_scores=N
                     group_data["event"],
                     label=f"{risk_group} risk",
                 )
-                kmf.plot(ci_show=False)
+                kmf.plot(ci_show=False, color=risk_colors[risk_group], linewidth=2.5)
 
         figure_type = "stratified_curves"
         name = "stratified_kaplan_meier"
@@ -231,235 +244,29 @@ def plot_survival_curves(patients_df, survival_days_col, modality, risk_scores=N
         )
         kmf.plot()
 
-        # Add some statistics to the plot
-        median_survival = kmf.median_survival_time_
-        events_count = patients_df["event"].sum()
-        total_patients = len(patients_df)
-
-        stats_text = (
-            f"Patients: {total_patients}\n"
-            f"Events: {events_count}\n"
-            f"Median survival: {median_survival:.1f} days"
-        )
-
-        plt.annotate(
-            stats_text,
-            xy=(0.05, 0.15),
-            xycoords="axes fraction",
-            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.8),
-        )
-
         figure_type = "kaplan_meier"
         name = "kaplan_meier_curve"
 
-    plt.title(f"Kaplan-Meier Survival Curve - {modality.capitalize()} Model")
-    plt.xlabel("Days")
-    plt.ylabel("Survival Probability")
+    plt.ylim(0, 1.05)
+    plt.xlim(0, patients_df[survival_days_col].max())
+    # remove the top and right spines
+    plt.gca().spines["top"].set_visible(False)
+    plt.gca().spines["right"].set_visible(False)
+    # remove the legend completely
+    plt.gca().get_legend().remove()
+    # remove x and y labels
+    plt.xlabel("")
+    plt.ylabel("")
+
+    # remove axes
+    plt.gca().axes.get_xaxis().set_visible(False)
+    plt.gca().axes.get_yaxis().set_visible(False)
+
+    # Clean up figure style for BioRender import
+    plt.tight_layout()
 
     # Save figures
     save_figure(fig, modality, figure_type, name)
-
-
-def plot_combined_survival_curves(patients_df, survival_days_col, embeddings_dict):
-    """
-    Plot all modality-based survival curves on a single graph for comparison.
-    Uses the Cox PH model predictions to generate survival curves for each modality.
-    """
-    fig = plt.figure(figsize=(12, 8))
-    kmf = KaplanMeierFitter()
-
-    # First plot the overall survival curve as a baseline
-    kmf.fit(patients_df[survival_days_col], patients_df["event"], label="All patients")
-    kmf.plot(ci_show=False, linewidth=2, color="black", ls="--")
-
-    colors = plt.cm.tab10.colors  # Use a colormap for distinct colors
-
-    # For each modality, load the model and make predictions
-    for i, (modality, embeddings) in enumerate(embeddings_dict.items()):
-        model_path = os.path.join(DIRS["models"], f"{modality}_cox_model.pkl")
-        scaler_path = os.path.join(DIRS["models"], f"{modality}_scaler.pkl")
-
-        # Skip if model doesn't exist
-        if not os.path.exists(model_path) or not os.path.exists(scaler_path):
-            continue
-
-        # Load the saved Cox model and scaler
-        with open(model_path, "rb") as f:
-            cph = pickle.load(f)
-
-        with open(scaler_path, "rb") as f:
-            scaler = pickle.load(f)
-
-        # Prepare the data (same steps as in run_cox_model)
-        X = embeddings
-
-        # Flatten multi-dimensional embeddings if necessary
-        original_shape = X.shape
-        if len(original_shape) > 2:
-            X = X.reshape(original_shape[0], -1)
-
-        # Scale the features
-        X = scaler.transform(X)
-
-        # Apply PCA if it was used in the original model
-        pca_path = os.path.join(DIRS["models"], f"{modality}_pca.pkl")
-        if os.path.exists(pca_path) and X.shape[1] > 48:
-            with open(pca_path, "rb") as f:
-                pca = pickle.load(f)
-            X = pca.transform(X)
-
-        # Create dataframe for prediction
-        features_df = pd.DataFrame(
-            data=X, columns=[f"feature_{i}" for i in range(X.shape[1])]
-        )
-        features_df["time"] = patients_df[survival_days_col].values
-        features_df["event"] = patients_df["event"].values
-
-        # Get risk scores (hazard ratios) - convert to numpy array to avoid index issues
-        risk_scores = cph.predict_partial_hazard(features_df).values
-
-        # Create a copy of patients_df with risk scores
-        patients_with_risk = patients_df.copy()
-        patients_with_risk["risk_score"] = risk_scores
-
-        # Stratify patients by median risk score for this modality
-        median_risk = np.median(risk_scores)
-        low_risk_group = patients_with_risk[
-            patients_with_risk["risk_score"] <= median_risk
-        ]
-
-        # Plot only the low_risk_group from each modality for visual clarity
-        if len(low_risk_group) > 0:
-            kmf.fit(
-                low_risk_group[survival_days_col],
-                low_risk_group["event"],
-                label=f"{modality.capitalize()} (n={len(low_risk_group)})",
-            )
-            kmf.plot(ci_show=False, linewidth=1.5, color=colors[i % len(colors)])
-
-    plt.title("Comparison of Survival Curves by Modality")
-    plt.xlabel("Days")
-    plt.ylabel("Survival Probability")
-    plt.legend(loc="best", frameon=True, fancybox=True, shadow=True)
-
-    # Add statistical information
-    events_count = patients_df["event"].sum()
-    total_patients = len(patients_df)
-    stats_text = f"Total patients: {total_patients}, Events: {events_count}"
-
-    plt.annotate(
-        stats_text,
-        xy=(0.05, 0.05),
-        xycoords="axes fraction",
-        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.8),
-    )
-
-    # Save the plot
-    save_figure(fig, None, "comparison_plots", "combined_survival_curves")
-
-
-def plot_modality_specific_km_curves(patients_df, survival_days_col, embeddings_dict):
-    """
-    Plot modality-specific Kaplan-Meier curves along with the actual survival curve.
-
-    For each modality, plots the survival curve based on risk stratification from that modality's
-    Cox PH model. Also includes the actual survival curve as a black dashed line.
-    """
-    fig = plt.figure(figsize=(12, 8))
-    kmf = KaplanMeierFitter()
-
-    # First plot the overall survival curve as a baseline
-    kmf.fit(
-        patients_df[survival_days_col], patients_df["event"], label="Actual survival"
-    )
-    kmf.plot(ci_show=False, linewidth=2, color="black", ls="--")
-
-    colors = plt.cm.tab10.colors  # Use a colormap for distinct colors
-
-    # For each modality, load the model and make predictions
-    for i, (modality, embeddings) in enumerate(embeddings_dict.items()):
-        model_path = os.path.join(DIRS["models"], f"{modality}_cox_model.pkl")
-        scaler_path = os.path.join(DIRS["models"], f"{modality}_scaler.pkl")
-
-        # Skip if model doesn't exist
-        if not os.path.exists(model_path) or not os.path.exists(scaler_path):
-            continue
-
-        # Load the saved Cox model and scaler
-        with open(model_path, "rb") as f:
-            cph = pickle.load(f)
-
-        with open(scaler_path, "rb") as f:
-            scaler = pickle.load(f)
-
-        # Prepare the data
-        X = embeddings
-
-        # Flatten multi-dimensional embeddings if necessary
-        original_shape = X.shape
-        if len(original_shape) > 2:
-            X = X.reshape(original_shape[0], -1)
-
-        # Scale the features
-        X = scaler.transform(X)
-
-        # Apply PCA if it was used in the original model
-        pca_path = os.path.join(DIRS["models"], f"{modality}_pca.pkl")
-        if os.path.exists(pca_path) and X.shape[1] > 48:
-            with open(pca_path, "rb") as f:
-                pca = pickle.load(f)
-            X = pca.transform(X)
-
-        # Create dataframe for prediction
-        features_df = pd.DataFrame(
-            data=X, columns=[f"feature_{i}" for i in range(X.shape[1])]
-        )
-        features_df["time"] = patients_df[survival_days_col].values
-        features_df["event"] = patients_df["event"].values
-
-        # Get risk scores (hazard ratios)
-        risk_scores = cph.predict_partial_hazard(features_df).values
-
-        # Create a copy of patients_df with risk scores
-        patients_with_risk = patients_df.copy()
-        patients_with_risk["risk_score"] = risk_scores
-
-        # Stratify patients by median risk score for this modality
-        median_risk = np.median(risk_scores)
-        high_risk_group = patients_with_risk[
-            patients_with_risk["risk_score"] > median_risk
-        ]
-
-        # Plot the modality-specific survival curve
-        if len(high_risk_group) > 0:
-            kmf.fit(
-                high_risk_group[survival_days_col],
-                high_risk_group["event"],
-                label=f"{modality.capitalize()} (n={len(high_risk_group)})",
-            )
-            kmf.plot(ci_show=False, linewidth=1.5, color=colors[i % len(colors)])
-
-    plt.title("Modality-Specific Survival Curves")
-    plt.xlabel("Days")
-    plt.ylabel("Survival Probability")
-    plt.legend(loc="best", frameon=True, fancybox=True, shadow=True)
-
-    # Add statistical information
-    events_count = patients_df["event"].sum()
-    total_patients = len(patients_df)
-    stats_text = f"Total patients: {total_patients}, Events: {events_count}"
-
-    plt.annotate(
-        stats_text,
-        xy=(0.05, 0.05),
-        xycoords="axes fraction",
-        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.8),
-    )
-
-    # Save the plot
-    save_figure(fig, None, "comparison_plots", "modality_specific_km_curves")
-
-    return fig
 
 
 def run_cox_model(modality, embeddings, patients_df, survival_days_col):
@@ -497,7 +304,7 @@ def run_cox_model(modality, embeddings, patients_df, survival_days_col):
     X_test = scaler.transform(X_test)
 
     # Prepare data for Cox model - using PCA for high-dimensional data
-    reduce_to = 48
+    reduce_to = 50
     if X_train.shape[1] > reduce_to:
         pca = PCA(n_components=reduce_to)
         X_train_pca = pca.fit_transform(X_train)
@@ -570,56 +377,6 @@ def run_cox_model(modality, embeddings, patients_df, survival_days_col):
     return {"model": cph, "train_c_index": train_c_index, "test_c_index": test_c_index}
 
 
-def compare_modalities(results_dict):
-    """Compare the performance of different modalities."""
-    fig = plt.figure(figsize=(12, 6))
-
-    modalities = list(results_dict.keys())
-    test_c_indices = [results_dict[m]["test_c_index"] for m in modalities]
-
-    # Sort by performance
-    sorted_indices = np.argsort(test_c_indices)[::-1]  # descending
-    sorted_modalities = [modalities[i] for i in sorted_indices]
-    sorted_c_indices = [test_c_indices[i] for i in sorted_indices]
-
-    # Create bar chart
-    plt.bar(range(len(sorted_modalities)), sorted_c_indices, color="steelblue")
-
-    plt.xlabel("Modality")
-    plt.ylabel("Test C-index")
-    plt.title("Cox PH Survival Analysis Performance by Modality")
-    plt.xticks(
-        range(len(sorted_modalities)), [m.capitalize() for m in sorted_modalities]
-    )
-    plt.ylim(0.4, 1.0)  # C-index ranges from 0.5 (random) to 1.0 (perfect)
-    plt.axhline(
-        y=0.5, color="r", linestyle="-", alpha=0.3, label="Random (C-index=0.5)"
-    )
-    plt.legend()
-
-    # Add value labels on top of bars
-    for i, v in enumerate(sorted_c_indices):
-        plt.text(i, v + 0.01, f"{v:.3f}", ha="center")
-
-    plt.tight_layout()
-
-    # Save the figure
-    save_figure(fig, None, "comparison_plots", "modality_comparison")
-
-    # Create comparison table and save to the data directory
-    comparison_df = pd.DataFrame(
-        {
-            "Modality": [m.capitalize() for m in modalities],
-            "Cox PH C-index": test_c_indices,
-        }
-    )
-
-    comparison_df.to_csv(
-        os.path.join(DIRS["data"], "modality_comparison.csv"), index=False
-    )
-    return comparison_df
-
-
 def run_random_survival_forest(modality, embeddings, patients_df, survival_days_col):
     """Run a Random Survival Forest model."""
     print(f"\nRunning Random Survival Forest for {modality} embeddings...")
@@ -654,7 +411,7 @@ def run_random_survival_forest(modality, embeddings, patients_df, survival_days_
     X_test = scaler.transform(X_test)
 
     # Apply PCA if needed for high-dimensional data
-    reduce_to = 48
+    reduce_to = 50
     if X_train.shape[1] > reduce_to:
         pca = PCA(n_components=reduce_to)
         X_train = pca.fit_transform(X_train)
@@ -669,9 +426,7 @@ def run_random_survival_forest(modality, embeddings, patients_df, survival_days_
     start_time = time()
     rsf = RandomSurvivalForest(
         n_estimators=100,
-        min_samples_split=10,
-        min_samples_leaf=5,
-        max_features="sqrt",
+        max_features="log2",
         n_jobs=-1,
         random_state=RANDOM_SEED,
     )
@@ -727,6 +482,221 @@ def run_random_survival_forest(modality, embeddings, patients_df, survival_days_
     }
 
 
+def run_deepsurv_model(modality, embeddings, patients_df, survival_days_col):
+    """Run a DeepSurv model for survival prediction."""
+    print(f"\nRunning DeepSurv model for {modality} embeddings...")
+
+    # Define the DeepSurv model
+    class DeepSurv(nn.Module):
+        def __init__(self, input_dim, hidden_dims=[128, 64, 32]):
+            super(DeepSurv, self).__init__()
+
+            layers = []
+            prev_dim = input_dim
+
+            for hidden_dim in hidden_dims:
+                layers.append(nn.Linear(prev_dim, hidden_dim))
+                layers.append(nn.ReLU())
+                layers.append(nn.BatchNorm1d(hidden_dim))
+                layers.append(nn.Dropout(0.3))
+                prev_dim = hidden_dim
+
+            # Output layer (risk score)
+            layers.append(nn.Linear(prev_dim, 1))
+
+            self.model = nn.Sequential(*layers)
+
+        def forward(self, x):
+            return self.model(x)
+
+    # Custom loss function for survival analysis
+    def neg_log_likelihood_loss(risk_pred, y_time, y_event):
+        """
+        Compute negative log likelihood for Cox model
+
+        Args:
+            risk_pred: predicted risk scores (higher score means higher risk)
+            y_time: survival times
+            y_event: event indicators (1 if event occurred, 0 if censored)
+        """
+        # Sort data by survival time (descending)
+        idx = torch.argsort(y_time, descending=True)
+        risk_pred = risk_pred[idx]
+        y_event = y_event[idx]
+
+        # Calculate log partial likelihood
+        log_risk = risk_pred
+        cum_sums = torch.logcumsumexp(log_risk, dim=0)
+        log_partial_likelihood = log_risk - cum_sums
+
+        # Only consider events, not censored data
+        neg_log_likelihood = -torch.sum(log_partial_likelihood * y_event)
+        return neg_log_likelihood
+
+    # Prepare the data
+    X = embeddings
+
+    # Flatten multi-dimensional embeddings if necessary
+    original_shape = X.shape
+    if len(original_shape) > 2:
+        print(f"Flattening {modality} embeddings from {original_shape} to 2D...")
+        X = X.reshape(original_shape[0], -1)
+        print(f"Flattened shape: {X.shape}")
+
+    y_time = patients_df[survival_days_col].values
+    y_event = patients_df["event"].values
+
+    # Split the data
+    X_train, X_test, y_time_train, y_time_test, y_event_train, y_event_test = (
+        train_test_split(
+            X,
+            y_time,
+            y_event,
+            test_size=0.2,
+            random_state=RANDOM_SEED,
+            stratify=y_event,
+        )
+    )
+
+    # Standardize the features
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    # Convert to torch tensors
+    X_train_tensor = torch.FloatTensor(X_train)
+    X_test_tensor = torch.FloatTensor(X_test)
+    y_time_train_tensor = torch.FloatTensor(y_time_train)
+    y_time_test_tensor = torch.FloatTensor(y_time_test)
+    y_event_train_tensor = torch.FloatTensor(y_event_train)
+    y_event_test_tensor = torch.FloatTensor(y_event_test)
+
+    # Create datasets and dataloaders
+    train_dataset = TensorDataset(
+        X_train_tensor, y_time_train_tensor, y_event_train_tensor
+    )
+    test_dataset = TensorDataset(X_test_tensor, y_time_test_tensor, y_event_test_tensor)
+
+    batch_size = min(64, len(X_train))
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+    # Initialize the model
+    input_dim = X_train.shape[1]
+    model = DeepSurv(input_dim=input_dim)
+
+    # Set up training parameters
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+    num_epochs = 100
+    patience = 10  # For early stopping
+
+    # Training loop
+    start_time = time()
+
+    best_c_index = 0
+    best_model = None
+    epochs_no_improve = 0
+
+    for epoch in range(num_epochs):
+        model.train()
+        epoch_loss = 0
+
+        for batch_x, batch_time, batch_event in train_loader:
+            optimizer.zero_grad()
+            risk_pred = model(batch_x).squeeze()
+            loss = neg_log_likelihood_loss(risk_pred, batch_time, batch_event)
+            loss.backward()
+            optimizer.step()
+            epoch_loss += loss.item()
+
+        # Validation
+        model.eval()
+        with torch.no_grad():
+            # Compute risk scores for all test data
+            test_risk_pred = model(X_test_tensor).squeeze().numpy()
+
+            # Calculate C-index
+            current_c_index = concordance_index(
+                y_time_test, -test_risk_pred, y_event_test
+            )
+
+            if current_c_index > best_c_index:
+                best_c_index = current_c_index
+                best_model = model.state_dict().copy()
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+
+            # Early stopping
+            if epochs_no_improve >= patience:
+                print(f"Early stopping at epoch {epoch + 1}")
+                break
+
+        # Print progress every 10 epochs
+        if (epoch + 1) % 10 == 0:
+            print(
+                f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(train_loader):.4f}, C-index: {current_c_index:.4f}"
+            )
+
+    # Load best model
+    if best_model is not None:
+        model.load_state_dict(best_model)
+
+    # Final evaluation
+    model.eval()
+    training_time = time() - start_time
+
+    with torch.no_grad():
+        # Training set evaluation
+        train_risk_pred = model(X_train_tensor).squeeze().numpy()
+        train_c_index = concordance_index(y_time_train, -train_risk_pred, y_event_train)
+
+        # Test set evaluation
+        test_risk_pred = model(X_test_tensor).squeeze().numpy()
+        test_c_index = concordance_index(y_time_test, -test_risk_pred, y_event_test)
+
+    print(f"DeepSurv model for {modality}:")
+    print(f"Train C-index: {train_c_index:.4f}")
+    print(f"Test C-index: {test_c_index:.4f}")
+    print(f"Training time: {training_time:.2f} seconds")
+
+    # Save the model
+    torch.save(
+        model.state_dict(),
+        os.path.join(DIRS["models"], f"{modality}_deepsurv_model.pt"),
+    )
+
+    # Save the scaler
+    with open(
+        os.path.join(DIRS["models"], f"{modality}_deepsurv_scaler.pkl"), "wb"
+    ) as f:
+        pickle.dump(scaler, f)
+
+    # Save predictions
+    test_predictions = pd.DataFrame(
+        {"time": y_time_test, "event": y_event_test, "risk_score": test_risk_pred}
+    )
+    test_predictions.to_csv(
+        os.path.join(DIRS["data"], f"{modality}_deepsurv_test_predictions.csv"),
+        index=False,
+    )
+
+    # Plot stratified KM curves based on test predictions
+    test_patients = pd.DataFrame(
+        {survival_days_col: y_time_test, "event": y_event_test}
+    )
+    plot_survival_curves(
+        test_patients, survival_days_col, f"{modality}_deepsurv", test_risk_pred
+    )
+
+    return {
+        "model": model,
+        "train_c_index": train_c_index,
+        "test_c_index": test_c_index,
+        "training_time": training_time,
+    }
+
+
 def run_cross_validation(
     modality, embeddings, patients_df, survival_days_col, n_folds=5
 ):
@@ -773,7 +743,7 @@ def run_cross_validation(
         X_test_scaled = scaler.transform(X_test)
 
         # Reduce dimensions if needed
-        reduce_to = 48
+        reduce_to = 50
         if X_train_scaled.shape[1] > reduce_to:
             pca = PCA(n_components=reduce_to)
             X_train_scaled = pca.fit_transform(X_train_scaled)
@@ -1008,6 +978,56 @@ def compare_models(model_name, results_dict):
     return comparison_df
 
 
+def compare_modalities(results_dict):
+    """Compare the performance of different modalities."""
+    fig = plt.figure(figsize=(12, 6))
+
+    modalities = list(results_dict.keys())
+    test_c_indices = [results_dict[m]["test_c_index"] for m in modalities]
+
+    # Sort by performance
+    sorted_indices = np.argsort(test_c_indices)[::-1]  # descending
+    sorted_modalities = [modalities[i] for i in sorted_indices]
+    sorted_c_indices = [test_c_indices[i] for i in sorted_indices]
+
+    # Create bar chart
+    plt.bar(range(len(sorted_modalities)), sorted_c_indices, color="steelblue")
+
+    plt.xlabel("Modality")
+    plt.ylabel("Test C-index")
+    plt.title("Cox PH Survival Analysis Performance by Modality")
+    plt.xticks(
+        range(len(sorted_modalities)), [m.capitalize() for m in sorted_modalities]
+    )
+    plt.ylim(0.4, 1.0)  # C-index ranges from 0.5 (random) to 1.0 (perfect)
+    plt.axhline(
+        y=0.5, color="r", linestyle="-", alpha=0.3, label="Random (C-index=0.5)"
+    )
+    plt.legend()
+
+    # Add value labels on top of bars
+    for i, v in enumerate(sorted_c_indices):
+        plt.text(i, v + 0.01, f"{v:.3f}", ha="center")
+
+    plt.tight_layout()
+
+    # Save the figure
+    save_figure(fig, None, "comparison_plots", "modality_comparison")
+
+    # Create comparison table and save to the data directory
+    comparison_df = pd.DataFrame(
+        {
+            "Modality": [m.capitalize() for m in modalities],
+            "Cox PH C-index": test_c_indices,
+        }
+    )
+
+    comparison_df.to_csv(
+        os.path.join(DIRS["data"], "modality_comparison.csv"), index=False
+    )
+    return comparison_df
+
+
 def main():
     """Main function to run the survival analysis pipeline."""
     # Create the directory structure first
@@ -1020,6 +1040,7 @@ def main():
     # Store results for comparison
     results_dict = {}
     rsf_results_dict = {}
+    deepsurv_results_dict = {}  # New dictionary for DeepSurv results
     cv_results_dict = {}
 
     # For each modality, run survival models
@@ -1063,6 +1084,21 @@ def main():
             "training_time": rsf_results["training_time"],
         }
 
+        # Run DeepSurv model
+        deepsurv_results = run_deepsurv_model(
+            modality=modality,
+            embeddings=embeddings,
+            patients_df=patients_df,
+            survival_days_col=survival_days_col,
+        )
+
+        # Store DeepSurv results
+        deepsurv_results_dict[modality] = {
+            "train_c_index": deepsurv_results["train_c_index"],
+            "test_c_index": deepsurv_results["test_c_index"],
+            "training_time": deepsurv_results["training_time"],
+        }
+
         # Run cross-validation to get more robust performance estimates
         cv_results = run_cross_validation(
             modality=modality,
@@ -1076,9 +1112,6 @@ def main():
 
     print(f"\n{'=' * 80}\nSurvival Analysis Summary:\n{'=' * 80}")
 
-    # Plot combined survival curves for all modalities
-    plot_combined_survival_curves(patients_df, survival_days_col, embeddings_dict)
-
     # Compare modalities using Cox model
     cox_comparison_df = compare_modalities(results_dict)
     print("\nCox PH Modality Comparison:")
@@ -1089,6 +1122,12 @@ def main():
         rsf_comparison_df = compare_models("Random Survival Forest", rsf_results_dict)
         print("\nRandom Survival Forest Modality Comparison:")
         print(rsf_comparison_df)
+
+    # Compare modalities using DeepSurv
+    if deepsurv_results_dict:
+        deepsurv_comparison_df = compare_models("DeepSurv", deepsurv_results_dict)
+        print("\nDeepSurv Modality Comparison:")
+        print(deepsurv_comparison_df)
 
     # Save a summary of all results
     summary_df = pd.DataFrame(index=embeddings_dict.keys())
@@ -1114,18 +1153,67 @@ def main():
             "training_time"
         ]
 
+    # Add DeepSurv results
+    for modality in deepsurv_results_dict:
+        summary_df.loc[modality, "DeepSurv_Train_C-index"] = deepsurv_results_dict[
+            modality
+        ]["train_c_index"]
+        summary_df.loc[modality, "DeepSurv_Test_C-index"] = deepsurv_results_dict[
+            modality
+        ]["test_c_index"]
+        summary_df.loc[modality, "DeepSurv_Training_Time"] = deepsurv_results_dict[
+            modality
+        ]["training_time"]
+
     # Format and save summary
     summary_df = summary_df.round(4)
     summary_df.index.name = "Modality"
     summary_df.to_csv(os.path.join(DIRS["data"], "survival_analysis_summary.csv"))
 
+    # Create a long format summary with Modality, Model, C-index columns
+    long_summary = []
+
+    # Add Cox results
+    for modality in results_dict:
+        long_summary.append(
+            {
+                "Modality": modality,
+                "Model": "Cox PH",
+                "C-index": results_dict[modality]["test_c_index"],
+            }
+        )
+
+    # Add RSF results
+    for modality in rsf_results_dict:
+        long_summary.append(
+            {
+                "Modality": modality,
+                "Model": "RSF",
+                "C-index": rsf_results_dict[modality]["test_c_index"],
+            }
+        )
+
+    # Add DeepSurv results
+    for modality in deepsurv_results_dict:
+        long_summary.append(
+            {
+                "Modality": modality,
+                "Model": "DeepSurv",
+                "C-index": deepsurv_results_dict[modality]["test_c_index"],
+            }
+        )
+
+    # Create and save the long format summary DataFrame
+    long_summary_df = pd.DataFrame(long_summary)
+    long_summary_df = long_summary_df.round(4)
+    long_summary_df.to_csv(
+        os.path.join(DIRS["data"], "survival_model_comparison.csv"), index=False
+    )
+
     print("\nSurvival analysis completed. Results saved to:")
     print(f"- Figures: {DIRS['figures']}")
     print(f"- Models: {DIRS['models']}")
     print(f"- Data: {DIRS['data']}")
-
-    # Plot modality-specific KM curves
-    plot_modality_specific_km_curves(patients_df, survival_days_col, embeddings_dict)
 
 
 if __name__ == "__main__":

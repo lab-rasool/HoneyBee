@@ -1,0 +1,16 @@
+Modality,Model,C-index
+clinical,Cox PH,0.6368
+pathology,Cox PH,0.6313
+radiology,Cox PH,0.5821
+molecular,Cox PH,0.5811
+multimodal,Cox PH,0.6587
+clinical,RSF,0.6235
+pathology,RSF,0.6074
+radiology,RSF,0.5506
+molecular,RSF,0.6084
+multimodal,RSF,0.6252
+clinical,DeepSurv,0.6327
+pathology,DeepSurv,0.6457
+radiology,DeepSurv,0.5735
+molecular,DeepSurv,0.631
+multimodal,DeepSurv,0.6621
