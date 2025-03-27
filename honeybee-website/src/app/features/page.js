@@ -3,28 +3,13 @@
 // Add this line below to force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-import { useSearchParams } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 
 export default function FeaturesPage() {
-  const searchParams = useSearchParams();
-  const [paramValue, setParamValue] = useState(null);
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  
-  useEffect(() => {
-    // Handle search parameters client-side
-    const value = searchParams.get('yourParam');
-    setParamValue(value);
-
-    const category = searchParams.get('category') || 'all';
-    const query = searchParams.get('query') || '';
-    
-    setActiveCategory(category);
-    setSearchQuery(query);
-  }, [searchParams]);
   
   const features = [
     {
@@ -79,25 +64,12 @@ export default function FeaturesPage() {
   });
 
   const handleCategoryChange = (category) => {
-    // Client-side navigation without full reload
-    const url = new URL(window.location);
-    url.searchParams.set('category', category);
-    window.history.pushState({}, '', url);
     setActiveCategory(category);
   };
 
   const handleSearch = (e) => {
     const query = e.target.value;
     setSearchQuery(query);
-    
-    // Update URL without page reload
-    const url = new URL(window.location);
-    if (query) {
-      url.searchParams.set('query', query);
-    } else {
-      url.searchParams.delete('query');
-    }
-    window.history.pushState({}, '', url);
   };
 
   return (
@@ -156,10 +128,6 @@ export default function FeaturesPage() {
             onClick={() => {
               setActiveCategory('all');
               setSearchQuery('');
-              const url = new URL(window.location);
-              url.searchParams.delete('category');
-              url.searchParams.delete('query');
-              window.history.pushState({}, '', url);
             }}
             className="mt-4 px-4 py-2 bg-yellow-400 rounded-md hover:bg-yellow-500"
           >
