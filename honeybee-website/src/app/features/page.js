@@ -3,18 +3,22 @@
 // Add this line below to force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 
 export default function FeaturesPage() {
   const searchParams = useSearchParams();
+  const [paramValue, setParamValue] = useState(null);
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Handle search parameters client-side
   useEffect(() => {
+    // Handle search parameters client-side
+    const value = searchParams.get('yourParam');
+    setParamValue(value);
+
     const category = searchParams.get('category') || 'all';
     const query = searchParams.get('query') || '';
     
