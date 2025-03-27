@@ -1,5 +1,8 @@
 'use client';
 
+// Add this line below to force dynamic rendering
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
