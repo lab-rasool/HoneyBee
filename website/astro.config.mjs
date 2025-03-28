@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import tailwind from '@astrojs/tailwind';
 import icon from "astro-icon";
+import sitemap from '@astrojs/sitemap';
 import remarkDirective from 'remark-directive';
 import { visit } from 'unist-util-visit';
 
@@ -24,7 +25,13 @@ function remarkCodeBlocks() {
 export default defineConfig({
   site: 'https://lab-rasool.github.io',
   base: '/HoneyBee',
-  integrations: [tailwind(), icon()],
+  integrations: [
+    tailwind(), 
+    icon(),
+    sitemap({
+      filter: (page) => !page.includes('/_')
+    })
+  ],
   markdown: {
     remarkPlugins: [remarkDirective, remarkCodeBlocks],
   },

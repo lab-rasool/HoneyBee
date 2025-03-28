@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://lab-rasool.github.io/HoneyBee/sitemap-index.xml

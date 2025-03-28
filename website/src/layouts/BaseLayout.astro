@@ -1,32 +1,22 @@
 ---
+import BaseHead from "../components/BaseHead.astro";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import "../styles/code.css";
 
 export interface Props {
-  title: string;
+  title?: string;
   description?: string;
+  image?: string;
 }
 
-const {
-  title,
-  description = "HoneyBee: A framework for multimodal oncology data processing",
-} = Astro.props;
-
-// Emoji favicon as data URL
-const beeFavicon =
-  "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐝</text></svg>";
+const { title, description, image } = Astro.props;
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <link rel="icon" href={beeFavicon} type="image/svg+xml" />
-    <meta name="generator" content={Astro.generator} />
-    <meta name="description" content={description} />
-    <title>{title} | HoneyBee</title>
+    <BaseHead title={title} description={description} image={image} />
   </head>
   <body class="min-h-screen flex flex-col">
     <Header />
