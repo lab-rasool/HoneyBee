@@ -62,29 +62,6 @@ const documentationSections = [
     }
   </div>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Installation</h2>
-  <p class="mb-4">Install HoneyBee using pip:</p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>pip install honeybee-ml</code></pre>
-
-  <h2 class="text-2xl font-bold mt-8 mb-4">Quick Start</h2>
-  <p class="mb-4">Here's a simple example to get you started:</p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee import HoneyBee
-
-# Initialize HoneyBee
-hb = HoneyBee()
-
-# Load clinical data
-clinical_data = hb.load_clinical("path/to/clinical_data.txt")
-
-# Generate embeddings
-embeddings = hb.generate_embeddings(clinical_data, modality="clinical")
-
-# Use embeddings for downstream tasks
-results = hb.predict_survival(embeddings)
-</code></pre>
-
   <h2 class="text-2xl font-bold mt-8 mb-4">Resources</h2>
   <ul class="list-disc pl-5 space-y-2">
     <li>
