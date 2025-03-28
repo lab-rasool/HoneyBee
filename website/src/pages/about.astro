@@ -1,0 +1,71 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="About">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-bold mb-8 text-center">About HoneyBee</h1>
+    
+    <div class="prose max-w-none">
+      <h2>Project Overview</h2>
+      <p>
+        HoneyBee is a modular, open-source framework designed for multimodal oncology data processing and analysis. It addresses the challenges of data heterogeneity, scalability, and standardization in computational oncology by providing a unified framework for processing diverse data types.
+      </p>
+
+      <h2 class="mt-8">Motivation</h2>
+      <p>
+        The digitization and integration of multiple data modalities - from clinical documentation to radiological scans, digital pathology slides, and molecular profiles - have been driven by recent advances in computational oncology. However, a standardized open-source framework that applies best practices across different data types has been missing.
+      </p>
+      <p>
+        Many published methods exist as standalone codebases with specific environmental requirements, rigid interfaces, and strict data format specifications. These limitations often impede reproducibility, complicate the adaptation of peer-reviewed methods, hinder multimodal analysis, and increase the learning curve for new users.
+      </p>
+      <p>
+        HoneyBee addresses these challenges by providing a flexible, modular framework that enables researchers to harmonize and integrate diverse data types, generating comprehensive embedding vectors that capture complementary biological signals.
+      </p>
+
+      <h2 class="mt-8">Key Features</h2>
+      <ul>
+        <li>Multimodal data integration across clinical, radiological, pathological, and molecular domains</li>
+        <li>Standardized preprocessing pipelines for each data modality</li>
+        <li>Generation of high-quality embeddings using domain-specific foundation models</li>
+        <li>Support for downstream applications such as prognosis estimation, cancer subtype classification, and retrieval-based tasks</li>
+        <li>Open-source codebase with a simplified API for building reproducible analytical pipelines</li>
+      </ul>
+
+      <h2 class="mt-8">Research Impact</h2>
+      <p>
+        HoneyBee has demonstrated that integrated representations from multiple data modalities provide high-quality embeddings that outperform comparable single-modality models across a variety of oncology tasks. These results indicate that, in addition to commonly studied scale and model complexity, the information content from multimodal medical data provides an orthogonal direction to improve the power of machine learning in oncology.
+      </p>
+      <p>
+        Through comprehensive experiments using publicly available datasets, we have shown that HoneyBee-generated embeddings effectively capture critical patterns across diverse data modalities, enabling enhanced analytical capabilities when combined through multimodal learning approaches.
+      </p>
+
+      <h2 class="mt-8">Future Directions</h2>
+      <p>
+        Future development of HoneyBee will focus on:
+      </p>
+      <ul>
+        <li>Expanding modality coverage to include additional data types</li>
+        <li>Developing specialized, task-specific fine-tuning methods</li>
+        <li>Enhancing interpretability and trustworthiness of generated embeddings</li>
+        <li>Validating the approach on diverse patient populations across multiple institutions</li>
+      </ul>
+
+      <h2 class="mt-8">License</h2>
+      <p>
+        HoneyBee is available under an open-source license. The TCGA dataset embeddings are publicly available on the Hugging Face platform under a Creative Commons Attribution Non Commercial No Derivatives 4.0 license.
+      </p>
+
+      <h2 class="mt-8">Citation</h2>
+      <p>If you use HoneyBee in your research, please cite our paper:</p>
+      <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-8">
+@article{tripathi2024honeybee,
+  title={From Data to Prognosis: Embedding Multimodal Oncology Data for Precision Medicine},
+  author={Tripathi, Aakash and Waqas, Asim and Schabath, Matthew B. and Yilmaz, Yasin and Rasool, Ghulam},
+  journal={arXiv preprint arXiv:2405.07460},
+  year={2024}
+}
+      </pre>
+    </div>
+  </div>
+</BaseLayout>

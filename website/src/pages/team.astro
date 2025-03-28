@@ -1,0 +1,90 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const teamMembers = [
+  {
+    name: "Aakash Tripathi",
+    role: "Lead Developer",
+    affiliation:
+      "Department of Machine Learning, Moffitt Cancer Center & Research Institute | Department of Electrical Engineering, University of South Florida",
+    email: "aakash.tripathi@moffitt.org",
+    description:
+      "Led the development of the multimodal embedding framework, designed and implemented the neural network architectures, and conducted computational experiments.",
+  },
+  {
+    name: "Asim Waqas",
+    role: "Lead Developer",
+    affiliation:
+      "Department of Machine Learning, Moffitt Cancer Center & Research Institute | Departments of Cancer Epidemiology, Moffitt Cancer Center & Research Institute",
+    email: "asim.waqas@moffitt.org",
+    description:
+      "Led the molecular processing, and organization efforts, and contributed to the molecular model development.",
+  },
+  {
+    name: "Matthew B. Schabath",
+    role: "Clinical Advisor",
+    affiliation:
+      "Departments of Cancer Epidemiology, Moffitt Cancer Center & Research Institute",
+    email: "matthew.schabath@moffitt.org",
+    description:
+      "Provided clinical expertise, validated the clinical relevance of the findings, and contributed to results interpretation.",
+  },
+  {
+    name: "Yasin Yilmaz",
+    role: "Statistical Advisor",
+    affiliation:
+      "Department of Electrical Engineering, University of South Florida",
+    email: "yasiny@usf.edu",
+    description:
+      "Provided guidance on algorithm design and statistical analysis.",
+  },
+  {
+    name: "Ghulam Rasool",
+    role: "Project Lead",
+    affiliation:
+      "Department of Machine Learning, Moffitt Cancer Center & Research Institute | Department of Electrical Engineering, University of South Florida",
+    email: "ghulam.rasool@moffitt.org",
+    description:
+      "Conceived and supervised the study, secured funding, and provided overall direction.",
+  },
+];
+---
+
+<BaseLayout title="Team">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-bold mb-12 text-center">Our Team</h1>
+
+    <div class="grid grid-cols-1 gap-12">
+      {
+        teamMembers.map((member) => (
+          <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-2xl font-bold mb-2">{member.name}</h2>
+            <p class="text-primary font-medium mb-2">{member.role}</p>
+            <p class="text-gray-600 mb-4">{member.affiliation}</p>
+            <p class="text-gray-700 mb-4">{member.description}</p>
+            <p class="text-gray-600 italic">
+              Contact:{" "}
+              <a
+                href={`mailto:${member.email}`}
+                class="text-primary hover:underline"
+              >
+                {member.email}
+              </a>
+            </p>
+          </div>
+        ))
+      }
+    </div>
+
+    <div class="mt-16 bg-gray-50 p-8 rounded-lg">
+      <h2 class="text-2xl font-bold mb-4">Acknowledgements</h2>
+      <p class="text-gray-700">
+        We would like to thank the National Institutes of Health (NIH) and The
+        Cancer Genome Atlas (TCGA) for providing the data used in this project.
+        Additionally, we acknowledge the computational resources provided by
+        Moffitt Cancer Center & Research Institute and the University of South
+        Florida.
+      </p>
+    </div>
+  </div>
+</BaseLayout>

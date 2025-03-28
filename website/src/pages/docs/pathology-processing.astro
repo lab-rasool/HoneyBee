@@ -1,0 +1,208 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Pathology Processing">
+  <h2 class="text-2xl font-bold mb-4">Overview</h2>
+  <p class="mb-6">
+    The pathology processing pipeline in HoneyBee handles Whole Slide Images (WSIs), which are high-resolution scans of tissue samples. These images present unique computational challenges due to their extreme size (often several gigabytes), multi-resolution pyramid structure, and vendor-specific file formats.
+  </p>
+
+  <div class="mb-8">
+    <img 
+      src="/HoneyBee/images/wsi-processing.png" 
+      alt="Whole Slide Image Processing Pipeline"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h2 class="text-2xl font-bold mb-4">Key Features</h2>
+  <ul class="list-disc pl-5 space-y-2 mb-6">
+    <li>Support for multiple WSI formats (Aperio SVS, Philips TIFF, etc.)</li>
+    <li>GPU-accelerated image processing</li>
+    <li>Tissue detection and segmentation</li>
+    <li>Stain normalization and separation</li>
+    <li>Efficient patch extraction</li>
+    <li>Multiple embedding models for feature extraction</li>
+  </ul>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">WSI Loading and Data Management</h2>
+  <p class="mb-4">
+    HoneyBee utilizes CuImage for efficient loading and handling of WSIs:
+  </p>
+  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+
+# Initialize the pathology processor
+processor = PathologyProcessor()
+
+# Load a whole slide image
+wsi = processor.load_wsi("path/to/slide.svs")
+
+# Access metadata
+metadata = wsi.metadata
+print(f"Dimensions: {metadata['dimensions']}")
+print(f"Magnification: {metadata['magnification']}")
+print(f"Microns per pixel: {metadata['mpp']}")
+</code></pre>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Tissue Detection and Segmentation</h2>
+  <p class="mb-4">
+    HoneyBee implements two approaches for tissue detection:
+  </p>
+  <h3 class="text-xl font-bold mt-4 mb-2">1. Otsu-based method</h3>
+  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-4"><code>from honeybee.processors import PathologyProcessor
+
+processor = PathologyProcessor()
+wsi = processor.load_wsi("path/to/slide.svs")
+
+# Detect tissue using Otsu thresholding
+tissue_mask = processor.detect_tissue(wsi, method="otsu")
+</code></pre>
+
+  <h3 class="text-xl font-bold mt-4 mb-2">2. Deep learning-based approach</h3>
+  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+
+processor = PathologyProcessor()
+wsi = processor.load_wsi("path/to/slide.svs")
+
+# Detect tissue using pretrained model
+tissue_mask = processor.detect_tissue(wsi, method="deeplearning")
+</code></pre>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Stain Normalization</h2>
+  <p class="mb-4">
+    HoneyBee implements three state-of-the-art stain normalization methods:
+  </p>
+  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+
+processor = PathologyProcessor()
+wsi = processor.load_wsi("path/to/slide.svs")
+
+# Reinhard normalization
+normalized_wsi_reinhard = processor.normalize_stain(wsi, method="reinhard")
+
+# Macenko normalization
+normalized_wsi_macenko = processor.normalize_stain(wsi, method="macenko")
+
+# Vahadane normalization
+normalized_wsi_vahadane = processor.normalize_stain(wsi, method="vahadane")
+</code></pre>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Stain Separation</h2>
+  <p class="mb-4">
+    HoneyBee implements color deconvolution for stain separation:
+  </p>
+  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+
+processor = PathologyProcessor()
+wsi = processor.load_wsi("path/to/slide.svs")
+
+# Separate stains (returns a dictionary of stain components)
+stains = processor.separate_stains(wsi)
+
+# Access individual stain components
+hematoxylin = stains['hematoxylin']
+eosin = stains['eosin']
+dab = stains.get('dab')  # May be None if no DAB staining present
+</code></pre>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Patch Extraction</h2>
+  <p class="mb-4">
+    Extract patches from tissue regions for analysis:
+  </p>
+  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+
+processor = PathologyProcessor()
+wsi = processor.load_wsi("path/to/slide.svs")
+tissue_mask = processor.detect_tissue(wsi)
+
+# Extract patches
+patches = processor.extract_patches(
+    wsi, 
+    tissue_mask,
+    patch_size=256,
+    overlap=0.2,
+    min_tissue_percentage=0.5
+)
+
+print(f"Extracted {len(patches)} patches")
+
+# Access individual patches
+patch = patches[0]
+print(f"Patch coordinates: {patch['coords']}")
+print(f"Patch image shape: {patch['image'].shape}")
+</code></pre>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Embedding Generation</h2>
+  <p class="mb-4">
+    Generate embeddings from tissue patches using pretrained models:
+  </p>
+  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+
+processor = PathologyProcessor(model="uni")  # Options: uni, remedis
+wsi = processor.load_wsi("path/to/slide.svs")
+tissue_mask = processor.detect_tissue(wsi)
+patches = processor.extract_patches(wsi, tissue_mask)
+
+# Generate embeddings for all patches
+embeddings = processor.generate_embeddings(patches)
+
+# Shape: (num_patches, embedding_dim)  # embedding_dim depends on the model
+</code></pre>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Complete Example</h2>
+  <p class="mb-4">
+    Full pipeline from WSI loading to embedding generation:
+  </p>
+  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+
+# Initialize processor with specific model
+processor = PathologyProcessor(model="uni")
+
+# Load WSI
+wsi = processor.load_wsi("path/to/slide.svs")
+
+# Normalize staining
+normalized_wsi = processor.normalize_stain(wsi, method="macenko")
+
+# Detect tissue
+tissue_mask = processor.detect_tissue(normalized_wsi, method="deeplearning")
+
+# Extract patches
+patches = processor.extract_patches(
+    normalized_wsi, 
+    tissue_mask,
+    patch_size=256,
+    overlap=0,
+    min_tissue_percentage=0.7
+)
+
+# Generate embeddings
+embeddings = processor.generate_embeddings(patches)
+
+# Aggregate patch-level embeddings to slide-level
+slide_embedding = processor.aggregate_embeddings(embeddings, method="mean")
+
+# Use for downstream tasks
+# ...
+</code></pre>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Performance Considerations</h2>
+  <p class="mb-4">
+    When processing large WSIs, consider the following:
+  </p>
+  <ul class="list-disc pl-5 space-y-2 mb-6">
+    <li>Leverage GPU acceleration when available</li>
+    <li>Use appropriate magnification level for analysis (typically 20x or 40x)</li>
+    <li>Process slides in batches to manage memory usage</li>
+    <li>Use multi-threading for patch extraction and processing</li>
+    <li>Consider downsampling for initial tissue detection before high-resolution analysis</li>
+  </ul>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">References</h2>
+  <ul class="list-disc pl-5 space-y-2">
+    <li>UNI Model: <a href="https://arxiv.org/abs/2310.05694" class="text-primary hover:underline" target="_blank">https://arxiv.org/abs/2310.05694</a></li>
+    <li>REMEDIS: <a href="https://arxiv.org/abs/2308.16184" class="text-primary hover:underline" target="_blank">https://arxiv.org/abs/2308.16184</a></li>
+    <li>Stain Normalization Methods: <a href="https://bio-medical.github.io/staintools/" class="text-primary hover:underline" target="_blank">https://bio-medical.github.io/staintools/</a></li>
+  </ul>
+</DocsLayout>

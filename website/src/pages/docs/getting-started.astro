@@ -1,0 +1,174 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+---
+
+<DocsLayout title="Getting Started">
+  <h2 class="text-2xl font-bold mb-4">Installation</h2>
+  <p class="mb-4">You can install HoneyBee using pip:</p>
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>pip install honeybee-ml</code></pre>
+
+  <p class="mt-4 mb-4">Alternatively, you can install from source:</p>
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>git clone https://github.com/lab-rasool/HoneyBee.git
+cd HoneyBee
+pip install -e .</code></pre>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Dependencies</h2>
+  <p class="mb-4">HoneyBee requires the following dependencies:</p>
+  <ul class="list-disc pl-5 space-y-2 mb-6">
+    <li>Python 3.8+</li>
+    <li>PyTorch 1.9+</li>
+    <li>HuggingFace Transformers</li>
+    <li>HuggingFace Datasets</li>
+    <li>OpenSlide (for pathology)</li>
+    <li>PyDicom (for radiology)</li>
+    <li>NumPy, Pandas, Scikit-learn</li>
+    <li>CUDA-compatible GPU (recommended)</li>
+  </ul>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Basic Usage</h2>
+  <p class="mb-4">Here's a simple example to get you started with HoneyBee:</p>
+
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee import HoneyBee
+
+# Initialize HoneyBee
+hb = HoneyBee()
+
+# Load and process data (example with clinical text)
+clinical_text = "Patient presents with stage III non-small cell lung cancer..."
+processed_text = hb.process_clinical(clinical_text)
+
+# Generate embeddings
+embeddings = hb.generate_embeddings(processed_text, modality="clinical")
+
+# Use embeddings for downstream tasks
+# Example: Classification
+results = hb.classify(embeddings, task="cancer_type")
+print(results)
+
+# Example: Survival analysis
+survival_prediction = hb.predict_survival(embeddings)
+print(survival_prediction)
+</code></pre>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">
+    Working with Different Modalities
+  </h2>
+  <p class="mb-4">HoneyBee supports various data modalities:</p>
+
+  <h3 class="text-xl font-bold mt-6 mb-2">Clinical Data</h3>
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee.processors import ClinicalProcessor
+
+# Initialize processor
+clinical_processor = ClinicalProcessor()
+
+# Process clinical text
+processed_text = clinical_processor.process("Patient clinical notes...")
+
+# Generate embeddings
+embeddings = clinical_processor.generate_embeddings(processed_text)
+</code></pre>
+
+  <h3 class="text-xl font-bold mt-6 mb-2">Pathology Images</h3>
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee.processors import PathologyProcessor
+
+# Initialize processor
+pathology_processor = PathologyProcessor()
+
+# Load and process whole slide image
+wsi = pathology_processor.load_wsi("path/to/slide.svs")
+processed_wsi = pathology_processor.process(wsi)
+
+# Generate embeddings
+embeddings = pathology_processor.generate_embeddings(processed_wsi)
+</code></pre>
+
+  <h3 class="text-xl font-bold mt-6 mb-2">Radiological Images</h3>
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee.processors import RadiologyProcessor
+
+# Initialize processor
+radiology_processor = RadiologyProcessor()
+
+# Load and process radiology image
+image = radiology_processor.load_dicom("path/to/dicom_series/")
+processed_image = radiology_processor.process(image)
+
+# Generate embeddings
+embeddings = radiology_processor.generate_embeddings(processed_image)
+</code></pre>
+
+  <h3 class="text-xl font-bold mt-6 mb-2">Molecular Data</h3>
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee.processors import MolecularProcessor
+
+# Initialize processor
+molecular_processor = MolecularProcessor()
+
+# Load and process molecular data
+molecular_data = molecular_processor.load_data("path/to/gene_expression.csv")
+processed_data = molecular_processor.process(molecular_data)
+
+# Generate embeddings
+embeddings = molecular_processor.generate_embeddings(processed_data)
+</code></pre>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Multimodal Integration</h2>
+  <p class="mb-4">Integrate multiple modalities for comprehensive analysis:</p>
+
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee import HoneyBee
+
+# Initialize HoneyBee
+hb = HoneyBee()
+
+# Generate embeddings for each modality
+clinical_embeddings = hb.generate_embeddings(clinical_data, modality="clinical")
+pathology_embeddings = hb.generate_embeddings(pathology_data, modality="pathology")
+radiology_embeddings = hb.generate_embeddings(radiology_data, modality="radiology")
+molecular_embeddings = hb.generate_embeddings(molecular_data, modality="molecular")
+
+# Integrate embeddings
+multimodal_embeddings = hb.integrate_embeddings([
+    clinical_embeddings, 
+    pathology_embeddings, 
+    radiology_embeddings, 
+    molecular_embeddings
+])
+
+# Use integrated embeddings for downstream tasks
+results = hb.predict_survival(multimodal_embeddings)
+</code></pre>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Next Steps</h2>
+  <p class="mb-4">
+    Now that you understand the basics, you can explore the specific processing
+    pipelines for each modality:
+  </p>
+  <ul class="list-disc pl-5 space-y-2">
+    <li>
+      <a href="/docs/clinical-processing" class="text-primary hover:underline"
+        >Clinical Processing</a
+      >
+    </li>
+    <li>
+      <a href="/docs/pathology-processing" class="text-primary hover:underline"
+        >Pathology Processing</a
+      >
+    </li>
+    <li>
+      <a href="/docs/radiology-processing" class="text-primary hover:underline"
+        >Radiology Processing</a
+      >
+    </li>
+    <li>
+      <a href="/docs/molecular-processing" class="text-primary hover:underline"
+        >Molecular Processing</a
+      >
+    </li>
+  </ul>
+</DocsLayout>

@@ -1,0 +1,58 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+
+export interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+
+const sidebarItems = [
+  { text: "Getting Started", href: "/docs/getting-started" },
+  { text: "Clinical Processing", href: "/docs/clinical-processing" },
+  { text: "Pathology Processing", href: "/docs/pathology-processing" },
+  { text: "Radiology Processing", href: "/docs/radiology-processing" },
+  { text: "Molecular Processing", href: "/docs/molecular-processing" },
+];
+
+// Get current path to highlight active item
+const currentPath = Astro.url.pathname;
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="lg:grid lg:grid-cols-12 lg:gap-8">
+      <!-- Sidebar -->
+      <div class="hidden lg:block lg:col-span-3">
+        <nav class="sticky top-8 space-y-1">
+          <a href="/docs" class="block text-xl font-bold mb-4 text-primary"
+            >Documentation</a
+          >
+          {
+            sidebarItems.map((item) => (
+              <a
+                href={item.href}
+                class={`block px-3 py-2 rounded-md text-base font-medium ${
+                  currentPath === item.href
+                    ? "bg-primary text-white"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                {item.text}
+              </a>
+            ))
+          }
+        </nav>
+      </div>
+
+      <!-- Content -->
+      <div class="lg:col-span-9">
+        <div class="prose max-w-none">
+          <h1>{title}</h1>
+          <slot />
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
