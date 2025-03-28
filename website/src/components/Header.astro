@@ -1,12 +1,13 @@
 ---
-import Navigation from './Navigation.astro';
+import Navigation from "./Navigation.astro";
+import { getPath } from "../utils/path";
 ---
 
 <header class="bg-white shadow-sm">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
     <div class="flex justify-between items-center">
       <div class="flex items-center">
-        <a href="/" class="flex items-center">
+        <a href={getPath("/")} class="flex items-center">
           <span class="text-primary text-3xl font-bold mr-2">🐝</span>
           <span class="text-dark text-2xl font-bold">HoneyBee</span>
         </a>

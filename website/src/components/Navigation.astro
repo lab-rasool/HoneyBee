@@ -1,4 +1,6 @@
 ---
+import { getPath } from "../utils/path";
+
 const navItems = [
   { text: "Home", href: "/" },
   { text: "Docs", href: "/docs" },
@@ -11,7 +13,7 @@ const navItems = [
   {
     navItems.map((item) => (
       <a
-        href={item.href}
+        href={getPath(item.href)}
         class="text-gray-700 hover:text-primary transition-colors"
       >
         {item.text}
