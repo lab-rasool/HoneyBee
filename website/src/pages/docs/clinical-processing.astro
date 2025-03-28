@@ -41,7 +41,8 @@ import CodeBlock from "../../components/CodeBlock.astro";
     extraction:
   </p>
   <CodeBlock
-    code={`from honeybee.processors import ClinicalProcessor
+    code={`
+from honeybee.processors import ClinicalProcessor
 
 # Initialize the clinical processor
 processor = ClinicalProcessor()
@@ -62,7 +63,8 @@ text = "Patient presents with stage III non-small cell lung cancer..."`}
     HoneyBee supports multiple tokenizers optimized for biomedical text:
   </p>
   <CodeBlock
-    code={`from honeybee.processors import ClinicalProcessor
+    code={`
+from honeybee.processors import ClinicalProcessor
 
 # Initialize with specific model
 processor = ClinicalProcessor(model="gatortron-medium")  # Options: gatortron, clinicalt5, biobert, etc.
@@ -81,7 +83,8 @@ tokenized_text = processor.tokenize(text)`}
     ontologies:
   </p>
   <CodeBlock
-    code={`from honeybee.processors import ClinicalProcessor
+    code={`
+from honeybee.processors import ClinicalProcessor
 
 # Initialize processor
 processor = ClinicalProcessor()
@@ -97,7 +100,8 @@ entities = processor.extract_entities(text)`}
     Generate embeddings from clinical text using pretrained models:
   </p>
   <CodeBlock
-    code={`from honeybee.processors import ClinicalProcessor
+    code={`
+from honeybee.processors import ClinicalProcessor
 
 # Initialize with specific model
 processor = ClinicalProcessor(model="gatortron-medium")
@@ -117,7 +121,8 @@ embeddings = processor.generate_embeddings(text)
     HoneyBee supports parameter-efficient fine-tuning for domain-specific tasks:
   </p>
   <CodeBlock
-    code={`from honeybee.processors import ClinicalProcessor
+    code={`
+from honeybee.processors import ClinicalProcessor
 from honeybee.fine_tuning import PEFT
 
 # Initialize processor with base model
@@ -148,7 +153,8 @@ embeddings = processor.generate_embeddings(
   </h2>
   <p class="mb-4">Combine clinical embeddings with other modalities:</p>
   <CodeBlock
-    code={`from honeybee import HoneyBee
+    code={`
+from honeybee import HoneyBee
 
 # Initialize HoneyBee
 hb = HoneyBee()

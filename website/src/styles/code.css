@@ -1,7 +1,7 @@
 /* Base styling for code blocks */
 pre {
   position: relative;
-  background: #282c34;
+  background: #1e2127;
   border-radius: 0.3em;
   margin: 1em 0;
   padding: 1em;
@@ -30,41 +30,43 @@ pre[class*="language-"] {
   hyphens: none;
 }
 
-/* Token styling for Python syntax */
-.token.keyword {
-  color: #c678dd;
-}
-
-.token.function {
-  color: #61afef;
-}
-
-.token.string {
-  color: #98c379;
-}
-
-.token.number {
-  color: #d19a66;
-}
-
-.token.comment {
-  color: #7f848e;
-  font-style: italic;
-}
-
-.token.class-name {
-  color: #e5c07b;
-}
-
-.token.operator {
-  color: #56b6c2;
+/* Token styling - using darker, more saturated colors */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #a0a0a0; /* Darker gray for comments */
 }
 
 .token.punctuation {
-  color: #abb2bf;
+  color: #f8f8f2;
 }
 
-/* Python syntax */
+.token.keyword {
+  color: #ff79c6; /* Vibrant pink for keywords */
+}
+
+.token.function {
+  color: #50b7ff; /* Brighter blue for functions */
+}
+
+.token.string {
+  color: #a5e075; /* Darker green for strings */
+}
+
+.token.number {
+  color: #ff9142; /* Darker orange for numbers */
+}
+
+.token.class-name {
+  color: #ffdf5d; /* Darker yellow for class names */
+}
+
+.token.operator {
+  color: #00c6c6; /* Darker cyan for operators */
+}
+
+/* Python syntax specifically */
 .language-python .token.keyword {
   color: #ff79c6;
 }
@@ -78,8 +80,7 @@ pre[class*="language-"] {
 }
 
 .language-python .token.comment {
-  color: #6272a4;
-  font-style: italic;
+  color: #a0a0a0; /* Darker comment color */
 }
 
 .language-python .token.function {
@@ -88,44 +89,62 @@ pre[class*="language-"] {
 
 .language-python .token.class-name {
   color: #8be9fd;
-  font-style: italic;
 }
 
 .language-python .token.builtin {
   color: #8be9fd;
 }
 
-.language-python .token.boolean {
-  color: #bd93f9;
+/* Light theme overrides - making all colors darker for better contrast */
+code[class*="language-"],
+pre[class*="language-"] {
+  background: #1e2127;
+  color: #f8f8f2 !important;
 }
 
-.language-python .token.operator {
-  color: #ff79c6;
+/* Common highlight.js colors for dark theme */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+  color: #ff79c6; /* Darker pink */
 }
 
-.language-python .token.punctuation {
-  color: #f8f8f2;
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute,
+.hljs-meta .hljs-string {
+  color: #a5e075; /* Darker green */
 }
 
-/* Copy button styling */
-.code-copy-button {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  background: #4b5563;
-  color: white;
-  border: none;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
-  opacity: 0;
-  transition: opacity 0.2s;
+.hljs-comment,
+.hljs-quote {
+  color: #a0a0a0; /* Darker gray */
 }
 
-pre:hover .code-copy-button {
-  opacity: 1;
+.hljs-number,
+.hljs-literal {
+  color: #bd93f9; /* Darker purple */
 }
 
-.code-copy-button:hover {
-  background: #6b7280;
+.hljs-name,
+.hljs-section,
+.hljs-title {
+  color: #8be9fd; /* Darker cyan */
+}
+
+/* Make sure the code blocks use dark theme consistently */
+pre[class*="language-"] {
+  background-color: #1e2127 !important;
+  margin: 0;
+}
+
+/* Custom style for the code block container */
+.code-block-container pre[class*="language-"] {
+  margin: 0 !important;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+  background-color: #1e2127 !important;
 }

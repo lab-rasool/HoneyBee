@@ -1,18 +1,22 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
 ---
 
 <DocsLayout title="Getting Started">
   <h2 class="text-2xl font-bold mb-4">Installation</h2>
   <p class="mb-4">You can install HoneyBee using pip:</p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>pip install honeybee-ml</code></pre>
+
+  <CodeBlock code={`pip install honeybee-ml`} lang="bash" />
 
   <p class="mt-4 mb-4">Alternatively, you can install from source:</p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>git clone https://github.com/lab-rasool/HoneyBee.git
+
+  <CodeBlock
+    code={`git clone https://github.com/lab-rasool/HoneyBee.git
 cd HoneyBee
-pip install -e .</code></pre>
+pip install -e .`}
+    lang="bash"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Dependencies</h2>
   <p class="mb-4">HoneyBee requires the following dependencies:</p>
@@ -30,8 +34,9 @@ pip install -e .</code></pre>
   <h2 class="text-2xl font-bold mt-8 mb-4">Basic Usage</h2>
   <p class="mb-4">Here's a simple example to get you started with HoneyBee:</p>
 
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee import HoneyBee
+  <CodeBlock
+    code={`
+from honeybee import HoneyBee
 
 # Initialize HoneyBee
 hb = HoneyBee()
@@ -50,8 +55,9 @@ print(results)
 
 # Example: Survival analysis
 survival_prediction = hb.predict_survival(embeddings)
-print(survival_prediction)
-</code></pre>
+print(survival_prediction)`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">
     Working with Different Modalities
@@ -59,8 +65,10 @@ print(survival_prediction)
   <p class="mb-4">HoneyBee supports various data modalities:</p>
 
   <h3 class="text-xl font-bold mt-6 mb-2">Clinical Data</h3>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee.processors import ClinicalProcessor
+
+  <CodeBlock
+    code={`
+from honeybee.processors import ClinicalProcessor
 
 # Initialize processor
 clinical_processor = ClinicalProcessor()
@@ -69,12 +77,15 @@ clinical_processor = ClinicalProcessor()
 processed_text = clinical_processor.process("Patient clinical notes...")
 
 # Generate embeddings
-embeddings = clinical_processor.generate_embeddings(processed_text)
-</code></pre>
+embeddings = clinical_processor.generate_embeddings(processed_text)`}
+    lang="python"
+  />
 
   <h3 class="text-xl font-bold mt-6 mb-2">Pathology Images</h3>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee.processors import PathologyProcessor
+
+  <CodeBlock
+    code={`
+from honeybee.processors import PathologyProcessor
 
 # Initialize processor
 pathology_processor = PathologyProcessor()
@@ -84,12 +95,15 @@ wsi = pathology_processor.load_wsi("path/to/slide.svs")
 processed_wsi = pathology_processor.process(wsi)
 
 # Generate embeddings
-embeddings = pathology_processor.generate_embeddings(processed_wsi)
-</code></pre>
+embeddings = pathology_processor.generate_embeddings(processed_wsi)`}
+    lang="python"
+  />
 
   <h3 class="text-xl font-bold mt-6 mb-2">Radiological Images</h3>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee.processors import RadiologyProcessor
+
+  <CodeBlock
+    code={`
+from honeybee.processors import RadiologyProcessor
 
 # Initialize processor
 radiology_processor = RadiologyProcessor()
@@ -99,12 +113,15 @@ image = radiology_processor.load_dicom("path/to/dicom_series/")
 processed_image = radiology_processor.process(image)
 
 # Generate embeddings
-embeddings = radiology_processor.generate_embeddings(processed_image)
-</code></pre>
+embeddings = radiology_processor.generate_embeddings(processed_image)`}
+    lang="python"
+  />
 
   <h3 class="text-xl font-bold mt-6 mb-2">Molecular Data</h3>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee.processors import MolecularProcessor
+
+  <CodeBlock
+    code={`
+from honeybee.processors import MolecularProcessor
 
 # Initialize processor
 molecular_processor = MolecularProcessor()
@@ -114,14 +131,16 @@ molecular_data = molecular_processor.load_data("path/to/gene_expression.csv")
 processed_data = molecular_processor.process(molecular_data)
 
 # Generate embeddings
-embeddings = molecular_processor.generate_embeddings(processed_data)
-</code></pre>
+embeddings = molecular_processor.generate_embeddings(processed_data)`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Multimodal Integration</h2>
   <p class="mb-4">Integrate multiple modalities for comprehensive analysis:</p>
 
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto"><code>from honeybee import HoneyBee
+  <CodeBlock
+    code={`
+from honeybee import HoneyBee
 
 # Initialize HoneyBee
 hb = HoneyBee()
@@ -141,8 +160,9 @@ multimodal_embeddings = hb.integrate_embeddings([
 ])
 
 # Use integrated embeddings for downstream tasks
-results = hb.predict_survival(multimodal_embeddings)
-</code></pre>
+results = hb.predict_survival(multimodal_embeddings)`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Next Steps</h2>
   <p class="mb-4">
@@ -151,23 +171,27 @@ results = hb.predict_survival(multimodal_embeddings)
   </p>
   <ul class="list-disc pl-5 space-y-2">
     <li>
-      <a href="/docs/clinical-processing" class="text-primary hover:underline"
-        >Clinical Processing</a
+      <a
+        href="/HoneyBee/docs/clinical-processing"
+        class="text-primary hover:underline">Clinical Processing</a
       >
     </li>
     <li>
-      <a href="/docs/pathology-processing" class="text-primary hover:underline"
-        >Pathology Processing</a
+      <a
+        href="/HoneyBee/docs/pathology-processing"
+        class="text-primary hover:underline">Pathology Processing</a
       >
     </li>
     <li>
-      <a href="/docs/radiology-processing" class="text-primary hover:underline"
-        >Radiology Processing</a
+      <a
+        href="/HoneyBee/docs/radiology-processing"
+        class="text-primary hover:underline">Radiology Processing</a
       >
     </li>
     <li>
-      <a href="/docs/molecular-processing" class="text-primary hover:underline"
-        >Molecular Processing</a
+      <a
+        href="/HoneyBee/docs/molecular-processing"
+        class="text-primary hover:underline">Molecular Processing</a
       >
     </li>
   </ul>

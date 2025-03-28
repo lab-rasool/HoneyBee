@@ -40,7 +40,8 @@ import CodeBlock from "../../components/CodeBlock.astro";
     preservation:
   </p>
   <CodeBlock
-    code={`from honeybee.processors import RadiologyProcessor
+    code={`
+from honeybee.processors import RadiologyProcessor
 
 # Initialize the radiology processor
 processor = RadiologyProcessor()
@@ -64,7 +65,8 @@ metadata = dicom_series.metadata`}
     Isolate relevant anatomical structures for targeted analysis:
   </p>
   <CodeBlock
-    code={`from honeybee.processors import RadiologyProcessor
+    code={`
+from honeybee.processors import RadiologyProcessor
 
 processor = RadiologyProcessor()
 ct_scan = processor.load_dicom("path/to/ct_scan/")
@@ -94,7 +96,8 @@ metabolic_mask = processor.segment_metabolic_volume(pet_scan, threshold=suv_thre
     Improve image quality through denoising and artifact reduction:
   </p>
   <CodeBlock
-    code={`from honeybee.processors import RadiologyProcessor
+    code={`
+from honeybee.processors import RadiologyProcessor
 
 processor = RadiologyProcessor()
 ct_scan = processor.load_dicom("path/to/ct_scan/")
@@ -124,7 +127,8 @@ denoised_pet = processor.denoise(pet_scan, method="pet_specific")`}
   </h2>
   <p class="mb-4">Standardize spatial resolution and orientation:</p>
   <CodeBlock
-    code={`from honeybee.processors import RadiologyProcessor
+    code={`
+from honeybee.processors import RadiologyProcessor
 
 processor = RadiologyProcessor()
 ct_scan = processor.load_dicom("path/to/ct_scan/")
@@ -150,7 +154,8 @@ cropped_ct = processor.crop_to_roi(registered_ct, roi_mask)`}
     Standardize signal intensities across different scanners and protocols:
   </p>
   <CodeBlock
-    code={`from honeybee.processors import RadiologyProcessor
+    code={`
+from honeybee.processors import RadiologyProcessor
 
 processor = RadiologyProcessor()
 
@@ -185,7 +190,8 @@ suv_pet = processor.calculate_suv(
     Generate embeddings from medical images using specialized models:
   </p>
   <CodeBlock
-    code={`from honeybee.processors import RadiologyProcessor
+    code={`
+from honeybee.processors import RadiologyProcessor
 
 # Initialize processor with specific model
 processor = RadiologyProcessor(model="remedis")  # Options: remedis, radimagenet
@@ -215,7 +221,8 @@ volume_embedding = processor.aggregate_embeddings(volume_embeddings, method="mea
   <h2 class="text-2xl font-bold mt-8 mb-4">Complete Example</h2>
   <p class="mb-4">Full pipeline from image loading to embedding generation:</p>
   <CodeBlock
-    code={`from honeybee.processors import RadiologyProcessor
+    code={`
+from honeybee.processors import RadiologyProcessor
 
 # Initialize processor with specific model
 processor = RadiologyProcessor(model="remedis")
