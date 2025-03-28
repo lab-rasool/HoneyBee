@@ -3224,7 +3224,7 @@ def main():
     showed no evidence of disease. Patient started tamoxifen 20 mg daily on 10/10/2023 and will continue for 5 years.
     Follow-up appointment is scheduled for 01/15/2024.
     """
-    # result = processor.process_text(sample_text, document_type='progress_note')
+    # result = processor.process_text(sample_text, document_type="progress_note")
 
     # Print summary of results
     print(f"Document type: {result.get('document_type')}")
