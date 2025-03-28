@@ -2,6 +2,8 @@
   <img src="website/public/images/logo.png" alt="HoneyBee Logo" width="120px" height="140px" align="left"/>
   <h1>HoneyBee</h1>
   <p><strong>A Scalable Modular Framework for Multimodal Oncology AI</strong></p>
+</div>
+<div align="center">
   <p>
     <a href="https://arxiv.org/abs/2405.07460">
       <img src="https://img.shields.io/badge/arXiv-2405.07460-b31b1b.svg" alt="arXiv">
