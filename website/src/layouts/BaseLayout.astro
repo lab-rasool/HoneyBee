@@ -11,6 +11,10 @@ const {
   title,
   description = "HoneyBee: A framework for multimodal oncology data processing",
 } = Astro.props;
+
+// Emoji favicon as data URL
+const beeFavicon =
+  "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐝</text></svg>";
 ---
 
 <!doctype html>
@@ -18,16 +22,7 @@ const {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
-    <link rel="icon" type="image/png" sizes="16x16" href="./images/logo.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./images/logo.png" />
-    <link rel="icon" type="image/png" sizes="96x96" href="./images/logo.png" />
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="192x192"
-      href="./images/logo.png"
-    />
-    <link rel="apple-touch-icon" sizes="180x180" href="./images/logo.png" />
+    <link rel="icon" href={beeFavicon} type="image/svg+xml" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
     <title>{title} | HoneyBee</title>
