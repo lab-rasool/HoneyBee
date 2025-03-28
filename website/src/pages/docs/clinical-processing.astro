@@ -1,16 +1,20 @@
 ---
-import DocsLayout from '../../layouts/DocsLayout.astro';
+import DocsLayout from "../../layouts/DocsLayout.astro";
 ---
 
 <DocsLayout title="Clinical Data Processing">
   <h2 class="text-2xl font-bold mb-4">Overview</h2>
   <p class="mb-6">
-    The clinical data processing pipeline in HoneyBee is designed to handle various types of clinical data, including electronic health records (EHRs), clinical notes, pathology reports, and other textual medical documents. The pipeline extracts, processes, and generates embeddings from clinical text data for downstream machine learning applications.
+    The clinical data processing pipeline in HoneyBee is designed to handle
+    various types of clinical data, including electronic health records (EHRs),
+    clinical notes, pathology reports, and other textual medical documents. The
+    pipeline extracts, processes, and generates embeddings from clinical text
+    data for downstream machine learning applications.
   </p>
 
   <div class="mb-8">
-    <img 
-      src="/HoneyBee/images/clinical-processing.png" 
+    <img
+      src="/HoneyBee/images/clinical-processing.png"
       alt="Clinical Processing Pipeline"
       class="rounded-lg shadow-md w-full mb-4"
     />
@@ -18,7 +22,9 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
 
   <h2 class="text-2xl font-bold mb-4">Key Features</h2>
   <ul class="list-disc pl-5 space-y-2 mb-6">
-    <li>Support for multiple input formats (PDF, scanned images, EHR exports)</li>
+    <li>
+      Support for multiple input formats (PDF, scanned images, EHR exports)
+    </li>
     <li>OCR capabilities for digitizing scanned documents</li>
     <li>Integration with specialized medical language models</li>
     <li>Clinical entity recognition and normalization</li>
@@ -26,11 +32,15 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
     <li>Temporal information extraction for patient timelines</li>
   </ul>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Text Extraction and Document Processing</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">
+    Text Extraction and Document Processing
+  </h2>
   <p class="mb-4">
-    HoneyBee implements a multi-stage processing pipeline for clinical text extraction:
+    HoneyBee implements a multi-stage processing pipeline for clinical text
+    extraction:
   </p>
-  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
 
 # Initialize the clinical processor
 processor = ClinicalProcessor()
@@ -42,11 +52,14 @@ text = processor.extract_text("path/to/document.pdf")
 text = "Patient presents with stage III non-small cell lung cancer..."
 </code></pre>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Tokenization and Language Model Integration</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">
+    Tokenization and Language Model Integration
+  </h2>
   <p class="mb-4">
     HoneyBee supports multiple tokenizers optimized for biomedical text:
   </p>
-  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
 
 # Initialize with specific model
 processor = ClinicalProcessor(model="gatortron-medium")  # Options: gatortron, clinicalt5, biobert, etc.
@@ -55,31 +68,29 @@ processor = ClinicalProcessor(model="gatortron-medium")  # Options: gatortron, c
 tokenized_text = processor.tokenize(text)
 </code></pre>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Entity Recognition and Normalization</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">
+    Entity Recognition and Normalization
+  </h2>
   <p class="mb-4">
-    Extract and normalize clinical entities with integration to standard ontologies:
+    Extract and normalize clinical entities with integration to standard
+    ontologies:
   </p>
-  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
 
 # Initialize processor
 processor = ClinicalProcessor()
 
 # Extract entities
 entities = processor.extract_entities(text)
-
-# Example output:
-# [
-#   {"text": "stage III non-small cell lung cancer", "type": "diagnosis", "code": "254637007"},
-#   {"text": "dyspnea", "type": "symptom", "code": "267036007"},
-#   {"text": "CT scan", "type": "procedure", "code": "77062"}
-# ]
 </code></pre>
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Embedding Generation</h2>
   <p class="mb-4">
     Generate embeddings from clinical text using pretrained models:
   </p>
-  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
 
 # Initialize with specific model
 processor = ClinicalProcessor(model="gatortron-medium")
@@ -90,11 +101,14 @@ embeddings = processor.generate_embeddings(text)
 # Shape: (1, embedding_dim)  # embedding_dim depends on the model
 </code></pre>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Fine-tuning for Domain-Specific Tasks</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">
+    Fine-tuning for Domain-Specific Tasks
+  </h2>
   <p class="mb-4">
     HoneyBee supports parameter-efficient fine-tuning for domain-specific tasks:
   </p>
-  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
 from honeybee.fine_tuning import PEFT
 
 # Initialize processor with base model
@@ -118,11 +132,12 @@ embeddings = processor.generate_embeddings(
 )
 </code></pre>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Advanced Usage: Multimodal Integration</h2>
-  <p class="mb-4">
-    Combine clinical embeddings with other modalities:
-  </p>
-  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee import HoneyBee
+  <h2 class="text-2xl font-bold mt-8 mb-4">
+    Advanced Usage: Multimodal Integration
+  </h2>
+  <p class="mb-4">Combine clinical embeddings with other modalities:</p>
+  <pre
+    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee import HoneyBee
 
 # Initialize HoneyBee
 hb = HoneyBee()
@@ -154,7 +169,19 @@ results = hb.predict_survival(combined_embeddings)
 
   <h2 class="text-2xl font-bold mt-8 mb-4">References</h2>
   <ul class="list-disc pl-5 space-y-2">
-    <li>GatorTron: <a href="https://arxiv.org/abs/2301.04619" class="text-primary hover:underline" target="_blank">https://arxiv.org/abs/2301.04619</a></li>
-    <li>Clinical-T5: <a href="https://huggingface.co/cjfcsjt/clinicalT5" class="text-primary hover:underline" target="_blank">https://huggingface.co/cjfcsjt/clinicalT5</a></li>
+    <li>
+      GatorTron: <a
+        href="https://arxiv.org/abs/2301.04619"
+        class="text-primary hover:underline"
+        target="_blank">https://arxiv.org/abs/2301.04619</a
+      >
+    </li>
+    <li>
+      Clinical-T5: <a
+        href="https://huggingface.co/cjfcsjt/clinicalT5"
+        class="text-primary hover:underline"
+        target="_blank">https://huggingface.co/cjfcsjt/clinicalT5</a
+      >
+    </li>
   </ul>
 </DocsLayout>
