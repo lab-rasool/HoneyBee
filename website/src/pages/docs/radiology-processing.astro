@@ -1,5 +1,6 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
 ---
 
 <DocsLayout title="Radiology Processing">
@@ -38,8 +39,8 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
     HoneyBee supports standard medical imaging formats with metadata
     preservation:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import RadiologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import RadiologyProcessor
 
 # Initialize the radiology processor
 processor = RadiologyProcessor()
@@ -51,8 +52,10 @@ dicom_series = processor.load_dicom("path/to/dicom_folder/")
 nifti_image = processor.load_nifti("path/to/image.nii.gz")
 
 # Access metadata
-metadata = dicom_series.metadata
-</code></pre>
+metadata = dicom_series.metadata`}
+    lang="python"
+    filename="optional_filename.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">
     Anatomical Segmentation and Masking
@@ -60,8 +63,8 @@ metadata = dicom_series.metadata
   <p class="mb-4">
     Isolate relevant anatomical structures for targeted analysis:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import RadiologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import RadiologyProcessor
 
 processor = RadiologyProcessor()
 ct_scan = processor.load_dicom("path/to/ct_scan/")
@@ -81,15 +84,17 @@ tumor_mask = processor.segment_tumor(mri_scan)
 # PET metabolic volume delineation
 pet_scan = processor.load_dicom("path/to/pet_scan/")
 suv_threshold = 2.5  # Standardized Uptake Value threshold
-metabolic_mask = processor.segment_metabolic_volume(pet_scan, threshold=suv_threshold)
-</code></pre>
+metabolic_mask = processor.segment_metabolic_volume(pet_scan, threshold=suv_threshold)`}
+    lang="python"
+    filename="optional_filename.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Denoising and Artifact Reduction</h2>
   <p class="mb-4">
     Improve image quality through denoising and artifact reduction:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import RadiologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import RadiologyProcessor
 
 processor = RadiologyProcessor()
 ct_scan = processor.load_dicom("path/to/ct_scan/")
@@ -109,15 +114,17 @@ denoised_mri = processor.denoise(mri_scan, method="rician")  # Rician noise mode
 
 # PET denoising
 pet_scan = processor.load_dicom("path/to/pet_scan/")
-denoised_pet = processor.denoise(pet_scan, method="pet_specific")
-</code></pre>
+denoised_pet = processor.denoise(pet_scan, method="pet_specific")`}
+    lang="python"
+    filename="optional_filename.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">
     Spatial Standardization and Resampling
   </h2>
   <p class="mb-4">Standardize spatial resolution and orientation:</p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import RadiologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import RadiologyProcessor
 
 processor = RadiologyProcessor()
 ct_scan = processor.load_dicom("path/to/ct_scan/")
@@ -133,15 +140,17 @@ atlas = processor.load_atlas("path/to/atlas.nii.gz")
 registered_ct = processor.register(standardized_ct, atlas)
 
 # Crop to region of interest
-cropped_ct = processor.crop_to_roi(registered_ct, roi_mask)
-</code></pre>
+cropped_ct = processor.crop_to_roi(registered_ct, roi_mask)`}
+    lang="python"
+    filename="optional_filename.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Intensity Normalization</h2>
   <p class="mb-4">
     Standardize signal intensities across different scanners and protocols:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import RadiologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import RadiologyProcessor
 
 processor = RadiologyProcessor()
 
@@ -166,15 +175,17 @@ suv_pet = processor.calculate_suv(
     patient_weight=70,  # in kg
     injected_dose=10,   # in mCi
     injection_time="20220101T120000"  # ISO format
-)
-</code></pre>
+)`}
+    lang="python"
+    filename="optional_filename.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Embedding Generation</h2>
   <p class="mb-4">
     Generate embeddings from medical images using specialized models:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import RadiologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import RadiologyProcessor
 
 # Initialize processor with specific model
 processor = RadiologyProcessor(model="remedis")  # Options: remedis, radimagenet
@@ -196,13 +207,15 @@ volume_embeddings = processor.generate_embeddings(preprocessed_volume, mode="3d"
 # Shape: (num_slices, embedding_dim)
 
 # Aggregate slice embeddings to volume-level
-volume_embedding = processor.aggregate_embeddings(volume_embeddings, method="mean")
-</code></pre>
+volume_embedding = processor.aggregate_embeddings(volume_embeddings, method="mean")`}
+    lang="python"
+    filename="optional_filename.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Complete Example</h2>
   <p class="mb-4">Full pipeline from image loading to embedding generation:</p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import RadiologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import RadiologyProcessor
 
 # Initialize processor with specific model
 processor = RadiologyProcessor(model="remedis")
@@ -229,8 +242,10 @@ masked_ct = processor.apply_mask(preprocessed_ct, lung_mask)
 embeddings = processor.generate_embeddings(masked_ct)
 
 # Use for downstream tasks
-# ...
-</code></pre>
+# ...`}
+    lang="python"
+    filename="optional_filename.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Performance Considerations</h2>
   <p class="mb-4">

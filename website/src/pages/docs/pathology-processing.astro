@@ -1,5 +1,6 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
 ---
 
 <DocsLayout title="Pathology Processing">
@@ -34,48 +35,51 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
   <p class="mb-4">
     HoneyBee utilizes CuImage for efficient loading and handling of WSIs:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import PathologyProcessor
 
 # Initialize the pathology processor
 processor = PathologyProcessor()
 
 # Load a whole slide image
-wsi = processor.load_wsi("path/to/slide.svs")
-</code></pre>
+wsi = processor.load_wsi("path/to/slide.svs")`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">
     Tissue Detection and Segmentation
   </h2>
   <p class="mb-4">HoneyBee implements two approaches for tissue detection:</p>
   <h3 class="text-xl font-bold mt-4 mb-2">1. Otsu-based method</h3>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-4"><code>from honeybee.processors import PathologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import PathologyProcessor
 
 processor = PathologyProcessor()
 wsi = processor.load_wsi("path/to/slide.svs")
 
 # Detect tissue using Otsu thresholding
-tissue_mask = processor.detect_tissue(wsi, method="otsu")
-</code></pre>
+tissue_mask = processor.detect_tissue(wsi, method="otsu")`}
+    lang="python"
+  />
 
   <h3 class="text-xl font-bold mt-4 mb-2">2. Deep learning-based approach</h3>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import PathologyProcessor
 
 processor = PathologyProcessor()
 wsi = processor.load_wsi("path/to/slide.svs")
 
 # Detect tissue using pretrained model
-tissue_mask = processor.detect_tissue(wsi, method="deeplearning")
-</code></pre>
+tissue_mask = processor.detect_tissue(wsi, method="deeplearning")`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Stain Normalization</h2>
   <p class="mb-4">
     HoneyBee implements three state-of-the-art stain normalization methods:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import PathologyProcessor
 
 processor = PathologyProcessor()
 wsi = processor.load_wsi("path/to/slide.svs")
@@ -87,15 +91,16 @@ normalized_wsi_reinhard = processor.normalize_stain(wsi, method="reinhard")
 normalized_wsi_macenko = processor.normalize_stain(wsi, method="macenko")
 
 # Vahadane normalization
-normalized_wsi_vahadane = processor.normalize_stain(wsi, method="vahadane")
-</code></pre>
+normalized_wsi_vahadane = processor.normalize_stain(wsi, method="vahadane")`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Stain Separation</h2>
   <p class="mb-4">
     HoneyBee implements color deconvolution for stain separation:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import PathologyProcessor
 
 processor = PathologyProcessor()
 wsi = processor.load_wsi("path/to/slide.svs")
@@ -106,13 +111,14 @@ stains = processor.separate_stains(wsi)
 # Access individual stain components
 hematoxylin = stains['hematoxylin']
 eosin = stains['eosin']
-dab = stains.get('dab')  # May be None if no DAB staining present
-</code></pre>
+dab = stains.get('dab')  # May be None if no DAB staining present`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Patch Extraction</h2>
   <p class="mb-4">Extract patches from tissue regions for analysis:</p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import PathologyProcessor
 
 processor = PathologyProcessor()
 wsi = processor.load_wsi("path/to/slide.svs")
@@ -125,15 +131,16 @@ patches = processor.extract_patches(
     patch_size=256,
     overlap=0.2,
     min_tissue_percentage=0.5
-)
-</code></pre>
+)`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Embedding Generation</h2>
   <p class="mb-4">
     Generate embeddings from tissue patches using pretrained models:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import PathologyProcessor
 
 processor = PathologyProcessor(model="uni")  # Options: uni, remedis
 wsi = processor.load_wsi("path/to/slide.svs")
@@ -143,13 +150,14 @@ patches = processor.extract_patches(wsi, tissue_mask)
 # Generate embeddings for all patches
 embeddings = processor.generate_embeddings(patches)
 
-# Shape: (num_patches, embedding_dim)  # embedding_dim depends on the model
-</code></pre>
+# Shape: (num_patches, embedding_dim)  # embedding_dim depends on the model`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Complete Example</h2>
   <p class="mb-4">Full pipeline from WSI loading to embedding generation:</p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import PathologyProcessor
+  <CodeBlock
+    code={`from honeybee.processors import PathologyProcessor
 
 # Initialize processor with specific model
 processor = PathologyProcessor(model="uni")
@@ -179,8 +187,9 @@ embeddings = processor.generate_embeddings(patches)
 slide_embedding = processor.aggregate_embeddings(embeddings, method="mean")
 
 # Use for downstream tasks
-# ...
-</code></pre>
+# ...`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Performance Considerations</h2>
   <p class="mb-4">When processing large WSIs, consider the following:</p>

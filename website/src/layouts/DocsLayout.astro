@@ -1,6 +1,8 @@
 ---
 import BaseLayout from "./BaseLayout.astro";
 
+import "../styles/code.css";
+
 export interface Props {
   title: string;
   description?: string;
@@ -56,3 +58,13 @@ const currentPath = Astro.url.pathname;
     </div>
   </div>
 </BaseLayout>
+
+<!-- Add Prism.js for syntax highlighting before closing body -->
+<script
+  is:inline
+  src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"
+></script>
+<script
+  is:inline
+  src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"
+></script>

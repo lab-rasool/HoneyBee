@@ -1,5 +1,6 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
 ---
 
 <DocsLayout title="Clinical Data Processing">
@@ -39,8 +40,8 @@ import DocsLayout from "../../layouts/DocsLayout.astro";
     HoneyBee implements a multi-stage processing pipeline for clinical text
     extraction:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
+  <CodeBlock
+    code={`from honeybee.processors import ClinicalProcessor
 
 # Initialize the clinical processor
 processor = ClinicalProcessor()
@@ -49,8 +50,10 @@ processor = ClinicalProcessor()
 text = processor.extract_text("path/to/document.pdf")
 
 # Or process raw text directly
-text = "Patient presents with stage III non-small cell lung cancer..."
-</code></pre>
+text = "Patient presents with stage III non-small cell lung cancer..."`}
+    lang="python"
+    filename="clinical_extraction.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">
     Tokenization and Language Model Integration
@@ -58,15 +61,17 @@ text = "Patient presents with stage III non-small cell lung cancer..."
   <p class="mb-4">
     HoneyBee supports multiple tokenizers optimized for biomedical text:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
+  <CodeBlock
+    code={`from honeybee.processors import ClinicalProcessor
 
 # Initialize with specific model
 processor = ClinicalProcessor(model="gatortron-medium")  # Options: gatortron, clinicalt5, biobert, etc.
 
 # Tokenize and process text
-tokenized_text = processor.tokenize(text)
-</code></pre>
+tokenized_text = processor.tokenize(text)`}
+    lang="python"
+    filename="tokenization.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">
     Entity Recognition and Normalization
@@ -75,22 +80,24 @@ tokenized_text = processor.tokenize(text)
     Extract and normalize clinical entities with integration to standard
     ontologies:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
+  <CodeBlock
+    code={`from honeybee.processors import ClinicalProcessor
 
 # Initialize processor
 processor = ClinicalProcessor()
 
 # Extract entities
-entities = processor.extract_entities(text)
-</code></pre>
+entities = processor.extract_entities(text)`}
+    lang="python"
+    filename="entity_recognition.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Embedding Generation</h2>
   <p class="mb-4">
     Generate embeddings from clinical text using pretrained models:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
+  <CodeBlock
+    code={`from honeybee.processors import ClinicalProcessor
 
 # Initialize with specific model
 processor = ClinicalProcessor(model="gatortron-medium")
@@ -98,8 +105,10 @@ processor = ClinicalProcessor(model="gatortron-medium")
 # Generate embeddings
 embeddings = processor.generate_embeddings(text)
 
-# Shape: (1, embedding_dim)  # embedding_dim depends on the model
-</code></pre>
+# Shape: (1, embedding_dim)  # embedding_dim depends on the model`}
+    lang="python"
+    filename="embedding_generation.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">
     Fine-tuning for Domain-Specific Tasks
@@ -107,8 +116,8 @@ embeddings = processor.generate_embeddings(text)
   <p class="mb-4">
     HoneyBee supports parameter-efficient fine-tuning for domain-specific tasks:
   </p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import ClinicalProcessor
+  <CodeBlock
+    code={`from honeybee.processors import ClinicalProcessor
 from honeybee.fine_tuning import PEFT
 
 # Initialize processor with base model
@@ -129,15 +138,17 @@ fine_tuner.train(
 embeddings = processor.generate_embeddings(
     text, 
     model=fine_tuner.model
-)
-</code></pre>
+)`}
+    lang="python"
+    filename="fine_tuning.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">
     Advanced Usage: Multimodal Integration
   </h2>
   <p class="mb-4">Combine clinical embeddings with other modalities:</p>
-  <pre
-    class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee import HoneyBee
+  <CodeBlock
+    code={`from honeybee import HoneyBee
 
 # Initialize HoneyBee
 hb = HoneyBee()
@@ -153,8 +164,10 @@ combined_embeddings = hb.integrate_embeddings([
 ])
 
 # Use for downstream task
-results = hb.predict_survival(combined_embeddings)
-</code></pre>
+results = hb.predict_survival(combined_embeddings)`}
+    lang="python"
+    filename="multimodal_integration.py"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Performance Considerations</h2>
   <p class="mb-4">

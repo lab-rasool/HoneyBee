@@ -1,16 +1,21 @@
 ---
-import DocsLayout from '../../layouts/DocsLayout.astro';
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
 ---
 
 <DocsLayout title="Molecular Processing">
   <h2 class="text-2xl font-bold mb-4">Overview</h2>
   <p class="mb-6">
-    The molecular processing pipeline in HoneyBee handles various types of molecular data, including DNA methylation, gene expression, protein expression, DNA mutation, and miRNA expression. The pipeline preprocesses, integrates, and generates embeddings from these diverse molecular profiles for downstream machine learning applications.
+    The molecular processing pipeline in HoneyBee handles various types of
+    molecular data, including DNA methylation, gene expression, protein
+    expression, DNA mutation, and miRNA expression. The pipeline preprocesses,
+    integrates, and generates embeddings from these diverse molecular profiles
+    for downstream machine learning applications.
   </p>
 
   <div class="mb-8">
-    <img 
-      src="/HoneyBee/images/molecular-processing.png" 
+    <img
+      src="/HoneyBee/images/molecular-processing.png"
       alt="Molecular Processing Pipeline"
       class="rounded-lg shadow-md w-full mb-4"
     />
@@ -26,11 +31,15 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
     <li>Embedding generation using specialized models</li>
   </ul>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Data Acquisition and Preprocessing</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">
+    Data Acquisition and Preprocessing
+  </h2>
   <p class="mb-4">
-    HoneyBee utilizes publicly available datasets from repositories such as TCGA and UCSC Xena:
+    HoneyBee utilizes publicly available datasets from repositories such as TCGA
+    and UCSC Xena:
   </p>
-  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import MolecularProcessor
+  <CodeBlock
+    code={`from honeybee.processors import MolecularProcessor
 
 # Initialize the molecular processor
 processor = MolecularProcessor()
@@ -58,14 +67,14 @@ processed_mutations = processor.preprocess(
     mutations,
     modality="mutation",
     binarize=True
-)
-</code></pre>
+)`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Feature Processing and Selection</h2>
-  <p class="mb-4">
-    Clean and optimize feature sets for analysis:
-  </p>
-  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import MolecularProcessor
+  <p class="mb-4">Clean and optimize feature sets for analysis:</p>
+  <CodeBlock
+    code={`from honeybee.processors import MolecularProcessor
 
 processor = MolecularProcessor()
 gene_expression = processor.load_data("path/to/gene_expression.csv")
@@ -87,14 +96,16 @@ imputed_data = processor.impute_missing(filtered_data, method="mean")
 final_data = processor.remove_collinear_features(
     imputed_data,
     threshold=0.25  # Variance threshold
-)
-</code></pre>
+)`}
+    lang="python"
+  />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Feature Selection and Integration</h2>
-  <p class="mb-4">
-    Unify and integrate features across modalities:
-  </p>
-  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import MolecularProcessor
+  <h2 class="text-2xl font-bold mt-8 mb-4">
+    Feature Selection and Integration
+  </h2>
+  <p class="mb-4">Unify and integrate features across modalities:</p>
+  <CodeBlock
+    code={`from honeybee.processors import MolecularProcessor
 
 processor = MolecularProcessor()
 
@@ -127,14 +138,16 @@ final_dataset = processor.add_clinical_features(
     integrated_data,
     clinical_data,
     features=["age", "gender", "race", "cancer_stage"]
-)
-</code></pre>
+)`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Embedding Generation</h2>
   <p class="mb-4">
     Generate embeddings from molecular data using specialized models:
   </p>
-  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import MolecularProcessor
+  <CodeBlock
+    code={`from honeybee.processors import MolecularProcessor
 
 # Initialize processor with specific model
 processor = MolecularProcessor(model="senmo")  # Using the SeNMo model
@@ -146,14 +159,14 @@ preprocessed_data = processor.preprocess(integrated_data)
 # Generate embeddings
 embeddings = processor.generate_embeddings(preprocessed_data)
 
-# Shape: (num_samples, embedding_dim)  # embedding_dim depends on the model
-</code></pre>
+# Shape: (num_samples, embedding_dim)  # embedding_dim depends on the model`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Complete Example</h2>
-  <p class="mb-4">
-    Full pipeline from data loading to embedding generation:
-  </p>
-  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import MolecularProcessor
+  <p class="mb-4">Full pipeline from data loading to embedding generation:</p>
+  <CodeBlock
+    code={`from honeybee.processors import MolecularProcessor
 from honeybee import HoneyBee
 
 # Initialize processor with specific model
@@ -202,14 +215,18 @@ multimodal_embeddings = hb.integrate_embeddings([
 ])
 
 # Use for downstream tasks
-survival_prediction = hb.predict_survival(multimodal_embeddings)
-</code></pre>
+survival_prediction = hb.predict_survival(multimodal_embeddings)`}
+    lang="python"
+  />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Advanced Usage: Integration with Pathway Knowledge</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">
+    Advanced Usage: Integration with Pathway Knowledge
+  </h2>
   <p class="mb-4">
     Incorporate biological pathway information into molecular analysis:
   </p>
-  <pre class="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code>from honeybee.processors import MolecularProcessor
+  <CodeBlock
+    code={`from honeybee.processors import MolecularProcessor
 
 processor = MolecularProcessor()
 gene_expr = processor.load_data("path/to/gene_expression.csv")
@@ -225,8 +242,9 @@ pathway_scores = processor.calculate_pathway_scores(
 )
 
 # Generate pathway-based embeddings
-pathway_embeddings = processor.generate_pathway_embeddings(pathway_scores)
-</code></pre>
+pathway_embeddings = processor.generate_pathway_embeddings(pathway_scores)`}
+    lang="python"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Performance Considerations</h2>
   <p class="mb-4">
@@ -242,7 +260,21 @@ pathway_embeddings = processor.generate_pathway_embeddings(pathway_scores)
 
   <h2 class="text-2xl font-bold mt-8 mb-4">References</h2>
   <ul class="list-disc pl-5 space-y-2">
-    <li>SeNMo Model: <a href="https://www.biorxiv.org/content/10.1101/2023.09.10.557072v1" class="text-primary hover:underline" target="_blank">https://www.biorxiv.org/content/10.1101/2023.09.10.557072v1</a></li>
-    <li>TCGA Data: <a href="https://www.cancer.gov/about-nci/organization/ccg/research/structural-genomics/tcga" class="text-primary hover:underline" target="_blank">https://www.cancer.gov/about-nci/organization/ccg/research/structural-genomics/tcga</a></li>
+    <li>
+      SeNMo Model: <a
+        href="https://www.biorxiv.org/content/10.1101/2023.09.10.557072v1"
+        class="text-primary hover:underline"
+        target="_blank"
+        >https://www.biorxiv.org/content/10.1101/2023.09.10.557072v1</a
+      >
+    </li>
+    <li>
+      TCGA Data: <a
+        href="https://www.cancer.gov/about-nci/organization/ccg/research/structural-genomics/tcga"
+        class="text-primary hover:underline"
+        target="_blank"
+        >https://www.cancer.gov/about-nci/organization/ccg/research/structural-genomics/tcga</a
+      >
+    </li>
   </ul>
 </DocsLayout>
