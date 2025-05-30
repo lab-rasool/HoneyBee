@@ -1354,6 +1354,406 @@ def get_unique_color_marker_combos(num_types):
     return result_colors, result_markers
 
 
+def perform_clustering_analysis(
+    aligned_data,
+    multimodal_embeddings,
+    clinical_embeddings,
+    molecular_embeddings,
+    pathology_embeddings,
+    radiology_embeddings,
+):
+    """
+    Perform comprehensive clustering analysis on different embedding modalities and
+    calculate metrics for paper placeholders
+    """
+    from sklearn.metrics import silhouette_score, normalized_mutual_info_score
+    from sklearn.cluster import KMeans
+    from sklearn.neighbors import NearestNeighbors
+    from sklearn.preprocessing import StandardScaler
+    from collections import Counter
+    import numpy as np
+    import pandas as pd
+    import os
+
+    print("Performing clustering analysis...")
+
+    # Get cancer type labels
+    cancer_types = aligned_data["cancer_type"].values
+
+    # Get unique cancer types
+    unique_cancer_types = sorted(list(set(cancer_types)))
+    cancer_type_to_idx = {cancer: idx for idx, cancer in enumerate(unique_cancer_types)}
+
+    # Convert cancer types to numerical labels for clustering evaluation
+    numeric_labels = np.array([cancer_type_to_idx[cancer] for cancer in cancer_types])
+
+    # Create a mapping for specific cancer types mentioned in the paper
+    kirc_mask = cancer_types == "TCGA-KIRC"
+    ov_mask = cancer_types == "TCGA-OV"
+    brca_mask = cancer_types == "TCGA-BRCA"
+
+    # Ensure all embeddings are properly scaled and flattened if needed
+    scaled_embeddings = {}
+
+    # Function to safely flatten and scale embeddings
+    def process_embedding_for_clustering(embeddings, name):
+        try:
+            # Check the shape of embeddings
+            if len(embeddings.shape) > 2:
+                print(
+                    f"Warning: {name} embeddings have shape {embeddings.shape}, flattening all dimensions except the first"
+                )
+                # Flatten all dimensions except the first one (samples)
+                n_samples = embeddings.shape[0]
+                flattened = embeddings.reshape(n_samples, -1)
+                print(f"Flattened {name} embeddings to shape {flattened.shape}")
+                embeddings = flattened
+
+            # Check for NaN or infinite values
+            if np.isnan(embeddings).any() or np.isinf(embeddings).any():
+                print(
+                    f"Warning: {name} embeddings contain NaN or infinite values, replacing with zeros"
+                )
+                embeddings = np.nan_to_num(embeddings, nan=0.0, posinf=0.0, neginf=0.0)
+
+            # Apply scaling
+            scaled = StandardScaler().fit_transform(embeddings)
+            return scaled
+        except Exception as e:
+            print(f"Error processing {name} embeddings: {e}")
+            # Return original embeddings if processing fails
+            # Make sure it's 2D
+            if len(embeddings.shape) == 1:
+                return embeddings.reshape(-1, 1)
+            return embeddings
+
+    # Process each embedding type
+    scaled_embeddings["clinical"] = process_embedding_for_clustering(
+        clinical_embeddings, "clinical"
+    )
+    scaled_embeddings["molecular"] = process_embedding_for_clustering(
+        molecular_embeddings, "molecular"
+    )
+    scaled_embeddings["pathology"] = process_embedding_for_clustering(
+        pathology_embeddings, "pathology"
+    )
+    scaled_embeddings["radiology"] = process_embedding_for_clustering(
+        radiology_embeddings, "radiology"
+    )
+    scaled_embeddings["multimodal"] = process_embedding_for_clustering(
+        multimodal_embeddings, "multimodal"
+    )
+
+    # 1. Calculate silhouette scores for each embedding space
+    silhouette_scores = {}
+    for modality, embeddings in scaled_embeddings.items():
+        # Skip if too few samples or NaN values
+        if len(embeddings) <= len(unique_cancer_types) or np.isnan(embeddings).any():
+            print(
+                f"Warning: Cannot calculate silhouette score for {modality} - insufficient data or NaN values"
+            )
+            silhouette_scores[modality] = 0
+            continue
+
+        try:
+            score = silhouette_score(embeddings, numeric_labels)
+            silhouette_scores[modality] = score
+            print(f"Silhouette score for {modality}: {score:.4f}")
+        except Exception as e:
+            print(f"Error calculating silhouette score for {modality}: {e}")
+            silhouette_scores[modality] = 0
+
+    # 2. Calculate cluster metrics using KMeans
+    kmeans_results = {}
+    cluster_assignments = {}
+
+    for modality, embeddings in scaled_embeddings.items():
+        try:
+            # Apply KMeans clustering with number of clusters = number of cancer types
+            kmeans = KMeans(
+                n_clusters=len(unique_cancer_types), random_state=42, n_init=10
+            )
+            clusters = kmeans.fit_predict(embeddings)
+            cluster_assignments[modality] = clusters
+
+            # Store KMeans model for further analysis
+            kmeans_results[modality] = kmeans
+        except Exception as e:
+            print(f"Error in KMeans clustering for {modality}: {e}")
+            cluster_assignments[modality] = np.zeros(len(numeric_labels))
+
+    # 3. Calculate inter-cluster and intra-cluster distances
+    distance_metrics = {}
+
+    for modality, embeddings in scaled_embeddings.items():
+        distance_metrics[modality] = {"intra_cluster": {}, "inter_cluster": {}}
+
+        # Calculate intra-cluster distances for specific cancer types
+        for cancer_type, mask in [
+            ("KIRC", kirc_mask),
+            ("OV", ov_mask),
+            ("BRCA", brca_mask),
+        ]:
+            if sum(mask) >= 2:  # Need at least 2 samples to calculate distances
+                # Get embeddings for this cancer type
+                cancer_embeddings = embeddings[mask]
+
+                # Calculate pairwise distances within cluster
+                nn = NearestNeighbors(n_neighbors=min(len(cancer_embeddings), 5))
+                nn.fit(cancer_embeddings)
+                distances, _ = nn.kneighbors(cancer_embeddings)
+
+                # Average distance to nearest neighbors (excluding self)
+                intra_distance = (
+                    np.mean(distances[:, 1:]) if distances.shape[1] > 1 else 0
+                )
+                distance_metrics[modality]["intra_cluster"][cancer_type] = (
+                    intra_distance
+                )
+
+        # Calculate inter-cluster distances (distance between cluster centroids)
+        if modality in kmeans_results:
+            centroids = kmeans_results[modality].cluster_centers_
+
+            for i, cancer_type_i in enumerate(unique_cancer_types):
+                for j, cancer_type_j in enumerate(unique_cancer_types):
+                    if i < j:  # Only calculate once for each pair
+                        centroid_i = centroids[i]
+                        centroid_j = centroids[j]
+                        distance = np.linalg.norm(centroid_i - centroid_j)
+
+                        # Store distance between cancer types
+                        key = f"{cancer_type_i}_{cancer_type_j}"
+                        distance_metrics[modality]["inter_cluster"][key] = distance
+
+    # 4. Calculate misclassification rates
+    misclassification_rates = {}
+
+    for modality, clusters in cluster_assignments.items():
+        misclassification_rates[modality] = {}
+
+        # Create mapping from cluster ID to majority cancer type
+        cluster_to_cancer = {}
+        for cluster_id in range(len(unique_cancer_types)):
+            mask = clusters == cluster_id
+            if sum(mask) > 0:
+                cluster_cancers = cancer_types[mask]
+                counter = Counter(cluster_cancers)
+                majority_cancer = counter.most_common(1)[0][0]
+                cluster_to_cancer[cluster_id] = majority_cancer
+
+        # Calculate misclassification rate for each cancer type
+        for cancer_type, mask in [
+            ("KIRC", kirc_mask),
+            ("OV", ov_mask),
+            ("BRCA", brca_mask),
+        ]:
+            if sum(mask) > 0:
+                # Get assigned clusters for this cancer type
+                cancer_clusters = clusters[mask]
+
+                # Count correctly classified samples
+                correct = 0
+                for cluster_id in cancer_clusters:
+                    if (
+                        cluster_id in cluster_to_cancer
+                        and cluster_to_cancer[cluster_id] == f"TCGA-{cancer_type}"
+                    ):
+                        correct += 1
+
+                # Calculate misclassification rate
+                misc_rate = 100 * (1 - correct / sum(mask))
+                misclassification_rates[modality][cancer_type] = misc_rate
+
+    # 5. Calculate Normalized Mutual Information (NMI)
+    nmi_scores = {}
+
+    for modality, clusters in cluster_assignments.items():
+        try:
+            # Calculate NMI between cluster assignments and true cancer types
+            nmi = normalized_mutual_info_score(numeric_labels, clusters)
+            nmi_scores[modality] = nmi
+            print(f"NMI score for {modality}: {nmi:.4f}")
+        except Exception as e:
+            print(f"Error calculating NMI for {modality}: {e}")
+            nmi_scores[modality] = 0
+
+    # Save all metrics to CSV
+    metrics_dir = os.path.join(OUTPUT_DIR, "clustering_metrics")
+    os.makedirs(metrics_dir, exist_ok=True)
+
+    # Save silhouette scores
+    pd.DataFrame(
+        silhouette_scores.items(), columns=["Modality", "Silhouette_Score"]
+    ).to_csv(os.path.join(metrics_dir, "silhouette_scores.csv"), index=False)
+
+    # Save NMI scores
+    pd.DataFrame(nmi_scores.items(), columns=["Modality", "NMI_Score"]).to_csv(
+        os.path.join(metrics_dir, "nmi_scores.csv"), index=False
+    )
+
+    # Save misclassification rates
+    misc_df = pd.DataFrame(
+        columns=["Modality", "Cancer_Type", "Misclassification_Rate"]
+    )
+    for modality, rates in misclassification_rates.items():
+        for cancer_type, rate in rates.items():
+            misc_df = pd.concat(
+                [
+                    misc_df,
+                    pd.DataFrame(
+                        {
+                            "Modality": [modality],
+                            "Cancer_Type": [cancer_type],
+                            "Misclassification_Rate": [rate],
+                        }
+                    ),
+                ],
+                ignore_index=True,
+            )
+    misc_df.to_csv(
+        os.path.join(metrics_dir, "misclassification_rates.csv"), index=False
+    )
+
+    # Save distance metrics
+    intra_df = pd.DataFrame(
+        columns=["Modality", "Cancer_Type", "Intra_Cluster_Distance"]
+    )
+    for modality, metrics in distance_metrics.items():
+        for cancer_type, distance in metrics["intra_cluster"].items():
+            intra_df = pd.concat(
+                [
+                    intra_df,
+                    pd.DataFrame(
+                        {
+                            "Modality": [modality],
+                            "Cancer_Type": [cancer_type],
+                            "Intra_Cluster_Distance": [distance],
+                        }
+                    ),
+                ],
+                ignore_index=True,
+            )
+    intra_df.to_csv(
+        os.path.join(metrics_dir, "intra_cluster_distances.csv"), index=False
+    )
+
+    inter_df = pd.DataFrame(
+        columns=["Modality", "Cancer_Type_Pair", "Inter_Cluster_Distance"]
+    )
+    for modality, metrics in distance_metrics.items():
+        for cancer_pair, distance in metrics["inter_cluster"].items():
+            inter_df = pd.concat(
+                [
+                    inter_df,
+                    pd.DataFrame(
+                        {
+                            "Modality": [modality],
+                            "Cancer_Type_Pair": [cancer_pair],
+                            "Inter_Cluster_Distance": [distance],
+                        }
+                    ),
+                ],
+                ignore_index=True,
+            )
+    inter_df.to_csv(
+        os.path.join(metrics_dir, "inter_cluster_distances.csv"), index=False
+    )
+
+    # Return a dictionary with all the metrics needed for the paper
+    paper_metrics = {
+        "silhouette": silhouette_scores,
+        "nmi": nmi_scores,
+        "misclassification": {
+            "clinical": {
+                "OV": misclassification_rates.get("clinical", {}).get("OV", 0),
+                "BRCA": misclassification_rates.get("clinical", {}).get("BRCA", 0),
+            },
+            "multimodal": {
+                "OV": misclassification_rates.get("multimodal", {}).get("OV", 0),
+                "BRCA": misclassification_rates.get("multimodal", {}).get("BRCA", 0),
+            },
+        },
+        "distances": {
+            "radiology": {
+                "inter_KIRC": np.mean(
+                    [
+                        v
+                        for k, v in distance_metrics.get("radiology", {})
+                        .get("inter_cluster", {})
+                        .items()
+                        if "KIRC" in k
+                    ]
+                )
+            },
+            "multimodal": {
+                "intra_KIRC": distance_metrics.get("multimodal", {})
+                .get("intra_cluster", {})
+                .get("KIRC", 0),
+                "inter_KIRC": np.mean(
+                    [
+                        v
+                        for k, v in distance_metrics.get("multimodal", {})
+                        .get("inter_cluster", {})
+                        .items()
+                        if "KIRC" in k
+                    ]
+                ),
+            },
+        },
+    }
+
+    # Print the metrics for the paper
+    print("\nMetrics for paper placeholders:")
+    print(
+        f"Silhouette scores: clinical = {paper_metrics['silhouette'].get('clinical', 0):.4f}, "
+        f"molecular = {paper_metrics['silhouette'].get('molecular', 0):.4f}, "
+        f"pathology = {paper_metrics['silhouette'].get('pathology', 0):.4f}, "
+        f"radiology = {paper_metrics['silhouette'].get('radiology', 0):.4f}, "
+        f"multimodal = {paper_metrics['silhouette'].get('multimodal', 0):.4f}"
+    )
+
+    print(
+        f"NMI scores: clinical = {paper_metrics['nmi'].get('clinical', 0):.4f}, "
+        f"molecular = {paper_metrics['nmi'].get('molecular', 0):.4f}, "
+        f"pathology = {paper_metrics['nmi'].get('pathology', 0):.4f}, "
+        f"radiology = {paper_metrics['nmi'].get('radiology', 0):.4f}, "
+        f"multimodal = {paper_metrics['nmi'].get('multimodal', 0):.4f}"
+    )
+
+    print(
+        f"Misclassification rates: clinical OV = {paper_metrics['misclassification']['clinical']['OV']:.2f}%, "
+        f"clinical BRCA = {paper_metrics['misclassification']['clinical']['BRCA']:.2f}%, "
+        f"multimodal OV = {paper_metrics['misclassification']['multimodal']['OV']:.2f}%, "
+        f"multimodal BRCA = {paper_metrics['misclassification']['multimodal']['BRCA']:.2f}%"
+    )
+
+    print(
+        f"KIRC inter-cluster distance in radiology = {paper_metrics['distances']['radiology']['inter_KIRC']:.4f}"
+    )
+    print(
+        f"KIRC intra-cluster distance in multimodal = {paper_metrics['distances']['multimodal']['intra_KIRC']:.4f}"
+    )
+    print(
+        f"KIRC inter-cluster distance in multimodal = {paper_metrics['distances']['multimodal']['inter_KIRC']:.4f}"
+    )
+
+    # Calculate improvement percentage for silhouette score
+    multimodal_silhouette = paper_metrics["silhouette"].get("multimodal", 0)
+    next_best_silhouette = max(
+        [v for k, v in paper_metrics["silhouette"].items() if k != "multimodal"] or [0]
+    )
+    if next_best_silhouette > 0:
+        improvement_percent = (
+            100 * (multimodal_silhouette - next_best_silhouette) / next_best_silhouette
+        )
+        print(f"Silhouette score improvement: {improvement_percent:.2f}%")
+    else:
+        print("Could not calculate improvement percentage - no valid comparison")
+
+    return paper_metrics
+
+
 def main():
     """
     Main function to run the multimodal data integration analysis
@@ -1368,6 +1768,70 @@ def main():
 
     # Create multimodal embeddings
     multimodal_embeddings = create_multimodal_embeddings(aligned_data)
+
+    # Extract individual modality embeddings for clustering analysis
+    # Use a safe extraction method that handles potential issues
+    def safely_extract_embeddings(data_column, default_shape=(1,)):
+        try:
+            # First attempt to convert to a list of arrays
+            embeddings_list = list(data_column.values)
+
+            # Check if any embeddings are None
+            embeddings_list = [
+                e if e is not None else np.zeros(default_shape) for e in embeddings_list
+            ]
+
+            # Convert list of arrays to a single array
+            embeddings_array = np.stack(embeddings_list)
+
+            print(f"Extracted embeddings with shape: {embeddings_array.shape}")
+            return embeddings_array
+        except Exception as e:
+            print(f"Error extracting embeddings: {e}")
+            # Return a dummy array if extraction fails
+            return np.zeros((len(data_column), *default_shape))
+
+    # Extract embeddings for each modality
+    clinical_embeddings = safely_extract_embeddings(aligned_data["clinical_embedding"])
+    pathology_embeddings = safely_extract_embeddings(
+        aligned_data["pathology_embedding"]
+    )
+    radiology_embeddings = safely_extract_embeddings(
+        aligned_data["radiology_embedding"]
+    )
+    molecular_embeddings = safely_extract_embeddings(
+        aligned_data["molecular_embedding"]
+    )
+
+    # Perform clustering analysis
+    clustering_metrics = perform_clustering_analysis(
+        aligned_data,
+        multimodal_embeddings,
+        clinical_embeddings,
+        molecular_embeddings,
+        pathology_embeddings,
+        radiology_embeddings,
+    )
+
+    # Save the clustering metrics to a JSON file for easy reference
+    import json
+
+    # Convert numpy values to Python types for JSON serialization
+    def convert_to_serializable(obj):
+        if isinstance(obj, np.float32) or isinstance(obj, np.float64):
+            return float(obj)
+        if isinstance(obj, np.int32) or isinstance(obj, np.int64):
+            return int(obj)
+        if isinstance(obj, dict):
+            return {k: convert_to_serializable(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [convert_to_serializable(i) for i in obj]
+        return obj
+
+    serializable_metrics = convert_to_serializable(clustering_metrics)
+
+    with open(os.path.join(OUTPUT_DIR, "paper_metrics.json"), "w") as f:
+        json.dump(serializable_metrics, f, indent=2)
 
     # Save embeddings and clinical data for downstream models
     embeddings_dir = save_embeddings_with_clinical_data(

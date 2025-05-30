@@ -10,7 +10,7 @@ import re
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Dict, List, Optional, Union
 
 # External dependencies
 import numpy as np
@@ -2868,7 +2868,7 @@ class ResponseExtractor:
 # -----------------------------------------------------------------------------
 
 
-class ClinicalOncologyProcessor:
+class ClinicalProcessor:
     """
     Main processor that combines all modules for end-to-end processing of
     clinical oncology data.
@@ -3160,14 +3160,14 @@ def load_config(config_path: Union[str, Path]) -> Dict:
 
 def initialize_processor(
     config_path: Optional[Union[str, Path]] = None,
-) -> ClinicalOncologyProcessor:
+) -> ClinicalProcessor:
     """Initialize processor with optional configuration"""
     if config_path:
         config = load_config(config_path)
     else:
         config = {}
 
-    return ClinicalOncologyProcessor(config)
+    return ClinicalProcessor(config)
 
 
 # -----------------------------------------------------------------------------
@@ -3203,7 +3203,7 @@ def main():
     }
 
     # Initialize processor
-    processor = ClinicalOncologyProcessor(config)
+    processor = ClinicalProcessor(config)
 
     # Example 1: Process a single file
     result = processor.process(

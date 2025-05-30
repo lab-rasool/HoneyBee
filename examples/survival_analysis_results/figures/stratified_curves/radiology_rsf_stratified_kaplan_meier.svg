@@ -6,11 +6,11 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2025-03-26T13:49:15.515310</dc:date>
+    <dc:date>2025-04-04T10:39:46.586309</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
-      <dc:title>Matplotlib v3.10.0, https://matplotlib.org/</dc:title>
+      <dc:title>Matplotlib v3.10.1, https://matplotlib.org/</dc:title>
      </cc:Agent>
     </dc:creator>
    </cc:Work>
@@ -91,7 +91,7 @@ L 602.453256 387.534066
 L 602.453256 402.567033 
 L 705.6 402.567033 
 L 705.6 417.6 
-" clip-path="url(#p0e260a73f5)" style="fill: none; stroke: #c13930; stroke-width: 2.5; stroke-linecap: square"/>
+" clip-path="url(#p658f86963e)" style="fill: none; stroke: #c13930; stroke-width: 2.5; stroke-linecap: square"/>
    </g>
    <g id="line2d_2">
     <path d="M 7.2 26.742857 
@@ -145,7 +145,7 @@ L 411.149072 386.331429
 L 411.149072 401.965714 
 L 508.198472 401.965714 
 L 508.198472 417.6 
-" clip-path="url(#p0e260a73f5)" style="fill: none; stroke: #e6862a; stroke-opacity: 0.964706; stroke-width: 2.5; stroke-linecap: square"/>
+" clip-path="url(#p658f86963e)" style="fill: none; stroke: #e6862a; stroke-opacity: 0.964706; stroke-width: 2.5; stroke-linecap: square"/>
    </g>
    <g id="line2d_3">
     <path d="M 7.2 26.742857 
@@ -199,7 +199,7 @@ L 386.251582 387.534066
 L 386.251582 402.567033 
 L 401.494944 402.567033 
 L 401.494944 417.6 
-" clip-path="url(#p0e260a73f5)" style="fill: none; stroke: #317ec2; stroke-width: 2.5; stroke-linecap: square"/>
+" clip-path="url(#p658f86963e)" style="fill: none; stroke: #317ec2; stroke-width: 2.5; stroke-linecap: square"/>
    </g>
    <g id="patch_3">
     <path d="M 7.2 417.6 
@@ -214,7 +214,7 @@ L 705.6 417.6
   </g>
  </g>
  <defs>
-  <clipPath id="p0e260a73f5">
+  <clipPath id="p658f86963e">
    <rect x="7.2" y="7.2" width="698.4" height="410.4"/>
   </clipPath>
  </defs>

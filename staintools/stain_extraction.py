@@ -31,6 +31,7 @@ def normalize_matrix_rows(A):
     """
     return A / np.linalg.norm(A, axis=1)[:, None]
 
+
 def convert_RGB_to_OD(I):
     """
     Convert from RGB to optical density (OD_RGB) space.
@@ -40,7 +41,7 @@ def convert_RGB_to_OD(I):
     :param I: Image RGB uint8.
     :return: Optical denisty RGB image.
     """
-    mask = (I == 0)
+    mask = I == 0
     I[mask] = 1
     return np.maximum(-1 * np.log(I / 255), 1e-6)
 
@@ -58,6 +59,7 @@ def convert_OD_to_RGB(OD):
     OD = np.maximum(OD, 1e-6)
     return (255 * np.exp(-1 * OD)).astype(np.uint8)
 
+
 # def get_concentrations(I, stain_matrix, regularizer=0.01):
 #     """
 #     Estimate concentration matrix given an image and stain matrix.
@@ -70,11 +72,12 @@ def convert_OD_to_RGB(OD):
 #     OD = convert_RGB_to_OD(I).reshape((-1, 3))
 #     return spams.lasso(X=OD.T, D=stain_matrix.T, mode=2, lambda1=regularizer, pos=True).toarray().T
 
+
 class TissueMaskException(Exception):
     pass
 
-class ABCStainExtractor(ABC):
 
+class ABCStainExtractor(ABC):
     @staticmethod
     @abstractmethod
     def get_stain_matrix(I):
@@ -84,8 +87,9 @@ class ABCStainExtractor(ABC):
         :param I:
         :return:
         """
-class ABCTissueLocator(ABC):
 
+
+class ABCTissueLocator(ABC):
     @staticmethod
     @abstractmethod
     def get_tissue_mask(I):
@@ -95,9 +99,9 @@ class ABCTissueLocator(ABC):
         :param I:
         :return:
         """
-    
-class LuminosityThresholdTissueLocator(ABCTissueLocator):
 
+
+class LuminosityThresholdTissueLocator(ABCTissueLocator):
     @staticmethod
     def get_tissue_mask(I, luminosity_threshold=0.8):
         """
@@ -119,8 +123,8 @@ class LuminosityThresholdTissueLocator(ABCTissueLocator):
 
         return mask
 
-class MacenkoStainExtractor(ABCStainExtractor):
 
+class MacenkoStainExtractor(ABCStainExtractor):
     @staticmethod
     def get_stain_matrix(I, luminosity_threshold=0.8, angular_percentile=99):
         """
@@ -134,7 +138,9 @@ class MacenkoStainExtractor(ABCStainExtractor):
         """
         assert is_uint8_image(I), "Image should be RGB uint8."
         # Convert to OD and ignore background
-        tissue_mask = LuminosityThresholdTissueLocator.get_tissue_mask(I, luminosity_threshold=luminosity_threshold).reshape((-1,))
+        tissue_mask = LuminosityThresholdTissueLocator.get_tissue_mask(
+            I, luminosity_threshold=luminosity_threshold
+        ).reshape((-1,))
         OD = convert_RGB_to_OD(I).reshape((-1, 3))
         OD = OD[tissue_mask]
 
@@ -145,8 +151,10 @@ class MacenkoStainExtractor(ABCStainExtractor):
         V = V[:, [2, 1]]
 
         # Make sure vectors are pointing the right way
-        if V[0, 0] < 0: V[:, 0] *= -1
-        if V[0, 1] < 0: V[:, 1] *= -1
+        if V[0, 0] < 0:
+            V[:, 0] *= -1
+        if V[0, 1] < 0:
+            V[:, 1] *= -1
 
         # Project on this basis.
         That = np.dot(OD, V)

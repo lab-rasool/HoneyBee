@@ -1028,6 +1028,953 @@ def compare_modalities(results_dict):
     return comparison_df
 
 
+def bootstrap_confidence_interval(
+    y_time, y_event, risk_scores, n_bootstrap=1000, ci=95
+):
+    """
+    Calculate bootstrap confidence intervals for the C-index.
+
+    Parameters:
+    - y_time: array of survival times
+    - y_event: array of event indicators (1=event occurred, 0=censored)
+    - risk_scores: predicted risk scores
+    - n_bootstrap: number of bootstrap samples
+    - ci: confidence interval level (e.g., 95 for 95% CI)
+
+    Returns:
+    - c_index: the C-index on the full dataset
+    - lower_ci: lower bound of the confidence interval
+    - upper_ci: upper bound of the confidence interval
+    """
+    # Calculate C-index on the full dataset
+    c_index = concordance_index(y_time, -risk_scores, y_event)
+
+    # Initialize array to store bootstrap results
+    bootstrap_c_indices = np.zeros(n_bootstrap)
+
+    # Perform bootstrap resampling
+    n_samples = len(y_time)
+    for i in range(n_bootstrap):
+        # Sample with replacement
+        indices = np.random.choice(n_samples, size=n_samples, replace=True)
+
+        # Calculate C-index for this bootstrap sample
+        if sum(y_event[indices]) > 0:  # Ensure there's at least one event
+            bootstrap_c_indices[i] = concordance_index(
+                y_time[indices], -risk_scores[indices], y_event[indices]
+            )
+        else:
+            # Skip this bootstrap if no events (should be rare)
+            bootstrap_c_indices[i] = c_index
+
+    # Calculate confidence interval
+    alpha = (100 - ci) / 2 / 100
+    lower_ci = np.percentile(bootstrap_c_indices, alpha * 100)
+    upper_ci = np.percentile(bootstrap_c_indices, (1 - alpha) * 100)
+
+    return c_index, lower_ci, upper_ci
+
+
+def improved_permutation_test(
+    y_time, y_event, risk_scores_1, risk_scores_2, n_permutations=1000, random_seed=42
+):
+    """
+    Improved permutation test implementation for comparing C-indices.
+    """
+    np.random.seed(random_seed)
+
+    # Calculate observed C-indices
+    c_index_1 = concordance_index(y_time, -risk_scores_1, y_event)
+    c_index_2 = concordance_index(y_time, -risk_scores_2, y_event)
+    observed_diff = c_index_1 - c_index_2
+
+    # Combine all risk scores
+    combined_scores = np.concatenate([risk_scores_1, risk_scores_2])
+    n = len(risk_scores_1)
+
+    # Track differences in permuted datasets
+    perm_diffs = []
+
+    for _ in range(n_permutations):
+        # Shuffle the combined scores
+        np.random.shuffle(combined_scores)
+
+        # Split back into two groups
+        perm_scores_1 = combined_scores[:n]
+        perm_scores_2 = combined_scores[n : 2 * n]
+
+        # Calculate C-indices for permuted data
+        perm_c_index_1 = concordance_index(y_time, -perm_scores_1, y_event)
+        perm_c_index_2 = concordance_index(y_time, -perm_scores_2, y_event)
+
+        # Store difference
+        perm_diffs.append(perm_c_index_1 - perm_c_index_2)
+
+    # Calculate two-tailed p-value
+    p_value = np.mean(np.abs(perm_diffs) >= np.abs(observed_diff))
+
+    return p_value, observed_diff, perm_diffs
+
+
+def run_statistical_analysis(
+    patients_df,
+    survival_days_col,
+    results_dict,
+    rsf_results_dict,
+    deepsurv_results_dict,
+):
+    """
+    Perform statistical analysis to compare modality performance.
+    """
+    print("\nPerforming statistical analysis...")
+
+    # Dictionary to store all test predictions
+    test_predictions = {}
+
+    # Create structure for test_predictions dictionary
+    for model_name, results in [
+        ("Cox", results_dict),
+        ("RSF", rsf_results_dict),
+        ("DeepSurv", deepsurv_results_dict),
+    ]:
+        test_predictions[model_name] = {}
+
+        # Load test predictions for each modality
+        for modality in results.keys():
+            pred_file = os.path.join(
+                DIRS["data"], f"{modality}_{model_name.lower()}_test_predictions.csv"
+            )
+            if os.path.exists(pred_file):
+                test_predictions[model_name][modality] = pd.read_csv(pred_file)
+                print(f"Loaded {model_name} test predictions for {modality}")
+
+    # Results storage
+    bootstrap_results = {}
+    permutation_results = {}
+    mcnemar_results = {}
+
+    # For each model type
+    for model_name in test_predictions.keys():
+        bootstrap_results[model_name] = {}
+        permutation_results[model_name] = {}
+        mcnemar_results[model_name] = {}
+
+        print(f"\n{'-' * 40}\n{model_name} Model Statistical Analysis\n{'-' * 40}")
+
+        # 1. Bootstrap confidence intervals
+        for modality, pred_df in test_predictions[model_name].items():
+            print(f"\nBootstrap analysis (1000 resamples) for {modality}:")
+
+            c_index, lower_ci, upper_ci = bootstrap_confidence_interval(
+                pred_df["time"].values,
+                pred_df["event"].values,
+                pred_df["risk_score"].values,
+                n_bootstrap=1000,
+            )
+
+            bootstrap_results[model_name][modality] = {
+                "c_index": c_index,
+                "lower_ci": lower_ci,
+                "upper_ci": upper_ci,
+            }
+
+            print(f"C-index: {c_index:.4f}, 95% CI: [{lower_ci:.4f}-{upper_ci:.4f}]")
+
+        # 2. Permutation tests (multimodal vs each modality)
+        if "multimodal" in test_predictions[model_name]:
+            multimodal_preds = test_predictions[model_name]["multimodal"]
+
+            for modality, pred_df in test_predictions[model_name].items():
+                if modality == "multimodal":
+                    continue
+
+                print(f"\nPermutation test (multimodal vs {modality}):")
+
+                # Ensure we're comparing the same patients
+                if len(multimodal_preds) == len(pred_df):
+                    p_value, observed_diff, perm_diffs = improved_permutation_test(
+                        multimodal_preds["time"].values,
+                        multimodal_preds["event"].values,
+                        multimodal_preds["risk_score"].values,
+                        pred_df["risk_score"].values,
+                        n_permutations=1000,
+                    )
+                    print(f"Observed difference: {observed_diff:.4f}")
+                    print(f"Permutation differences: {perm_diffs[:5]}...")
+                    print(f"Mean permutation difference: {np.mean(perm_diffs):.4f}")
+                    print(
+                        f"Standard deviation of permutation differences: {np.std(perm_diffs):.4f}"
+                    )
+
+                    permutation_results[model_name][modality] = p_value
+                    print(f"p-value: {p_value:.4f}")
+
+    # Create summary table for the paper
+    summary_df = pd.DataFrame(
+        columns=["Model", "Modality", "C-index", "95% CI", "p-value (vs Multimodal)"]
+    )
+
+    for model_name in bootstrap_results.keys():
+        for modality in bootstrap_results[model_name].keys():
+            result = bootstrap_results[model_name][modality]
+
+            # Get p-value comparing to multimodal (if applicable)
+            if (
+                modality != "multimodal"
+                and "multimodal" in bootstrap_results[model_name]
+            ):
+                p_value = permutation_results[model_name].get(modality, float("nan"))
+            else:
+                p_value = float("nan")
+
+            # Add row to summary dataframe
+            summary_df = pd.concat(
+                [
+                    summary_df,
+                    pd.DataFrame(
+                        {
+                            "Model": [model_name],
+                            "Modality": [modality.capitalize()],
+                            "C-index": [f"{result['c_index']:.4f}"],
+                            "95% CI": [
+                                f"[{result['lower_ci']:.4f}-{result['upper_ci']:.4f}]"
+                            ],
+                            "p-value (vs Multimodal)": [
+                                f"{p_value:.4f}" if not np.isnan(p_value) else "N/A"
+                            ],
+                        }
+                    ),
+                ],
+                ignore_index=True,
+            )
+
+    # Save summary to CSV
+    summary_df.to_csv(
+        os.path.join(DIRS["data"], "statistical_analysis_summary.csv"), index=False
+    )
+    print(
+        f"\nStatistical analysis summary saved to {os.path.join(DIRS['data'], 'statistical_analysis_summary.csv')}"
+    )
+
+    # Create visualization of bootstrap confidence intervals
+    plot_bootstrap_results(bootstrap_results)
+
+    return {
+        "bootstrap": bootstrap_results,
+        "permutation": permutation_results,
+        "mcnemar": mcnemar_results,
+    }
+
+
+def plot_bootstrap_results(bootstrap_results):
+    """
+    Create a visualization of bootstrap confidence intervals for each model and modality.
+    """
+    fig, axes = plt.subplots(
+        len(bootstrap_results), 1, figsize=(10, 3 * len(bootstrap_results)), sharex=True
+    )
+
+    if len(bootstrap_results) == 1:
+        axes = [axes]  # Make axes iterable if only one subplot
+
+    colors = {
+        "multimodal": "#317EC2",  # Blue
+        "clinical": "#E6862AF6",  # Orange
+        "pathology": "#33A02C",  # Green
+        "radiology": "#C13930",  # Red
+        "molecular": "#6A3D9A",  # Purple
+    }
+
+    x_pos = 0
+    for i, (model_name, model_results) in enumerate(bootstrap_results.items()):
+        ax = axes[i]
+
+        # Sort modalities by C-index (descending)
+        sorted_modalities = sorted(
+            model_results.items(), key=lambda x: x[1]["c_index"], reverse=True
+        )
+
+        x_positions = []
+        y_values = []
+        y_errors_lower = []
+        y_errors_upper = []
+        bar_colors = []
+        tick_labels = []
+
+        for j, (modality, result) in enumerate(sorted_modalities):
+            x_pos = j
+            x_positions.append(x_pos)
+            y_values.append(result["c_index"])
+            y_errors_lower.append(result["c_index"] - result["lower_ci"])
+            y_errors_upper.append(result["upper_ci"] - result["c_index"])
+            bar_colors.append(colors.get(modality, "gray"))
+            tick_labels.append(modality.capitalize())
+
+        # Create bar plot with error bars
+        bars = ax.bar(x_positions, y_values, color=bar_colors, alpha=0.7)
+
+        # Add error bars
+        ax.errorbar(
+            x_positions,
+            y_values,
+            yerr=[y_errors_lower, y_errors_upper],
+            fmt="none",
+            ecolor="black",
+            capsize=5,
+        )
+
+        # Add reference line at C-index = 0.5 (random prediction)
+        ax.axhline(y=0.5, color="r", linestyle="--", alpha=0.5)
+
+        # Add labels and set y-axis limits
+        ax.set_title(f"{model_name} Model", fontsize=14)
+        ax.set_ylabel("C-index with 95% CI", fontsize=12)
+        ax.set_ylim(0.45, 0.75)
+        ax.set_xticks(x_positions)
+        ax.set_xticklabels(tick_labels)
+
+        # Add C-index values on top of bars
+        for j, bar in enumerate(bars):
+            height = bar.get_height()
+            ax.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                height + 0.01,
+                f"{y_values[j]:.4f}",
+                ha="center",
+                va="bottom",
+                fontsize=9,
+            )
+
+    plt.tight_layout()
+
+    # Save figure
+    save_figure(fig, None, "comparison_plots", "bootstrap_confidence_intervals")
+
+
+# ...existing code...
+
+
+def enhanced_bootstrap_confidence_interval(
+    y_time, y_event, risk_scores, n_bootstrap=1000, ci=95, stratified=True
+):
+    """
+    Calculate bootstrap confidence intervals for the C-index with improved methodology.
+
+    Parameters:
+    - y_time: array of survival times
+    - y_event: array of event indicators (1=event occurred, 0=censored)
+    - risk_scores: predicted risk scores
+    - n_bootstrap: number of bootstrap samples
+    - ci: confidence interval level (e.g., 95 for 95% CI)
+    - stratified: whether to use stratified sampling based on event status
+
+    Returns:
+    - c_index: the C-index on the full dataset
+    - lower_ci: lower bound of the confidence interval
+    - upper_ci: upper bound of the confidence interval
+    - bootstrap_distribution: array of C-indices from bootstrap samples
+    """
+    # Calculate C-index on the full dataset
+    c_index = concordance_index(y_time, -risk_scores, y_event)
+
+    # Initialize array to store bootstrap results
+    bootstrap_c_indices = np.zeros(n_bootstrap)
+
+    # Separate indices for events and non-events for stratified sampling
+    event_indices = np.where(y_event == 1)[0]
+    non_event_indices = np.where(y_event == 0)[0]
+
+    n_samples = len(y_time)
+    n_events = len(event_indices)
+    n_non_events = len(non_event_indices)
+
+    for i in range(n_bootstrap):
+        if stratified:
+            # Stratified sampling to maintain event ratio
+            sampled_event_indices = np.random.choice(
+                event_indices, size=n_events, replace=True
+            )
+            sampled_non_event_indices = np.random.choice(
+                non_event_indices, size=n_non_events, replace=True
+            )
+            indices = np.concatenate([sampled_event_indices, sampled_non_event_indices])
+            np.random.shuffle(indices)
+        else:
+            # Simple random sampling with replacement
+            indices = np.random.choice(n_samples, size=n_samples, replace=True)
+
+        # Calculate C-index for this bootstrap sample
+        if sum(y_event[indices]) > 0:  # Ensure there's at least one event
+            bootstrap_c_indices[i] = concordance_index(
+                y_time[indices], -risk_scores[indices], y_event[indices]
+            )
+        else:
+            # Skip this bootstrap if no events (should be rare with stratified sampling)
+            bootstrap_c_indices[i] = np.nan
+
+    # Remove any NaN values
+    bootstrap_c_indices = bootstrap_c_indices[~np.isnan(bootstrap_c_indices)]
+
+    # Calculate confidence interval
+    alpha = (100 - ci) / 2 / 100
+    lower_ci = np.percentile(bootstrap_c_indices, alpha * 100)
+    upper_ci = np.percentile(bootstrap_c_indices, (1 - alpha) * 100)
+
+    return c_index, lower_ci, upper_ci, bootstrap_c_indices
+
+
+def paired_bootstrap_comparison(
+    y_time,
+    y_event,
+    risk_scores_1,
+    risk_scores_2,
+    n_bootstrap=1000,
+    ci=95,
+    stratified=True,
+):
+    """
+    Perform a paired bootstrap test to directly compare two models' C-indices.
+
+    Parameters:
+    - y_time: array of survival times
+    - y_event: array of event indicators (1=event occurred, 0=censored)
+    - risk_scores_1: predicted risk scores from model 1
+    - risk_scores_2: predicted risk scores from model 2
+    - n_bootstrap: number of bootstrap samples
+    - ci: confidence interval level (e.g., 95 for 95% CI)
+    - stratified: whether to use stratified sampling based on event status
+
+    Returns:
+    - observed_diff: observed difference in C-indices (model1 - model2)
+    - p_value: p-value for the hypothesis test that the difference is zero
+    - lower_ci: lower bound of the confidence interval for the difference
+    - upper_ci: upper bound of the confidence interval for the difference
+    - bootstrap_diffs: array of differences in C-indices from bootstrap samples
+    """
+    # Calculate observed C-indices
+    c_index_1 = concordance_index(y_time, -risk_scores_1, y_event)
+    c_index_2 = concordance_index(y_time, -risk_scores_2, y_event)
+    observed_diff = c_index_1 - c_index_2
+
+    # Initialize array to store bootstrap differences
+    bootstrap_diffs = np.zeros(n_bootstrap)
+
+    # Separate indices for events and non-events for stratified sampling
+    event_indices = np.where(y_event == 1)[0]
+    non_event_indices = np.where(y_event == 0)[0]
+
+    n_samples = len(y_time)
+    n_events = len(event_indices)
+    n_non_events = len(non_event_indices)
+
+    for i in range(n_bootstrap):
+        if stratified:
+            # Stratified sampling to maintain event ratio
+            sampled_event_indices = np.random.choice(
+                event_indices, size=n_events, replace=True
+            )
+            sampled_non_event_indices = np.random.choice(
+                non_event_indices, size=n_non_events, replace=True
+            )
+            indices = np.concatenate([sampled_event_indices, sampled_non_event_indices])
+            np.random.shuffle(indices)
+        else:
+            # Simple random sampling with replacement
+            indices = np.random.choice(n_samples, size=n_samples, replace=True)
+
+        # Calculate C-indices for this bootstrap sample
+        if sum(y_event[indices]) > 0:  # Ensure there's at least one event
+            bootstrap_c_index_1 = concordance_index(
+                y_time[indices], -risk_scores_1[indices], y_event[indices]
+            )
+            bootstrap_c_index_2 = concordance_index(
+                y_time[indices], -risk_scores_2[indices], y_event[indices]
+            )
+            bootstrap_diffs[i] = bootstrap_c_index_1 - bootstrap_c_index_2
+        else:
+            # Skip this bootstrap if no events
+            bootstrap_diffs[i] = np.nan
+
+    # Remove any NaN values
+    bootstrap_diffs = bootstrap_diffs[~np.isnan(bootstrap_diffs)]
+
+    # Calculate p-value (two-sided test)
+    # H0: difference = 0, compute proportion of bootstrap differences with opposite sign or more extreme
+    if observed_diff >= 0:
+        p_value = np.mean(bootstrap_diffs <= 0) * 2
+    else:
+        p_value = np.mean(bootstrap_diffs >= 0) * 2
+
+    # Apply corrections to keep p-value in [0, 1]
+    p_value = min(p_value, 1.0)
+
+    # Calculate confidence interval for the difference
+    alpha = (100 - ci) / 2 / 100
+    lower_ci = np.percentile(bootstrap_diffs, alpha * 100)
+    upper_ci = np.percentile(bootstrap_diffs, (1 - alpha) * 100)
+
+    return observed_diff, p_value, lower_ci, upper_ci, bootstrap_diffs
+
+
+def improved_permutation_test(
+    y_time, y_event, risk_scores_1, risk_scores_2, n_permutations=1000, random_seed=42
+):
+    """
+    Enhanced permutation test implementation for comparing C-indices.
+
+    Parameters:
+    - y_time: array of survival times
+    - y_event: array of event indicators (1=event occurred, 0=censored)
+    - risk_scores_1: predicted risk scores from model 1
+    - risk_scores_2: predicted risk scores from model 2
+    - n_permutations: number of permutations to perform
+    - random_seed: random seed for reproducibility
+
+    Returns:
+    - p_value: p-value for the hypothesis test that the models have equal performance
+    - observed_diff: observed difference in C-indices (model1 - model2)
+    - perm_diffs: array of differences in C-indices from permuted samples
+    """
+    np.random.seed(random_seed)
+
+    # Calculate observed C-indices
+    c_index_1 = concordance_index(y_time, -risk_scores_1, y_event)
+    c_index_2 = concordance_index(y_time, -risk_scores_2, y_event)
+    observed_diff = c_index_1 - c_index_2
+
+    # Create paired data for permutation test
+    n_samples = len(y_time)
+    paired_data = np.column_stack((risk_scores_1, risk_scores_2))
+
+    # Track differences in permuted datasets
+    perm_diffs = np.zeros(n_permutations)
+
+    for i in range(n_permutations):
+        # For each patient, randomly shuffle which model's prediction is used
+        shuffled_pairs = paired_data.copy()
+        for j in range(n_samples):
+            if np.random.random() < 0.5:
+                shuffled_pairs[j, 0], shuffled_pairs[j, 1] = (
+                    shuffled_pairs[j, 1],
+                    shuffled_pairs[j, 0],
+                )
+
+        # Extract shuffled predictions
+        perm_scores_1 = shuffled_pairs[:, 0]
+        perm_scores_2 = shuffled_pairs[:, 1]
+
+        # Calculate C-indices for permuted data
+        perm_c_index_1 = concordance_index(y_time, -perm_scores_1, y_event)
+        perm_c_index_2 = concordance_index(y_time, -perm_scores_2, y_event)
+
+        # Store difference
+        perm_diffs[i] = perm_c_index_1 - perm_c_index_2
+
+    # Calculate two-tailed p-value
+    if observed_diff >= 0:
+        p_value = np.mean(perm_diffs >= observed_diff)
+    else:
+        p_value = np.mean(perm_diffs <= observed_diff)
+    p_value = min(p_value * 2, 1.0)  # Two-tailed test
+
+    return p_value, observed_diff, perm_diffs
+
+
+def plot_bootstrap_distributions(
+    modality1, modality2, bootstrap_diffs, observed_diff, p_value, model_name
+):
+    """
+    Create a visualization of bootstrap differences between two models.
+
+    Parameters:
+    - modality1: name of the first modality
+    - modality2: name of the second modality
+    - bootstrap_diffs: array of differences in C-indices from bootstrap samples
+    - observed_diff: observed difference in C-indices
+    - p_value: p-value from the bootstrap test
+    - model_name: name of the model (Cox, RSF, etc.)
+
+    Returns:
+    - fig: matplotlib figure object
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot histogram of bootstrap differences
+    ax.hist(bootstrap_diffs, bins=30, alpha=0.7, color="skyblue", edgecolor="black")
+
+    # Add vertical line at observed difference
+    ax.axvline(
+        x=observed_diff,
+        color="red",
+        linestyle="dashed",
+        linewidth=2,
+        label=f"Observed difference: {observed_diff:.4f}",
+    )
+
+    # Add vertical line at zero
+    ax.axvline(x=0, color="black", linestyle="solid", linewidth=1)
+
+    # Set labels and title
+    ax.set_xlabel("Difference in C-index (Modality 1 - Modality 2)")
+    ax.set_ylabel("Frequency")
+    ax.set_title(
+        f"Bootstrap Distribution of C-index Differences\n"
+        f"{modality1.capitalize()} vs {modality2.capitalize()} ({model_name})\n"
+        f"p-value = {p_value:.4f}"
+    )
+
+    # Add legend
+    ax.legend()
+
+    # Make the plot look nice
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    return fig
+
+
+def run_statistical_analysis(
+    patients_df,
+    survival_days_col,
+    results_dict,
+    rsf_results_dict,
+    deepsurv_results_dict,
+):
+    """
+    Perform enhanced statistical analysis to compare modality performance.
+    """
+    print("\nPerforming statistical analysis...")
+
+    # Dictionary to store all test predictions
+    test_predictions = {}
+
+    # Create structure for test_predictions dictionary
+    for model_name, results in [
+        ("Cox", results_dict),
+        ("RSF", rsf_results_dict),
+        ("DeepSurv", deepsurv_results_dict),
+    ]:
+        test_predictions[model_name] = {}
+
+        # Load test predictions for each modality
+        for modality in results.keys():
+            pred_file = os.path.join(
+                DIRS["data"], f"{modality}_{model_name.lower()}_test_predictions.csv"
+            )
+            if os.path.exists(pred_file):
+                test_predictions[model_name][modality] = pd.read_csv(pred_file)
+                print(f"Loaded {model_name} test predictions for {modality}")
+
+    # Results storage
+    bootstrap_results = {}
+    paired_bootstrap_results = {}
+    permutation_results = {}
+
+    # For each model type
+    for model_name in test_predictions.keys():
+        bootstrap_results[model_name] = {}
+        paired_bootstrap_results[model_name] = {}
+        permutation_results[model_name] = {}
+
+        print(f"\n{'-' * 40}\n{model_name} Model Statistical Analysis\n{'-' * 40}")
+
+        # 1. Enhanced bootstrap confidence intervals
+        for modality, pred_df in test_predictions[model_name].items():
+            print(f"\nEnhanced bootstrap analysis (1000 resamples) for {modality}:")
+
+            c_index, lower_ci, upper_ci, bootstrap_distribution = (
+                enhanced_bootstrap_confidence_interval(
+                    pred_df["time"].values,
+                    pred_df["event"].values,
+                    pred_df["risk_score"].values,
+                    n_bootstrap=1000,
+                    stratified=True,
+                )
+            )
+
+            bootstrap_results[model_name][modality] = {
+                "c_index": c_index,
+                "lower_ci": lower_ci,
+                "upper_ci": upper_ci,
+                "distribution": bootstrap_distribution,
+            }
+
+            print(f"C-index: {c_index:.4f}, 95% CI: [{lower_ci:.4f}-{upper_ci:.4f}]")
+            print(f"Bootstrap distribution mean: {np.mean(bootstrap_distribution):.4f}")
+            print(f"Bootstrap distribution std: {np.std(bootstrap_distribution):.4f}")
+
+        # 2. Paired bootstrap comparisons (multimodal vs each modality)
+        if "multimodal" in test_predictions[model_name]:
+            multimodal_preds = test_predictions[model_name]["multimodal"]
+
+            for modality, pred_df in test_predictions[model_name].items():
+                if modality == "multimodal":
+                    continue
+
+                print(f"\nPaired bootstrap comparison (multimodal vs {modality}):")
+
+                # Ensure we're comparing the same patients
+                if len(multimodal_preds) == len(pred_df):
+                    diff, p_value, lower_ci, upper_ci, bootstrap_diffs = (
+                        paired_bootstrap_comparison(
+                            multimodal_preds["time"].values,
+                            multimodal_preds["event"].values,
+                            multimodal_preds["risk_score"].values,
+                            pred_df["risk_score"].values,
+                            n_bootstrap=1000,
+                            stratified=True,
+                        )
+                    )
+
+                    paired_bootstrap_results[model_name][modality] = {
+                        "difference": diff,
+                        "p_value": p_value,
+                        "lower_ci": lower_ci,
+                        "upper_ci": upper_ci,
+                        "distribution": bootstrap_diffs,
+                    }
+
+                    print(f"Observed difference: {diff:.4f}")
+                    print(f"95% CI for difference: [{lower_ci:.4f}, {upper_ci:.4f}]")
+                    print(f"p-value: {p_value:.4f}")
+
+                    # Create visualization of bootstrap differences
+                    fig = plot_bootstrap_distributions(
+                        "multimodal",
+                        modality,
+                        bootstrap_diffs,
+                        diff,
+                        p_value,
+                        model_name,
+                    )
+                    save_figure(
+                        fig,
+                        None,
+                        "comparison_plots",
+                        f"{model_name.lower()}_{modality}_bootstrap_diffs",
+                    )
+
+                    # Also run improved permutation test for comparison
+                    perm_p_value, observed_diff, perm_diffs = improved_permutation_test(
+                        multimodal_preds["time"].values,
+                        multimodal_preds["event"].values,
+                        multimodal_preds["risk_score"].values,
+                        pred_df["risk_score"].values,
+                        n_permutations=1000,
+                    )
+
+                    permutation_results[model_name][modality] = {
+                        "p_value": perm_p_value,
+                        "difference": observed_diff,
+                    }
+
+                    print(f"Permutation test p-value: {perm_p_value:.4f}")
+
+    # Create summary table for the paper
+    summary_df = pd.DataFrame(
+        columns=[
+            "Model",
+            "Modality",
+            "C-index",
+            "95% CI",
+            "Diff vs Multimodal",
+            "95% CI for Diff",
+            "Bootstrap p-value",
+            "Permutation p-value",
+        ]
+    )
+
+    for model_name in bootstrap_results.keys():
+        for modality in bootstrap_results[model_name].keys():
+            result = bootstrap_results[model_name][modality]
+
+            # Get comparison results with multimodal (if applicable)
+            if (
+                modality != "multimodal"
+                and "multimodal" in bootstrap_results[model_name]
+            ):
+                diff = paired_bootstrap_results[model_name][modality]["difference"]
+                diff_lower = paired_bootstrap_results[model_name][modality]["lower_ci"]
+                diff_upper = paired_bootstrap_results[model_name][modality]["upper_ci"]
+                bootstrap_p = paired_bootstrap_results[model_name][modality]["p_value"]
+                perm_p = permutation_results[model_name][modality]["p_value"]
+
+                diff_str = f"{diff:.4f}"
+                diff_ci_str = f"[{diff_lower:.4f}, {diff_upper:.4f}]"
+                bootstrap_p_str = f"{bootstrap_p:.4f}"
+                perm_p_str = f"{perm_p:.4f}"
+            else:
+                diff_str = "N/A"
+                diff_ci_str = "N/A"
+                bootstrap_p_str = "N/A"
+                perm_p_str = "N/A"
+
+            # Add row to summary dataframe
+            summary_df = pd.concat(
+                [
+                    summary_df,
+                    pd.DataFrame(
+                        {
+                            "Model": [model_name],
+                            "Modality": [modality.capitalize()],
+                            "C-index": [f"{result['c_index']:.4f}"],
+                            "95% CI": [
+                                f"[{result['lower_ci']:.4f}, {result['upper_ci']:.4f}]"
+                            ],
+                            "Diff vs Multimodal": [diff_str],
+                            "95% CI for Diff": [diff_ci_str],
+                            "Bootstrap p-value": [bootstrap_p_str],
+                            "Permutation p-value": [perm_p_str],
+                        }
+                    ),
+                ],
+                ignore_index=True,
+            )
+
+    # Save summary to CSV
+    summary_df.to_csv(
+        os.path.join(DIRS["data"], "enhanced_statistical_analysis.csv"), index=False
+    )
+    print(
+        f"\nEnhanced statistical analysis summary saved to {os.path.join(DIRS['data'], 'enhanced_statistical_analysis.csv')}"
+    )
+
+    # Create visualization of bootstrap confidence intervals
+    plot_enhanced_bootstrap_results(bootstrap_results)
+
+    return {
+        "bootstrap": bootstrap_results,
+        "paired_bootstrap": paired_bootstrap_results,
+        "permutation": permutation_results,
+    }
+
+
+def plot_enhanced_bootstrap_results(bootstrap_results):
+    """
+    Create an enhanced visualization of bootstrap confidence intervals for each model and modality.
+    """
+    fig, axes = plt.subplots(
+        len(bootstrap_results), 1, figsize=(12, 4 * len(bootstrap_results)), sharex=True
+    )
+
+    if len(bootstrap_results) == 1:
+        axes = [axes]  # Make axes iterable if only one subplot
+
+    colors = {
+        "multimodal": "#317EC2",  # Blue
+        "clinical": "#E6862AF6",  # Orange
+        "pathology": "#33A02C",  # Green
+        "radiology": "#C13930",  # Red
+        "molecular": "#6A3D9A",  # Purple
+    }
+
+    for i, (model_name, model_results) in enumerate(bootstrap_results.items()):
+        ax = axes[i]
+
+        # Sort modalities by C-index (descending)
+        sorted_modalities = sorted(
+            model_results.items(), key=lambda x: x[1]["c_index"], reverse=True
+        )
+
+        x_positions = []
+        y_values = []
+        y_errors_lower = []
+        y_errors_upper = []
+        bar_colors = []
+        tick_labels = []
+
+        for j, (modality, result) in enumerate(sorted_modalities):
+            x_pos = j
+            x_positions.append(x_pos)
+            y_values.append(result["c_index"])
+            y_errors_lower.append(result["c_index"] - result["lower_ci"])
+            y_errors_upper.append(result["upper_ci"] - result["c_index"])
+            bar_colors.append(colors.get(modality, "gray"))
+            tick_labels.append(modality.capitalize())
+
+        # Create bar plot with error bars
+        bars = ax.bar(x_positions, y_values, color=bar_colors, alpha=0.7)
+
+        # Add error bars
+        ax.errorbar(
+            x_positions,
+            y_values,
+            yerr=[y_errors_lower, y_errors_upper],
+            fmt="none",
+            ecolor="black",
+            capsize=5,
+        )
+
+        # Add reference line at C-index = 0.5 (random prediction)
+        ax.axhline(y=0.5, color="r", linestyle="--", alpha=0.5)
+
+        # Add labels and set y-axis limits
+        ax.set_title(f"{model_name} Model", fontsize=14)
+        ax.set_ylabel("C-index with 95% CI", fontsize=12)
+        ax.set_ylim(0.45, max(y_values) + 0.15)
+        ax.set_xticks(x_positions)
+        ax.set_xticklabels(tick_labels, rotation=45, ha="right")
+
+        # Add annotations for statistical significance if multimodal is present
+        if "multimodal" in [m for m, _ in sorted_modalities]:
+            multimodal_idx = [
+                i for i, (m, _) in enumerate(sorted_modalities) if m == "multimodal"
+            ][0]
+
+            for j, (modality, _) in enumerate(sorted_modalities):
+                if modality != "multimodal":
+                    try:
+                        p_value = bootstrap_results[model_name]["paired_bootstrap"][
+                            modality
+                        ]["p_value"]
+
+                        # Add significance stars
+                        if p_value < 0.001:
+                            sig_text = "***"
+                        elif p_value < 0.01:
+                            sig_text = "**"
+                        elif p_value < 0.05:
+                            sig_text = "*"
+                        else:
+                            sig_text = "ns"
+
+                        # Display significance
+                        height = max(y_values[multimodal_idx], y_values[j]) + 0.03
+                        ax.plot(
+                            [x_positions[multimodal_idx], x_positions[j]],
+                            [height, height],
+                            "k-",
+                            linewidth=1,
+                        )
+                        ax.text(
+                            (x_positions[multimodal_idx] + x_positions[j]) / 2,
+                            height + 0.01,
+                            sig_text,
+                            ha="center",
+                        )
+                    except (KeyError, IndexError):
+                        pass
+
+        # Add C-index values on top of bars
+        for j, bar in enumerate(bars):
+            height = bar.get_height()
+            ax.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                height + 0.01,
+                f"{y_values[j]:.3f}",
+                ha="center",
+                va="bottom",
+                fontsize=10,
+            )
+
+    plt.tight_layout()
+
+    # Save figure
+    save_figure(
+        fig, None, "comparison_plots", "enhanced_bootstrap_confidence_intervals"
+    )
+
+
 def main():
     """Main function to run the survival analysis pipeline."""
     # Create the directory structure first
@@ -1209,6 +2156,39 @@ def main():
     long_summary_df.to_csv(
         os.path.join(DIRS["data"], "survival_model_comparison.csv"), index=False
     )
+
+    # Replace the previous line with the new enhanced statistical analysis
+    stats_results = run_statistical_analysis(
+        patients_df,
+        survival_days_col,
+        results_dict,
+        rsf_results_dict,
+        deepsurv_results_dict,
+    )
+
+    print("\nEnhanced statistical analysis completed.")
+    print("Key findings:")
+
+    # Report key statistical findings
+    for model_name in stats_results["paired_bootstrap"].keys():
+        if "multimodal" in stats_results["bootstrap"][model_name]:
+            print(f"\n{model_name} model:")
+            for modality, result in stats_results["paired_bootstrap"][
+                model_name
+            ].items():
+                if modality != "multimodal":
+                    diff = result["difference"]
+                    p_value = result["p_value"]
+                    ci_lower = result["lower_ci"]
+                    ci_upper = result["upper_ci"]
+
+                    sig = ""
+                    if p_value < 0.05:
+                        sig = "(significant)"
+
+                    print(
+                        f"  - Multimodal vs {modality.capitalize()}: Diff={diff:.4f} [{ci_lower:.4f}, {ci_upper:.4f}], p={p_value:.4f} {sig}"
+                    )
 
     print("\nSurvival analysis completed. Results saved to:")
     print(f"- Figures: {DIRS['figures']}")
