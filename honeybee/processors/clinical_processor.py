@@ -23,8 +23,11 @@ from transformers import (
     T5Tokenizer,
 )
 from nltk.tokenize import sent_tokenize
+import nltk
 
 from ..loaders import PDF
+
+nltk.download("punkt", quiet=True)
 
 # Constants
 SUPPORTED_IMAGE_FORMATS = [".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp"]
