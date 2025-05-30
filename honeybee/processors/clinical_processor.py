@@ -5,7 +5,6 @@ This package implements comprehensive processing capabilities for oncology data,
 including text extraction, document processing, tokenization and entity recognition.
 """
 
-import os
 import re
 import json
 import logging
@@ -17,19 +16,15 @@ import numpy as np
 import pandas as pd
 import pytesseract
 from PIL import Image, ImageEnhance, ImageFilter
-import cv2
 import torch
 from transformers import (
     AutoTokenizer,
-    AutoModel,
     BertTokenizer,
-    BertForTokenClassification,
     T5Tokenizer,
 )
-import spacy
-from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.tokenize import sent_tokenize
 
-from honeybee.loaders import PDF
+from ..loaders import PDF
 
 # Constants
 SUPPORTED_IMAGE_FORMATS = [".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp"]
@@ -3145,123 +3140,3 @@ class ClinicalProcessor:
                 results["temporal_timeline"] = entity_result["temporal_timeline"]
 
         return results
-
-
-# -----------------------------------------------------------------------------
-# Utility Functions
-# -----------------------------------------------------------------------------
-
-
-def load_config(config_path: Union[str, Path]) -> Dict:
-    """Load configuration from JSON file"""
-    with open(config_path, "r") as f:
-        return json.load(f)
-
-
-def initialize_processor(
-    config_path: Optional[Union[str, Path]] = None,
-) -> ClinicalProcessor:
-    """Initialize processor with optional configuration"""
-    if config_path:
-        config = load_config(config_path)
-    else:
-        config = {}
-
-    return ClinicalProcessor(config)
-
-
-# -----------------------------------------------------------------------------
-# Example Usage
-# -----------------------------------------------------------------------------
-
-
-def main():
-    """Example usage of the Clinical Oncology Data Processing System"""
-    # Setup logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
-
-    # Load configuration (optional)
-    config = {
-        "document_processor": {"use_ocr": True, "use_ehr": True},
-        "tokenization": {
-            "model": "bioclinicalbert",
-            "max_length": 512,
-            "segment_strategy": "sentence",
-            "long_document_strategy": "sliding_window",
-        },
-        "entity_recognition": {
-            "use_rules": True,
-            "use_spacy": True,
-            "use_deep_learning": True,
-            "cancer_specific_extraction": True,
-            "temporal_extraction": True,
-            "ontologies": ["snomed_ct", "rxnorm"],
-        },
-    }
-
-    # Initialize processor
-    processor = ClinicalProcessor(config)
-
-    # Example 1: Process a single file
-    result = processor.process(
-        "/mnt/d/TCGA/raw/TCGA-ACC/raw/TCGA-OR-A5JL/Pathology Report/c9f9dc8b-68ca-4a7e-be69-4d23df5a51a1/TCGA-OR-A5JL.BD8435C3-C525-472C-8B43-EC2CAE22B785.PDF",
-        save_output=True,
-    )
-
-    # Example 2: Process a batch of files
-    # results = processor.process_batch('path/to/documents', file_pattern='*.pdf', save_output=True)
-
-    # Example 3: Process raw text
-    sample_text = """
-    Patient is a 58-year-old female with stage IIB (T2N1M0) infiltrating ductal carcinoma of the left breast.
-    Diagnosis was made on 04/15/2023. Initial surgical management included a left mastectomy on 05/02/2023.
-    Pathology showed a 3.2 cm tumor with 2/15 positive lymph nodes. Biomarker testing showed ER positive (95%),
-    PR positive (80%), and HER2 negative. Patient started adjuvant chemotherapy with AC-T regimen on 06/01/2023.
-    Completed 4 cycles of AC followed by 12 weeks of paclitaxel 80 mg/m2. Post-treatment imaging on 09/28/2023
-    showed no evidence of disease. Patient started tamoxifen 20 mg daily on 10/10/2023 and will continue for 5 years.
-    Follow-up appointment is scheduled for 01/15/2024.
-    """
-    # result = processor.process_text(sample_text, document_type="progress_note")
-
-    # Print summary of results
-    print(f"Document type: {result.get('document_type')}")
-    print(f"Entities found: {len(result.get('entities', []))}")
-
-    # Print identified entities by type
-    entity_types = {}
-    for entity in result.get("entities", []):
-        entity_type = entity.get("type", "unknown")
-        if entity_type not in entity_types:
-            entity_types[entity_type] = []
-        entity_types[entity_type].append(entity)
-
-    print("\nEntities by type:")
-    for entity_type, entities in entity_types.items():
-        print(f"  {entity_type}: {len(entities)}")
-
-    # Print first few entities of each type
-    print("\nSample entities:")
-    for entity_type, entities in entity_types.items():
-        print(f"\n  {entity_type.upper()}:")
-        for i, entity in enumerate(entities[:3]):  # Show first 3 of each type
-            print(f"    - {entity.get('text')}")
-
-    # Print timeline events
-    print("\nTemporal timeline:")
-    for i, event in enumerate(
-        result.get("temporal_timeline", [])[:5]
-    ):  # Show first 5 events
-        print(f"  Event {i + 1}: {event.get('temporal_text')}")
-        related_entities = []
-        for idx in event.get("related_entities", []):
-            if idx < len(result.get("entities", [])):
-                related_entities.append(result["entities"][idx].get("text", ""))
-        if related_entities:
-            print(f"    Related: {', '.join(related_entities)}")
-
-
-if __name__ == "__main__":
-    main()

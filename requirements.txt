@@ -18,3 +18,7 @@ fastparquet
 pydicom
 opencv-python
 matplotlib
+langchain
+scikit-image
+imageio
+albumentations

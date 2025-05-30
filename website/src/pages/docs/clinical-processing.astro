@@ -26,154 +26,334 @@ import CodeBlock from "../../components/CodeBlock.astro";
     <li>
       Support for multiple input formats (PDF, scanned images, EHR exports)
     </li>
-    <li>OCR capabilities for digitizing scanned documents</li>
-    <li>Integration with specialized medical language models</li>
-    <li>Clinical entity recognition and normalization</li>
-    <li>Integration with medical ontologies and terminologies</li>
+    <li>OCR capabilities for digitizing scanned documents with medical terminology verification</li>
+    <li>Integration with specialized biomedical language models (Bio-ClinicalBERT, PubMedBERT, GatorTron, Clinical-T5)</li>
+    <li>Comprehensive clinical entity recognition and normalization</li>
+    <li>Integration with medical ontologies (SNOMED-CT, RxNorm, LOINC, ICD-O-3)</li>
     <li>Temporal information extraction for patient timelines</li>
+    <li>Cancer-specific entity extractors for oncology use cases</li>
+    <li>Configurable processing pipelines and output options</li>
   </ul>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">
-    Text Extraction and Document Processing
-  </h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Basic Usage</h2>
   <p class="mb-4">
-    HoneyBee implements a multi-stage processing pipeline for clinical text
-    extraction:
+    The ClinicalProcessor provides a unified interface for processing clinical documents:
   </p>
   <CodeBlock
     code={`
 from honeybee.processors import ClinicalProcessor
 
-# Initialize the clinical processor
+# Initialize the clinical processor with default configuration
 processor = ClinicalProcessor()
 
-# Extract text from PDF or scanned document
-text = processor.extract_text("path/to/document.pdf")
+# Process a clinical document (PDF, image, or EHR export)
+result = processor.process("path/to/clinical_document.pdf")
 
-# Or process raw text directly
-text = "Patient presents with stage III non-small cell lung cancer..."`}
+# Access extracted text
+text = result["text"]
+
+# Access extracted entities
+entities = result["entities"]
+
+# Access temporal timeline
+timeline = result["temporal_timeline"]`}
     lang="python"
-    filename="clinical_extraction.py"
+    filename="basic_usage.py"
   />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">
-    Tokenization and Language Model Integration
-  </h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Custom Configuration</h2>
   <p class="mb-4">
-    HoneyBee supports multiple tokenizers optimized for biomedical text:
+    Configure the processor for specific use cases and document types:
   </p>
   <CodeBlock
     code={`
 from honeybee.processors import ClinicalProcessor
 
-# Initialize with specific model
-processor = ClinicalProcessor(model="gatortron-medium")  # Options: gatortron, clinicalt5, biobert, etc.
+# Custom configuration
+config = {
+    "document_processor": {
+        "use_ocr": True,
+        "use_ehr": True
+    },
+    "tokenization": {
+        "model": "gatortron",  # Options: bioclinicalbert, pubmedbert, gatortron, clinicalt5
+        "max_length": 512,
+        "segment_strategy": "sentence",  # sentence, paragraph, fixed
+        "long_document_strategy": "sliding_window"  # sliding_window, hierarchical, important_segments, summarize
+    },
+    "entity_recognition": {
+        "use_rules": True,
+        "use_spacy": True,
+        "use_deep_learning": False,
+        "cancer_specific_extraction": True,
+        "temporal_extraction": True,
+        "ontologies": ["snomed_ct", "rxnorm", "loinc"]
+    },
+    "processing_pipeline": ["document", "tokenization", "entity_recognition"],
+    "output": {
+        "include_raw_text": True,
+        "include_tokens": True,
+        "include_entities": True,
+        "include_document_structure": True,
+        "include_temporal_timeline": True
+    }
+}
 
-# Tokenize and process text
-tokenized_text = processor.tokenize(text)`}
+# Initialize with custom configuration
+processor = ClinicalProcessor(config=config)
+
+# Process document
+result = processor.process("document.pdf", save_output=True)`}
     lang="python"
-    filename="tokenization.py"
+    filename="custom_configuration.py"
   />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">
-    Entity Recognition and Normalization
-  </h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Processing Raw Text</h2>
   <p class="mb-4">
-    Extract and normalize clinical entities with integration to standard
-    ontologies:
+    Process clinical text directly without file input:
   </p>
   <CodeBlock
     code={`
 from honeybee.processors import ClinicalProcessor
 
-# Initialize processor
 processor = ClinicalProcessor()
 
-# Extract entities
-entities = processor.extract_entities(text)`}
-    lang="python"
-    filename="entity_recognition.py"
-  />
+# Process raw clinical text
+clinical_text = """
+Patient presents with stage III non-small cell lung cancer.
+EGFR mutation positive. Started on erlotinib 150mg daily.
+Partial response observed after 3 months of treatment.
+"""
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Embedding Generation</h2>
-  <p class="mb-4">
-    Generate embeddings from clinical text using pretrained models:
-  </p>
-  <CodeBlock
-    code={`
-from honeybee.processors import ClinicalProcessor
-
-# Initialize with specific model
-processor = ClinicalProcessor(model="gatortron-medium")
-
-# Generate embeddings
-embeddings = processor.generate_embeddings(text)
-
-# Shape: (1, embedding_dim)  # embedding_dim depends on the model`}
-    lang="python"
-    filename="embedding_generation.py"
-  />
-
-  <h2 class="text-2xl font-bold mt-8 mb-4">
-    Fine-tuning for Domain-Specific Tasks
-  </h2>
-  <p class="mb-4">
-    HoneyBee supports parameter-efficient fine-tuning for domain-specific tasks:
-  </p>
-  <CodeBlock
-    code={`
-from honeybee.processors import ClinicalProcessor
-from honeybee.fine_tuning import PEFT
-
-# Initialize processor with base model
-processor = ClinicalProcessor(model="gatortron-medium")
-
-# Initialize PEFT for fine-tuning
-fine_tuner = PEFT(processor.model)
-
-# Fine-tune on specific task
-fine_tuner.train(
-    train_data=train_texts,
-    train_labels=train_labels,
-    task_type="classification",
-    num_epochs=3
+result = processor.process_text(
+    text=clinical_text,
+    document_type="progress_note"
 )
 
-# Generate embeddings with fine-tuned model
-embeddings = processor.generate_embeddings(
-    text, 
-    model=fine_tuner.model
-)`}
+# Extract entities
+for entity in result["entities"]:
+    print(f"Entity: {entity['text']}")
+    print(f"Type: {entity['type']}")
+    print(f"Properties: {entity['properties']}")
+    print("---")`}
     lang="python"
-    filename="fine_tuning.py"
+    filename="process_text.py"
   />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">
-    Advanced Usage: Multimodal Integration
-  </h2>
-  <p class="mb-4">Combine clinical embeddings with other modalities:</p>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Batch Processing</h2>
+  <p class="mb-4">
+    Process multiple clinical documents efficiently:
+  </p>
   <CodeBlock
     code={`
-from honeybee import HoneyBee
+from honeybee.processors import ClinicalProcessor
 
-# Initialize HoneyBee
-hb = HoneyBee()
+processor = ClinicalProcessor()
 
-# Generate embeddings for clinical data
-clinical_embeddings = hb.generate_embeddings(clinical_text, modality="clinical")
+# Process all PDF files in a directory
+results = processor.process_batch(
+    input_dir="path/to/clinical_documents",
+    file_pattern="*.pdf",
+    save_output=True,
+    output_dir="path/to/output"
+)
 
-# Combine with other modalities
-combined_embeddings = hb.integrate_embeddings([
-    clinical_embeddings,
-    pathology_embeddings,  # Generated separately
-    molecular_embeddings   # Generated separately
-])
+# Analyze batch results
+total_docs = len(results)
+total_entities = sum(len(r.get("entities", [])) for r in results)
 
-# Use for downstream task
-results = hb.predict_survival(combined_embeddings)`}
+print(f"Processed {total_docs} documents")
+print(f"Extracted {total_entities} total entities")`}
     lang="python"
-    filename="multimodal_integration.py"
+    filename="batch_processing.py"
   />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Advanced Tokenization</h2>
+  <p class="mb-4">
+    Handle long documents with various tokenization strategies:
+  </p>
+  <CodeBlock
+    code={`
+from honeybee.processors import ClinicalProcessor
+
+# Configure for long document processing
+config = {
+    "tokenization": {
+        "model": "gatortron",
+        "max_length": 512,
+        "segment_strategy": "paragraph",
+        "long_document_strategy": "hierarchical",  # Preserves document structure
+        "stride": 128
+    }
+}
+
+processor = ClinicalProcessor(config=config)
+
+# Process long operative report
+result = processor.process("long_operative_report.pdf")
+
+# Access tokenization details
+tokenization = result["tokenization"]
+print(f"Number of tokens: {len(tokenization['tokens'])}")
+print(f"Number of segments: {tokenization['num_segments']}")
+
+if tokenization.get("hierarchical"):
+    print("Document sections:")
+    for section in tokenization["sections"]:
+        print(f"- {section['name']}: {len(section['segment_indices'])} segments")`}
+    lang="python"
+    filename="advanced_tokenization.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Cancer-Specific Entity Extraction</h2>
+  <p class="mb-4">
+    Extract oncology-specific entities with specialized extractors:
+  </p>
+  <CodeBlock
+    code={`
+from honeybee.processors import ClinicalProcessor
+
+# Enable cancer-specific extraction
+config = {
+    "entity_recognition": {
+        "cancer_specific_extraction": True,
+        "temporal_extraction": True,
+        "ontologies": ["snomed_ct", "rxnorm"]
+    }
+}
+
+processor = ClinicalProcessor(config=config)
+
+pathology_text = """
+Invasive ductal carcinoma, Grade 2, measuring 2.1 cm.
+ER positive (90%), PR positive (75%), HER2 negative.
+T2N0M0 stage IIA. Margins clear.
+"""
+
+result = processor.process_text(pathology_text, "pathology_report")
+
+# Filter entities by type
+tumors = [e for e in result["entities"] if e["type"] == "tumor"]
+biomarkers = [e for e in result["entities"] if e["type"] == "biomarker"]
+staging = [e for e in result["entities"] if e["type"] == "staging"]
+
+print(f"Found {len(tumors)} tumor entities")
+print(f"Found {len(biomarkers)} biomarker entities")
+print(f"Found {len(staging)} staging entities")
+
+# Examine biomarker details
+for biomarker in biomarkers:
+    props = biomarker["properties"]
+    print(f"Biomarker: {props['name']}")
+    print(f"Status: {props['status']}")
+    if "percentage" in props:
+        print(f"Percentage: {props['percentage']}%")`}
+    lang="python"
+    filename="cancer_specific_extraction.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Temporal Timeline Construction</h2>
+  <p class="mb-4">
+    Extract and organize temporal information for patient timelines:
+  </p>
+  <CodeBlock
+    code={`
+from honeybee.processors import ClinicalProcessor
+
+processor = ClinicalProcessor()
+
+clinical_note = """
+Patient diagnosed with breast cancer on 03/15/2023.
+Started neoadjuvant chemotherapy in April 2023.
+Surgery performed on 08/20/2023.
+Currently on adjuvant hormone therapy as of September 2023.
+"""
+
+result = processor.process_text(clinical_note, "consultation_note")
+
+# Access temporal timeline
+timeline = result["temporal_timeline"]
+
+print("Patient Timeline:")
+for event in timeline:
+    print(f"Date: {event['temporal_text']}")
+    if event["normalized_date"]:
+        print(f"Normalized: {event['normalized_date']}")
+    
+    # Show related entities
+    related_entities = [result["entities"][i] for i in event["related_entities"]]
+    for entity in related_entities:
+        print(f"  - {entity['type']}: {entity['text']}")
+    print("---")`}
+    lang="python"
+    filename="temporal_timeline.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Entity Normalization and Ontology Linking</h2>
+  <p class="mb-4">
+    Normalize entities and link to standard medical ontologies:
+  </p>
+  <CodeBlock
+    code={`
+from honeybee.processors import ClinicalProcessor
+
+# Configure with specific ontologies
+config = {
+    "entity_recognition": {
+        "ontologies": ["snomed_ct", "rxnorm", "loinc"],
+        "abbreviation_expansion": True,
+        "term_disambiguation": True
+    }
+}
+
+processor = ClinicalProcessor(config=config)
+
+text = "Pt started on tamoxifen 20mg daily for breast ca."
+
+result = processor.process_text(text)
+
+# Examine normalized entities
+for entity in result["entities"]:
+    props = entity["properties"]
+    
+    print(f"Original text: {entity['text']}")
+    print(f"Type: {entity['type']}")
+    
+    # Check for abbreviation expansion
+    if "expanded" in props:
+        print(f"Expanded: {props['expanded']}")
+    
+    # Check for ontology links
+    if "ontology_links" in props:
+        for link in props["ontology_links"]:
+            print(f"Ontology: {link['ontology']}")
+            print(f"Concept: {link['concept_name']} ({link['concept_id']})")
+    
+    print("---")`}
+    lang="python"
+    filename="ontology_linking.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Supported File Formats</h2>
+  <p class="mb-4">
+    The clinical processor supports various input formats:
+  </p>
+  <ul class="list-disc pl-5 space-y-2 mb-6">
+    <li><strong>Image formats:</strong> PDF, PNG, JPG, JPEG, TIFF, BMP (processed via OCR)</li>
+    <li><strong>EHR formats:</strong> XML, JSON, CSV, XLSX (structured data processing)</li>
+    <li><strong>Document types:</strong> Operative reports, pathology reports, consultation notes, progress notes, discharge summaries</li>
+  </ul>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Supported Biomedical Models</h2>
+  <p class="mb-4">
+    Choose from specialized biomedical language models:
+  </p>
+  <ul class="list-disc pl-5 space-y-2 mb-6">
+    <li><strong>bioclinicalbert:</strong> Bio-ClinicalBERT for clinical text</li>
+    <li><strong>pubmedbert:</strong> PubMedBERT for biomedical literature</li>
+    <li><strong>gatortron:</strong> GatorTron for clinical notes (default)</li>
+    <li><strong>clinicalt5:</strong> Clinical-T5 for text generation tasks</li>
+  </ul>
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Performance Considerations</h2>
   <p class="mb-4">
@@ -181,10 +361,58 @@ results = hb.predict_survival(combined_embeddings)`}
   </p>
   <ul class="list-disc pl-5 space-y-2 mb-6">
     <li>Use batch processing for large document collections</li>
-    <li>Enable GPU acceleration when available</li>
-    <li>Implement sliding window approaches for very long documents</li>
-    <li>Use memory-efficient tokenization for large texts</li>
+    <li>Configure appropriate tokenization strategies for long documents</li>
+    <li>Enable GPU acceleration when available for deep learning models</li>
+    <li>Use sliding window or hierarchical tokenization for very long documents</li>
+    <li>Consider memory-efficient processing for large datasets</li>
+    <li>Adjust entity recognition components based on performance requirements</li>
   </ul>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Output Structure</h2>
+  <p class="mb-4">
+    The processor returns a comprehensive results dictionary:
+  </p>
+  <CodeBlock
+    code={`
+{
+    "file_path": "path/to/document.pdf",
+    "file_name": "document.pdf",
+    "processing_timestamp": "2023-05-30T10:30:00",
+    "text": "Patient presents with...",
+    "document_structure": {
+        "sections": [...],
+        "headers": [...]
+    },
+    "tokenization": {
+        "tokens": [...],
+        "token_ids": [...],
+        "segment_mapping": [...],
+        "num_segments": 5
+    },
+    "entities": [
+        {
+            "text": "breast cancer",
+            "type": "condition",
+            "start": 25,
+            "end": 38,
+            "properties": {
+                "ontology_links": [...],
+                "source": "rule-based"
+            }
+        }
+    ],
+    "entity_relationships": [
+        {
+            "source": 0,
+            "target": 1,
+            "type": "treats"
+        }
+    ],
+    "temporal_timeline": [...]
+}`}
+    lang="json"
+    filename="output_structure.json"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">References</h2>
   <ul class="list-disc pl-5 space-y-2">
@@ -196,10 +424,24 @@ results = hb.predict_survival(combined_embeddings)`}
       >
     </li>
     <li>
-      Clinical-T5: <a
-        href="https://huggingface.co/cjfcsjt/clinicalT5"
+      Bio-ClinicalBERT: <a
+        href="https://huggingface.co/emilyalsentzer/Bio_ClinicalBERT"
         class="text-primary hover:underline"
-        target="_blank">https://huggingface.co/cjfcsjt/clinicalT5</a
+        target="_blank">https://huggingface.co/emilyalsentzer/Bio_ClinicalBERT</a
+      >
+    </li>
+    <li>
+      PubMedBERT: <a
+        href="https://huggingface.co/microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext"
+        class="text-primary hover:underline"
+        target="_blank">https://huggingface.co/microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext</a
+      >
+    </li>
+    <li>
+      Clinical-T5: <a
+        href="https://huggingface.co/healx/gpt-t5-clinical"
+        class="text-primary hover:underline"
+        target="_blank">https://huggingface.co/healx/gpt-t5-clinical</a
       >
     </li>
   </ul>
