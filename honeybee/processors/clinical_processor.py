@@ -23,11 +23,8 @@ from transformers import (
     T5Tokenizer,
 )
 from nltk.tokenize import sent_tokenize
-import nltk
 
 from ..loaders import PDF
-
-nltk.download("punkt", quiet=True)
 
 # Constants
 SUPPORTED_IMAGE_FORMATS = [".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp"]
@@ -3143,3 +3140,31 @@ class ClinicalProcessor:
                 results["temporal_timeline"] = entity_result["temporal_timeline"]
 
         return results
+
+
+# -----------------------------------------------------------------------------
+# Utility Functions
+# -----------------------------------------------------------------------------
+
+
+def load_config(config_path: Union[str, Path]) -> Dict:
+    """Load configuration from JSON file"""
+    with open(config_path, "r") as f:
+        return json.load(f)
+
+
+def initialize_processor(
+    config_path: Optional[Union[str, Path]] = None,
+) -> ClinicalProcessor:
+    """Initialize processor with optional configuration"""
+    if config_path:
+        config = load_config(config_path)
+    else:
+        config = {}
+
+    return ClinicalProcessor(config)
+
+
+# -----------------------------------------------------------------------------
+# Example Usage
+# -----------------------------------------------------------------------------

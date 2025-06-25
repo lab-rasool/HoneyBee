@@ -9,12 +9,16 @@ __pycache__
 *.parquet
 *.svs
 *.xml
+*.png
+*.pdf
+*.pkl
+*.npy
 
 /data
 /cache
 /visualizations
-/results
 /logs
+/paper
+examples/samples
 
-/examples/benchmarking_analysis_results/models/
-/examples/survival_analysis_results/models/
+CLAUDE.md
