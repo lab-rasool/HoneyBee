@@ -1,0 +1,166 @@
+================================================================================
+UNIFIED RETRIEVAL ANALYSIS SUMMARY REPORT
+Generated: 2025-06-25 19:01:21
+================================================================================
+
+PERFORMANCE SUMMARY
+--------------------------------------------------------------------------------
+Modality        Samples    Classes    P@10         AMI          Failure%    
+--------------------------------------------------------------------------------
+Clinical        11428      33         0.695±0.000  0.240        30.5        
+Molecular       13804      33         0.350±0.000  0.219        65.0        
+Pathology       11108      32         0.232±0.000  0.061        76.8        
+Radiology       1149       18         0.348±0.004  0.224        66.1        
+Wsi             8060       22         0.143±0.000  0.058        85.7        
+
+
+DETAILED RESULTS BY MODALITY
+================================================================================
+
+CLINICAL
+----------------------------------------
+Data shape: (11428, 1024)
+Number of classes: 33
+
+Retrieval Performance:
+  Precision@5: 0.7557 ± 0.0000
+  Precision@10: 0.6948 ± 0.0000
+  Precision@20: 0.6193 ± 0.0000
+
+Clustering Quality:
+  Clustering AMI: 0.2400
+  Clustering NMI: 0.3528
+  Retrieval-based AMI:
+    k=5: AMI=0.4975, Acc=0.6020
+    k=10: AMI=0.4461, Acc=0.5460
+    k=20: AMI=0.3757, Acc=0.4750
+
+Failure Analysis:
+  Total failures: 34879
+  Failure rate: 0.3052
+  Most confused cancer type pairs:
+    LUAD → COAD: 552 times
+    LUSC → LUAD: 548 times
+    READ → COAD: 512 times
+    LUAD → LUSC: 492 times
+    THCA → BRCA: 490 times
+
+MOLECULAR
+----------------------------------------
+Data shape: (13804, 48)
+Number of classes: 33
+
+Retrieval Performance:
+  Precision@5: 0.3923 ± 0.0001
+  Precision@10: 0.3501 ± 0.0001
+  Precision@20: 0.3095 ± 0.0001
+
+Clustering Quality:
+  Clustering AMI: 0.2187
+  Clustering NMI: 0.3268
+  Retrieval-based AMI:
+    k=5: AMI=0.2127, Acc=0.2880
+    k=10: AMI=0.2053, Acc=0.2620
+    k=20: AMI=0.2250, Acc=0.2600
+
+Failure Analysis:
+  Total failures: 89718
+  Failure rate: 0.6499
+  Most confused cancer type pairs:
+    GBM → LAML: 1369 times
+    LAML → GBM: 1215 times
+    UCEC → BRCA: 1181 times
+    COAD → BRCA: 965 times
+    KIRC → BRCA: 952 times
+
+PATHOLOGY
+----------------------------------------
+Data shape: (11108, 1024)
+Number of classes: 32
+
+Retrieval Performance:
+  Precision@5: 0.2797 ± 0.0000
+  Precision@10: 0.2320 ± 0.0000
+  Precision@20: 0.1901 ± 0.0000
+
+Clustering Quality:
+  Clustering AMI: 0.0609
+  Clustering NMI: 0.1941
+  Retrieval-based AMI:
+    k=5: AMI=0.0984, Acc=0.2110
+    k=10: AMI=0.0870, Acc=0.2060
+    k=20: AMI=0.0745, Acc=0.1900
+
+Failure Analysis:
+  Total failures: 85304
+  Failure rate: 0.7680
+  Most confused cancer type pairs:
+    UCEC → BRCA: 762 times
+    BRCA → THCA: 725 times
+    GBM → OV: 702 times
+    BRCA → UCEC: 698 times
+    OV → GBM: 660 times
+
+RADIOLOGY
+----------------------------------------
+Data shape: (1149, 1000)
+Number of classes: 18
+
+Retrieval Performance:
+  Precision@5: 0.3782 ± 0.0044
+  Precision@10: 0.3482 ± 0.0036
+  Precision@20: 0.3124 ± 0.0017
+
+Stable Retrieval (95% CI):
+  Precision@5: 0.3709 [0.3518, 0.3906]
+  Precision@10: 0.3388 [0.3208, 0.3571]
+  Precision@20: 0.3049 [0.2888, 0.3212]
+
+Clustering Quality:
+  Clustering AMI: 0.2245
+  Clustering NMI: 0.2674
+  Retrieval-based AMI:
+    k=5: AMI=0.2789, Acc=0.4480
+    k=10: AMI=0.2852, Acc=0.4500
+    k=20: AMI=0.2562, Acc=0.4340
+
+Failure Analysis:
+  Total failures: 7597
+  Failure rate: 0.6612
+  Most confused cancer type pairs:
+    BRCA → UCEC: 432 times
+    OV → KIRC: 382 times
+    KIRC → OV: 294 times
+    KIRC → LIHC: 272 times
+    LIHC → KIRC: 267 times
+
+WSI
+----------------------------------------
+Data shape: (8060, 1024)
+Number of classes: 22
+
+Retrieval Performance:
+  Precision@5: 0.1553 ± 0.0002
+  Precision@10: 0.1429 ± 0.0000
+  Precision@20: 0.1320 ± 0.0000
+
+Clustering Quality:
+  Clustering AMI: 0.0580
+  Clustering NMI: 0.1352
+  Retrieval-based AMI:
+    k=5: AMI=0.0529, Acc=0.1570
+    k=10: AMI=0.0600, Acc=0.1800
+    k=20: AMI=0.0738, Acc=0.1970
+
+Failure Analysis:
+  Total failures: 69084
+  Failure rate: 0.8571
+  Most confused cancer type pairs:
+    GBM → KIRC: 899 times
+    BRCA → BLCA: 805 times
+    BLCA → BRCA: 783 times
+    LGG → BRCA: 763 times
+    PRAD → BRCA: 716 times
+
+================================================================================
+END OF REPORT

@@ -1,0 +1,84 @@
+MULTIMODAL FUSION RETRIEVAL ANALYSIS REPORT
+================================================================================
+Generated: 2025-06-25 19:00:06
+
+SUMMARY RESULTS
+--------------------------------------------------------------------------------
+Fusion Method   Samples    Classes    P@10            AMI          Failure%    
+--------------------------------------------------------------------------------
+CONCAT          11341      33         0.461±0.000  0.347        53.9        
+MEAN_POOL       11341      33         0.446±0.000  0.336        55.4        
+KP              11341      33         0.269±0.000  0.320        73.1        
+
+
+DETAILED RESULTS BY FUSION METHOD
+================================================================================
+
+CONCAT
+----------------------------------------
+Data shape: (11341, 4120)
+Number of classes: 33
+
+Retrieval Performance:
+  Precision@5: 0.5041 ± 0.0000
+  Precision@10: 0.4607 ± 0.0000
+  Precision@20: 0.4179 ± 0.0000
+
+Clustering Quality:
+  Clustering AMI: 0.3471
+  Clustering NMI: 0.4440
+  Retrieval-based AMI:
+    k=5: AMI=0.4162, Acc=0.4610
+    k=10: AMI=0.4080, Acc=0.4390
+    k=20: AMI=0.4094, Acc=0.4160
+
+Failure Analysis:
+  Total failures: 61158
+  Failure rate: 0.5393
+
+MEAN_POOL
+----------------------------------------
+Data shape: (11341, 1024)
+Number of classes: 33
+
+Retrieval Performance:
+  Precision@5: 0.4922 ± 0.0000
+  Precision@10: 0.4464 ± 0.0000
+  Precision@20: 0.4028 ± 0.0000
+
+Clustering Quality:
+  Clustering AMI: 0.3364
+  Clustering NMI: 0.4350
+  Retrieval-based AMI:
+    k=5: AMI=0.3753, Acc=0.4060
+    k=10: AMI=0.3817, Acc=0.4150
+    k=20: AMI=0.3838, Acc=0.3810
+
+Failure Analysis:
+  Total failures: 62779
+  Failure rate: 0.5536
+
+KP
+----------------------------------------
+Data shape: (11341, 4912)
+Number of classes: 33
+
+Retrieval Performance:
+  Precision@5: 0.2836 ± 0.0000
+  Precision@10: 0.2689 ± 0.0000
+  Precision@20: 0.2534 ± 0.0000
+
+Clustering Quality:
+  Clustering AMI: 0.3201
+  Clustering NMI: 0.4053
+  Retrieval-based AMI:
+    k=5: AMI=0.3048, Acc=0.2660
+    k=10: AMI=0.3195, Acc=0.2580
+    k=20: AMI=0.3385, Acc=0.2440
+
+Failure Analysis:
+  Total failures: 82910
+  Failure rate: 0.7311
+
+================================================================================
+END OF REPORT

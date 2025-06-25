@@ -1,0 +1,65 @@
+# Multimodal Cancer Classification Results
+============================================================
+Generated on: 2025-06-25 19:07:28
+
+## Multimodal Fusion Methods Comparison
+
+Best fusion method: CONCAT
+Best accuracy: 0.8979 (±0.0042)
+
+### Detailed Fusion Results
+
+#### CONCAT
+- Accuracy: 0.8979 (±0.0042)
+- F1-Score: 0.8954 (±0.0045)
+- Precision: 0.9010 (±0.0039)
+- Recall: 0.8979 (±0.0042)
+
+#### MEAN_POOL
+- Accuracy: 0.7071 (±0.0092)
+- F1-Score: 0.6917 (±0.0091)
+- Precision: 0.7139 (±0.0073)
+- Recall: 0.7071 (±0.0092)
+
+#### KP
+- Accuracy: 0.8952 (±0.0053)
+- F1-Score: 0.8925 (±0.0056)
+- Precision: 0.8987 (±0.0049)
+- Recall: 0.8952 (±0.0053)
+
+## Individual Modality Results
+
+
+### CLINICAL
+- Accuracy: 0.8858 (±0.0063)
+- F1-Score: 0.8833 (±0.0065)
+
+### PATHOLOGY
+- Accuracy: 0.4445 (±0.0080)
+- F1-Score: 0.4166 (±0.0081)
+
+### RADIOLOGY
+- Accuracy: 0.4778 (±0.0351)
+- F1-Score: 0.4411 (±0.0301)
+
+### MOLECULAR
+- Accuracy: 0.5673 (±0.0079)
+- F1-Score: 0.5573 (±0.0072)
+
+### WSI
+- Accuracy: 0.2841 (±0.0082)
+- F1-Score: 0.2483 (±0.0079)
+
+## Modality Combination Statistics
+
+Top 10 most common modality combinations:
+- clinical,pathology,molecular,wsi: 6939 patients
+- clinical,pathology,molecular: 2706 patients
+- clinical,pathology,radiology,molecular,wsi: 950 patients
+- clinical,pathology: 205 patients
+- clinical,molecular: 176 patients
+- clinical,pathology,radiology,molecular: 155 patients
+- clinical,pathology,wsi: 149 patients
+- clinical,radiology: 38 patients
+- clinical,molecular,wsi: 11 patients
+- clinical,wsi: 6 patients

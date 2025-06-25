@@ -1,0 +1,46 @@
+# Cancer Classification Results Report
+============================================================
+Generated on: 2025-06-25 19:05:10
+
+## Overall Performance Summary
+
+Best performing modality: multimodal
+Best accuracy: 0.8979 (±0.0042)
+
+## Detailed Results by Modality
+
+### CLINICAL
+- Accuracy: 0.8858 (±0.0063)
+- F1-Score: 0.8833 (±0.0065)
+- Precision: 0.8894 (±0.0060)
+- Recall: 0.8858 (±0.0063)
+
+### PATHOLOGY
+- Accuracy: 0.4445 (±0.0080)
+- F1-Score: 0.4166 (±0.0081)
+- Precision: 0.4717 (±0.0145)
+- Recall: 0.4445 (±0.0080)
+
+### RADIOLOGY
+- Accuracy: 0.4778 (±0.0351)
+- F1-Score: 0.4411 (±0.0301)
+- Precision: 0.4294 (±0.0319)
+- Recall: 0.4778 (±0.0351)
+
+### MOLECULAR
+- Accuracy: 0.5673 (±0.0079)
+- F1-Score: 0.5573 (±0.0072)
+- Precision: 0.5706 (±0.0081)
+- Recall: 0.5673 (±0.0079)
+
+### WSI
+- Accuracy: 0.2841 (±0.0082)
+- F1-Score: 0.2483 (±0.0079)
+- Precision: 0.2533 (±0.0106)
+- Recall: 0.2841 (±0.0082)
+
+### MULTIMODAL
+- Accuracy: 0.8979 (±0.0042)
+- F1-Score: 0.8954 (±0.0045)
+- Precision: 0.9010 (±0.0039)
+- Recall: 0.8979 (±0.0042)
