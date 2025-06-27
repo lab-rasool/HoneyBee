@@ -135,59 +135,6 @@ DATABASE=minds
 HF_API_KEY=your_huggingface_api_key
 ```
 
-## 📖 Usage
-
-### Basic Example
-
-```python
-from honeybee import HoneyBee
-
-# Initialize HoneyBee
-honeybee = HoneyBee()
-
-# Generate embeddings for clinical text
-clinical_embeddings = honeybee.generate_embeddings(
-    clinical_text, 
-    modality="clinical",
-    model="gatortron"
-)
-
-# Process pathology images
-pathology_embeddings = honeybee.generate_embeddings(
-    wsi_paths,
-    modality="pathology",
-    model="uni"
-)
-
-# Integrate multimodal data
-integrated = honeybee.integrate_embeddings([
-    clinical_embeddings,
-    pathology_embeddings,
-    radiology_embeddings
-])
-```
-
-### Interactive Visualization
-
-```bash
-# Launch the embedding visualization dashboard
-python app.py
-# Visit http://localhost:8050
-```
-
-### Run Examples
-
-```bash
-# Clinical text processing tutorial
-jupyter notebook examples/clinical_processing_tutorial.ipynb
-
-# Survival analysis demonstration
-python examples/survival.py
-
-# Multimodal integration
-python examples/multimodal.py
-```
-
 ## 🔬 Research Applications
 
 HoneyBee has been successfully applied to:
