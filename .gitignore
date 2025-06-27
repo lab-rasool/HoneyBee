@@ -4,17 +4,9 @@
 .aim
 
 __pycache__
+*.pyc
 
-*.h5
-*.parquet
-*.xml
 *.pkl
-*.npy
-
-/data
-/cache
-/visualizations
-/logs
 /paper
 
 CLAUDE.md
