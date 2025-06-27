@@ -8,5 +8,6 @@ __pycache__
 
 *.pkl
 /paper
+/to_delete
 
 CLAUDE.md
