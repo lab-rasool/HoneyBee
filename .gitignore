@@ -7,7 +7,6 @@ __pycache__
 
 *.h5
 *.parquet
-*.svs
 *.xml
 *.pkl
 *.npy
@@ -17,6 +16,5 @@ __pycache__
 /visualizations
 /logs
 /paper
-examples/samples
 
 CLAUDE.md
