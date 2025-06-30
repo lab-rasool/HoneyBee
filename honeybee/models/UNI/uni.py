@@ -12,17 +12,18 @@ class UNI:
             num_classes=0,
             dynamic_img_size=True,
         )
-        map_location = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model.load_state_dict(
-            torch.load(model_path, map_location=map_location), strict=True
+            torch.load(model_path, map_location=self.device), strict=True
         )
-        self.model = model
+        self.model = model.to(self.device)
+        print(f"UNI model loaded on: {self.device}")
 
     def load_model_and_predict(self, patches):
         self.model.eval()
 
-        # convert patches from ndarray to torch.Tensor
-        patches = torch.tensor(patches, dtype=torch.float32)
+        # convert patches from ndarray to torch.Tensor and move to GPU
+        patches = torch.tensor(patches, dtype=torch.float32).to(self.device)
         patches = patches.permute(0, 3, 1, 2)
 
         # use patches as input
