@@ -1,0 +1,97 @@
+CLASSIFICATION ANALYSIS SUMMARY - ALL MODELS
+============================================================
+
+Best Model: clinical_qwen (Accuracy: 0.9995)
+
+DETAILED RESULTS:
+------------------------------------------------------------
+
+CLINICAL_GATORTRON:
+  Accuracy:  0.9866 ± 0.0011
+  F1 Score:  0.9863 ± 0.0012
+  Precision: 0.9870 ± 0.0009
+  Recall:    0.9866 ± 0.0011
+
+CLINICAL_LLAMA:
+  Accuracy:  0.9949 ± 0.0016
+  F1 Score:  0.9949 ± 0.0016
+  Precision: 0.9951 ± 0.0016
+  Recall:    0.9949 ± 0.0016
+
+CLINICAL_MEDGEMMA:
+  Accuracy:  0.9952 ± 0.0009
+  F1 Score:  0.9951 ± 0.0009
+  Precision: 0.9953 ± 0.0008
+  Recall:    0.9952 ± 0.0009
+
+CLINICAL_QWEN:
+  Accuracy:  0.9995 ± 0.0004
+  F1 Score:  0.9995 ± 0.0004
+  Precision: 0.9995 ± 0.0004
+  Recall:    0.9995 ± 0.0004
+
+PATHOLOGY_GATORTRON:
+  Accuracy:  0.7841 ± 0.0088
+  F1 Score:  0.7689 ± 0.0095
+  Precision: 0.7816 ± 0.0105
+  Recall:    0.7841 ± 0.0088
+
+PATHOLOGY_LLAMA:
+  Accuracy:  0.8245 ± 0.0061
+  F1 Score:  0.8139 ± 0.0069
+  Precision: 0.8264 ± 0.0052
+  Recall:    0.8245 ± 0.0061
+
+PATHOLOGY_MEDGEMMA:
+  Accuracy:  0.8405 ± 0.0072
+  F1 Score:  0.8310 ± 0.0066
+  Precision: 0.8406 ± 0.0059
+  Recall:    0.8405 ± 0.0072
+
+PATHOLOGY_QWEN:
+  Accuracy:  0.8490 ± 0.0060
+  F1 Score:  0.8396 ± 0.0058
+  Precision: 0.8500 ± 0.0055
+  Recall:    0.8490 ± 0.0060
+
+MODEL COMPARISON:
+------------------------------------------------------------
+
+ENCODER-ONLY vs DECODER-ONLY:
+------------------------------
+
+CLINICAL:
+  Encoder-only models:
+    gatortron: 0.9866
+    qwen: 0.9995
+  Decoder-only models:
+    medgemma: 0.9952
+    llama: 0.9949
+
+PATHOLOGY:
+  Encoder-only models:
+    gatortron: 0.7841
+    qwen: 0.8490
+  Decoder-only models:
+    medgemma: 0.8405
+    llama: 0.8245
+
+
+MEDICAL vs GENERAL PURPOSE:
+------------------------------
+
+CLINICAL:
+  Medical-focused models:
+    gatortron: 0.9866
+    medgemma: 0.9952
+  General-purpose models:
+    qwen: 0.9995
+    llama: 0.9949
+
+PATHOLOGY:
+  Medical-focused models:
+    gatortron: 0.7841
+    medgemma: 0.8405
+  General-purpose models:
+    qwen: 0.8490
+    llama: 0.8245

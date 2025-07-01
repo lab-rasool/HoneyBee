@@ -1,0 +1,738 @@
+{
+  "clinical_gatortron": {
+    "precision@1": {
+      "mean": 0.9882103711890946,
+      "std": 0.0
+    },
+    "precision@5": {
+      "mean": 0.9757575757575757,
+      "std": 0.0
+    },
+    "precision@10": {
+      "mean": 0.9640692640692642,
+      "std": 0.0
+    },
+    "precision@20": {
+      "mean": 0.9473519388413005,
+      "std": 0.0
+    },
+    "precision@30": {
+      "mean": 0.9320745448405022,
+      "std": 0.0
+    },
+    "precision@40": {
+      "mean": 0.916814037026803,
+      "std": 0.0
+    },
+    "precision@50": {
+      "mean": 0.902059500782905,
+      "std": 0.0
+    },
+    "precisions": {
+      "precision@1": {
+        "mean": 0.9882103711890946,
+        "std": 0.0
+      },
+      "precision@5": {
+        "mean": 0.9757575757575757,
+        "std": 0.0
+      },
+      "precision@10": {
+        "mean": 0.9640692640692642,
+        "std": 0.0
+      },
+      "precision@20": {
+        "mean": 0.9473519388413005,
+        "std": 0.0
+      },
+      "precision@30": {
+        "mean": 0.9320745448405022,
+        "std": 0.0
+      },
+      "precision@40": {
+        "mean": 0.916814037026803,
+        "std": 0.0
+      },
+      "precision@50": {
+        "mean": 0.902059500782905,
+        "std": 0.0
+      }
+    },
+    "ami_clustering": {
+      "mean": 0.7091114231022794,
+      "std": 0.008924778821517437
+    },
+    "ami_retrieval": 0.9697328876326209,
+    "top_confusions": [
+      {
+        "source": "TCGA-READ",
+        "target": "TCGA-COAD",
+        "count": 562
+      },
+      {
+        "source": "TCGA-LUAD",
+        "target": "TCGA-LUSC",
+        "count": 480
+      },
+      {
+        "source": "TCGA-LUSC",
+        "target": "TCGA-LUAD",
+        "count": 401
+      },
+      {
+        "source": "TCGA-COAD",
+        "target": "TCGA-READ",
+        "count": 371
+      },
+      {
+        "source": "TCGA-KIRP",
+        "target": "TCGA-KIRC",
+        "count": 292
+      }
+    ]
+  },
+  "clinical_qwen": {
+    "precision@1": {
+      "mean": 0.9992631481993183,
+      "std": 1.1102230246251565e-16
+    },
+    "precision@5": {
+      "mean": 0.9975683890577508,
+      "std": 0.0
+    },
+    "precision@10": {
+      "mean": 0.9957446808510637,
+      "std": 0.0
+    },
+    "precision@20": {
+      "mean": 0.9900064474532559,
+      "std": 0.0
+    },
+    "precision@30": {
+      "mean": 0.9852783150655492,
+      "std": 1.1102230246251565e-16
+    },
+    "precision@40": {
+      "mean": 0.9797665100856591,
+      "std": 1.1102230246251565e-16
+    },
+    "precision@50": {
+      "mean": 0.9736078106290872,
+      "std": 0.0
+    },
+    "precisions": {
+      "precision@1": {
+        "mean": 0.9992631481993183,
+        "std": 1.1102230246251565e-16
+      },
+      "precision@5": {
+        "mean": 0.9975683890577508,
+        "std": 0.0
+      },
+      "precision@10": {
+        "mean": 0.9957446808510637,
+        "std": 0.0
+      },
+      "precision@20": {
+        "mean": 0.9900064474532559,
+        "std": 0.0
+      },
+      "precision@30": {
+        "mean": 0.9852783150655492,
+        "std": 1.1102230246251565e-16
+      },
+      "precision@40": {
+        "mean": 0.9797665100856591,
+        "std": 1.1102230246251565e-16
+      },
+      "precision@50": {
+        "mean": 0.9736078106290872,
+        "std": 0.0
+      }
+    },
+    "ami_clustering": {
+      "mean": 0.8229454258643545,
+      "std": 0.004720825269691535
+    },
+    "ami_retrieval": 0.9955489150744313,
+    "top_confusions": [
+      {
+        "source": "TCGA-CESC",
+        "target": "TCGA-UCEC",
+        "count": 37
+      },
+      {
+        "source": "TCGA-READ",
+        "target": "TCGA-COAD",
+        "count": 31
+      },
+      {
+        "source": "TCGA-CESC",
+        "target": "TCGA-HNSC",
+        "count": 24
+      },
+      {
+        "source": "TCGA-PCPG",
+        "target": "TCGA-ACC",
+        "count": 22
+      },
+      {
+        "source": "TCGA-TGCT",
+        "target": "TCGA-PRAD",
+        "count": 16
+      }
+    ]
+  },
+  "clinical_medgemma": {
+    "precision@1": {
+      "mean": 0.989315648890117,
+      "std": 0.0
+    },
+    "precision@5": {
+      "mean": 0.9727180620797643,
+      "std": 1.1102230246251565e-16
+    },
+    "precision@10": {
+      "mean": 0.9546744036105738,
+      "std": 0.0
+    },
+    "precision@20": {
+      "mean": 0.9258865248226952,
+      "std": 1.1102230246251565e-16
+    },
+    "precision@30": {
+      "mean": 0.9016333548248442,
+      "std": 0.0
+    },
+    "precision@40": {
+      "mean": 0.8801648705904026,
+      "std": 0.0
+    },
+    "precision@50": {
+      "mean": 0.8607368518006816,
+      "std": 0.0
+    },
+    "precisions": {
+      "precision@1": {
+        "mean": 0.989315648890117,
+        "std": 0.0
+      },
+      "precision@5": {
+        "mean": 0.9727180620797643,
+        "std": 1.1102230246251565e-16
+      },
+      "precision@10": {
+        "mean": 0.9546744036105738,
+        "std": 0.0
+      },
+      "precision@20": {
+        "mean": 0.9258865248226952,
+        "std": 1.1102230246251565e-16
+      },
+      "precision@30": {
+        "mean": 0.9016333548248442,
+        "std": 0.0
+      },
+      "precision@40": {
+        "mean": 0.8801648705904026,
+        "std": 0.0
+      },
+      "precision@50": {
+        "mean": 0.8607368518006816,
+        "std": 0.0
+      }
+    },
+    "ami_clustering": {
+      "mean": 0.5965152362571688,
+      "std": 0.011800682908664931
+    },
+    "ami_retrieval": 0.9551318549989225,
+    "top_confusions": [
+      {
+        "source": "TCGA-READ",
+        "target": "TCGA-COAD",
+        "count": 295
+      },
+      {
+        "source": "TCGA-LUSC",
+        "target": "TCGA-LUAD",
+        "count": 275
+      },
+      {
+        "source": "TCGA-LUAD",
+        "target": "TCGA-LUSC",
+        "count": 270
+      },
+      {
+        "source": "TCGA-KIRP",
+        "target": "TCGA-KIRC",
+        "count": 234
+      },
+      {
+        "source": "TCGA-KIRC",
+        "target": "TCGA-KIRP",
+        "count": 164
+      }
+    ]
+  },
+  "clinical_llama": {
+    "precision@1": {
+      "mean": 0.9930920143686102,
+      "std": 0.0
+    },
+    "precision@5": {
+      "mean": 0.9799392097264438,
+      "std": 1.1102230246251565e-16
+    },
+    "precision@10": {
+      "mean": 0.9651561204752696,
+      "std": 1.1102230246251565e-16
+    },
+    "precision@20": {
+      "mean": 0.9408308004052687,
+      "std": 1.1102230246251565e-16
+    },
+    "precision@30": {
+      "mean": 0.9210094869669337,
+      "std": 1.1102230246251565e-16
+    },
+    "precision@40": {
+      "mean": 0.9021921341070277,
+      "std": 1.1102230246251565e-16
+    },
+    "precision@50": {
+      "mean": 0.884249792760431,
+      "std": 0.0
+    },
+    "precisions": {
+      "precision@1": {
+        "mean": 0.9930920143686102,
+        "std": 0.0
+      },
+      "precision@5": {
+        "mean": 0.9799392097264438,
+        "std": 1.1102230246251565e-16
+      },
+      "precision@10": {
+        "mean": 0.9651561204752696,
+        "std": 1.1102230246251565e-16
+      },
+      "precision@20": {
+        "mean": 0.9408308004052687,
+        "std": 1.1102230246251565e-16
+      },
+      "precision@30": {
+        "mean": 0.9210094869669337,
+        "std": 1.1102230246251565e-16
+      },
+      "precision@40": {
+        "mean": 0.9021921341070277,
+        "std": 1.1102230246251565e-16
+      },
+      "precision@50": {
+        "mean": 0.884249792760431,
+        "std": 0.0
+      }
+    },
+    "ami_clustering": {
+      "mean": 0.6019554629101082,
+      "std": 0.00521699200375535
+    },
+    "ami_retrieval": 0.962782547186023,
+    "top_confusions": [
+      {
+        "source": "TCGA-READ",
+        "target": "TCGA-COAD",
+        "count": 265
+      },
+      {
+        "source": "TCGA-COAD",
+        "target": "TCGA-READ",
+        "count": 149
+      },
+      {
+        "source": "TCGA-LUSC",
+        "target": "TCGA-LUAD",
+        "count": 144
+      },
+      {
+        "source": "TCGA-KIRP",
+        "target": "TCGA-KIRC",
+        "count": 135
+      },
+      {
+        "source": "TCGA-KIRC",
+        "target": "TCGA-KIRP",
+        "count": 123
+      }
+    ]
+  },
+  "pathology_gatortron": {
+    "precision@1": {
+      "mean": 0.8138528138528138,
+      "std": 0.0
+    },
+    "precision@5": {
+      "mean": 0.7462098185502443,
+      "std": 1.1102230246251565e-16
+    },
+    "precision@10": {
+      "mean": 0.7030763562678456,
+      "std": 0.0
+    },
+    "precision@20": {
+      "mean": 0.650976328635903,
+      "std": 0.0
+    },
+    "precision@30": {
+      "mean": 0.6142918547173867,
+      "std": 0.0
+    },
+    "precision@40": {
+      "mean": 0.5865179147094042,
+      "std": 0.0
+    },
+    "precision@50": {
+      "mean": 0.5639311043566363,
+      "std": 0.0
+    },
+    "precisions": {
+      "precision@1": {
+        "mean": 0.8138528138528138,
+        "std": 0.0
+      },
+      "precision@5": {
+        "mean": 0.7462098185502443,
+        "std": 1.1102230246251565e-16
+      },
+      "precision@10": {
+        "mean": 0.7030763562678456,
+        "std": 0.0
+      },
+      "precision@20": {
+        "mean": 0.650976328635903,
+        "std": 0.0
+      },
+      "precision@30": {
+        "mean": 0.6142918547173867,
+        "std": 0.0
+      },
+      "precision@40": {
+        "mean": 0.5865179147094042,
+        "std": 0.0
+      },
+      "precision@50": {
+        "mean": 0.5639311043566363,
+        "std": 0.0
+      }
+    },
+    "ami_clustering": {
+      "mean": 0.3767069343906781,
+      "std": 0.010137104509363806
+    },
+    "ami_retrieval": 0.7484339828001532,
+    "top_confusions": [
+      {
+        "source": "TCGA-LUAD",
+        "target": "TCGA-LUSC",
+        "count": 1634
+      },
+      {
+        "source": "TCGA-LUSC",
+        "target": "TCGA-LUAD",
+        "count": 1621
+      },
+      {
+        "source": "TCGA-LGG",
+        "target": "TCGA-GBM",
+        "count": 899
+      },
+      {
+        "source": "TCGA-KIRP",
+        "target": "TCGA-KIRC",
+        "count": 858
+      },
+      {
+        "source": "TCGA-READ",
+        "target": "TCGA-COAD",
+        "count": 819
+      }
+    ]
+  },
+  "pathology_qwen": {
+    "precision@1": {
+      "mean": 0.861287648521691,
+      "std": 0.0
+    },
+    "precision@5": {
+      "mean": 0.8155475729943816,
+      "std": 0.0
+    },
+    "precision@10": {
+      "mean": 0.7803352675693102,
+      "std": 0.0
+    },
+    "precision@20": {
+      "mean": 0.7326563507414571,
+      "std": 0.0
+    },
+    "precision@30": {
+      "mean": 0.7001473703601363,
+      "std": 0.0
+    },
+    "precision@40": {
+      "mean": 0.673936170212766,
+      "std": 0.0
+    },
+    "precision@50": {
+      "mean": 0.6505554020447637,
+      "std": 0.0
+    },
+    "precisions": {
+      "precision@1": {
+        "mean": 0.861287648521691,
+        "std": 0.0
+      },
+      "precision@5": {
+        "mean": 0.8155475729943816,
+        "std": 0.0
+      },
+      "precision@10": {
+        "mean": 0.7803352675693102,
+        "std": 0.0
+      },
+      "precision@20": {
+        "mean": 0.7326563507414571,
+        "std": 0.0
+      },
+      "precision@30": {
+        "mean": 0.7001473703601363,
+        "std": 0.0
+      },
+      "precision@40": {
+        "mean": 0.673936170212766,
+        "std": 0.0
+      },
+      "precision@50": {
+        "mean": 0.6505554020447637,
+        "std": 0.0
+      }
+    },
+    "ami_clustering": {
+      "mean": 0.4669573664991199,
+      "std": 0.006401364349168338
+    },
+    "ami_retrieval": 0.8157777661222381,
+    "top_confusions": [
+      {
+        "source": "TCGA-LUSC",
+        "target": "TCGA-LUAD",
+        "count": 1521
+      },
+      {
+        "source": "TCGA-LUAD",
+        "target": "TCGA-LUSC",
+        "count": 1488
+      },
+      {
+        "source": "TCGA-KIRP",
+        "target": "TCGA-KIRC",
+        "count": 939
+      },
+      {
+        "source": "TCGA-LGG",
+        "target": "TCGA-GBM",
+        "count": 907
+      },
+      {
+        "source": "TCGA-READ",
+        "target": "TCGA-COAD",
+        "count": 756
+      }
+    ]
+  },
+  "pathology_medgemma": {
+    "precision@1": {
+      "mean": 0.830155659942894,
+      "std": 0.0
+    },
+    "precision@5": {
+      "mean": 0.7649258542875566,
+      "std": 0.0
+    },
+    "precision@10": {
+      "mean": 0.7131896472322005,
+      "std": 0.0
+    },
+    "precision@20": {
+      "mean": 0.6466242976881275,
+      "std": 0.0
+    },
+    "precision@30": {
+      "mean": 0.5990912161124927,
+      "std": 0.0
+    },
+    "precision@40": {
+      "mean": 0.5609744865064014,
+      "std": 0.0
+    },
+    "precision@50": {
+      "mean": 0.5290651192778852,
+      "std": 0.0
+    },
+    "precisions": {
+      "precision@1": {
+        "mean": 0.830155659942894,
+        "std": 0.0
+      },
+      "precision@5": {
+        "mean": 0.7649258542875566,
+        "std": 0.0
+      },
+      "precision@10": {
+        "mean": 0.7131896472322005,
+        "std": 0.0
+      },
+      "precision@20": {
+        "mean": 0.6466242976881275,
+        "std": 0.0
+      },
+      "precision@30": {
+        "mean": 0.5990912161124927,
+        "std": 0.0
+      },
+      "precision@40": {
+        "mean": 0.5609744865064014,
+        "std": 0.0
+      },
+      "precision@50": {
+        "mean": 0.5290651192778852,
+        "std": 0.0
+      }
+    },
+    "ami_clustering": {
+      "mean": 0.21036330666882241,
+      "std": 0.0032828212463539685
+    },
+    "ami_retrieval": 0.7580923753695337,
+    "top_confusions": [
+      {
+        "source": "TCGA-LUSC",
+        "target": "TCGA-LUAD",
+        "count": 1560
+      },
+      {
+        "source": "TCGA-LUAD",
+        "target": "TCGA-LUSC",
+        "count": 1551
+      },
+      {
+        "source": "TCGA-LGG",
+        "target": "TCGA-GBM",
+        "count": 884
+      },
+      {
+        "source": "TCGA-READ",
+        "target": "TCGA-COAD",
+        "count": 833
+      },
+      {
+        "source": "TCGA-GBM",
+        "target": "TCGA-LGG",
+        "count": 820
+      }
+    ]
+  },
+  "pathology_llama": {
+    "precision@1": {
+      "mean": 0.8470111448834853,
+      "std": 0.0
+    },
+    "precision@5": {
+      "mean": 0.7869945657179699,
+      "std": 0.0
+    },
+    "precision@10": {
+      "mean": 0.7398268398268399,
+      "std": 0.0
+    },
+    "precision@20": {
+      "mean": 0.6763240305793495,
+      "std": 1.1102230246251565e-16
+    },
+    "precision@30": {
+      "mean": 0.6305578582174327,
+      "std": 0.0
+    },
+    "precision@40": {
+      "mean": 0.5942571612784379,
+      "std": 0.0
+    },
+    "precision@50": {
+      "mean": 0.5644597955236252,
+      "std": 0.0
+    },
+    "precisions": {
+      "precision@1": {
+        "mean": 0.8470111448834853,
+        "std": 0.0
+      },
+      "precision@5": {
+        "mean": 0.7869945657179699,
+        "std": 0.0
+      },
+      "precision@10": {
+        "mean": 0.7398268398268399,
+        "std": 0.0
+      },
+      "precision@20": {
+        "mean": 0.6763240305793495,
+        "std": 1.1102230246251565e-16
+      },
+      "precision@30": {
+        "mean": 0.6305578582174327,
+        "std": 0.0
+      },
+      "precision@40": {
+        "mean": 0.5942571612784379,
+        "std": 0.0
+      },
+      "precision@50": {
+        "mean": 0.5644597955236252,
+        "std": 0.0
+      }
+    },
+    "ami_clustering": {
+      "mean": 0.32861561460837074,
+      "std": 0.012612328462849478
+    },
+    "ami_retrieval": 0.7740847485537299,
+    "top_confusions": [
+      {
+        "source": "TCGA-LUSC",
+        "target": "TCGA-LUAD",
+        "count": 1563
+      },
+      {
+        "source": "TCGA-LUAD",
+        "target": "TCGA-LUSC",
+        "count": 1541
+      },
+      {
+        "source": "TCGA-LGG",
+        "target": "TCGA-GBM",
+        "count": 857
+      },
+      {
+        "source": "TCGA-READ",
+        "target": "TCGA-COAD",
+        "count": 801
+      },
+      {
+        "source": "TCGA-GBM",
+        "target": "TCGA-LGG",
+        "count": 779
+      }
+    ]
+  }
+}

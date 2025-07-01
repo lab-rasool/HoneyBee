@@ -1,0 +1,121 @@
+RETRIEVAL ANALYSIS SUMMARY - ALL MODELS
+============================================================
+
+Best Model (Precision@10): clinical_qwen (0.9957)
+
+DETAILED RESULTS:
+------------------------------------------------------------
+
+CLINICAL_GATORTRON:
+  Precision@ 1: 0.9882 ± 0.0000
+  Precision@ 5: 0.9758 ± 0.0000
+  Precision@10: 0.9641 ± 0.0000
+  Precision@20: 0.9474 ± 0.0000
+  Precision@50: 0.9021 ± 0.0000
+  AMI (clustering): 0.7091 ± 0.0089
+  AMI (retrieval):  0.9697
+
+CLINICAL_LLAMA:
+  Precision@ 1: 0.9931 ± 0.0000
+  Precision@ 5: 0.9799 ± 0.0000
+  Precision@10: 0.9652 ± 0.0000
+  Precision@20: 0.9408 ± 0.0000
+  Precision@50: 0.8842 ± 0.0000
+  AMI (clustering): 0.6020 ± 0.0052
+  AMI (retrieval):  0.9628
+
+CLINICAL_MEDGEMMA:
+  Precision@ 1: 0.9893 ± 0.0000
+  Precision@ 5: 0.9727 ± 0.0000
+  Precision@10: 0.9547 ± 0.0000
+  Precision@20: 0.9259 ± 0.0000
+  Precision@50: 0.8607 ± 0.0000
+  AMI (clustering): 0.5965 ± 0.0118
+  AMI (retrieval):  0.9551
+
+CLINICAL_QWEN:
+  Precision@ 1: 0.9993 ± 0.0000
+  Precision@ 5: 0.9976 ± 0.0000
+  Precision@10: 0.9957 ± 0.0000
+  Precision@20: 0.9900 ± 0.0000
+  Precision@50: 0.9736 ± 0.0000
+  AMI (clustering): 0.8229 ± 0.0047
+  AMI (retrieval):  0.9955
+
+PATHOLOGY_GATORTRON:
+  Precision@ 1: 0.8139 ± 0.0000
+  Precision@ 5: 0.7462 ± 0.0000
+  Precision@10: 0.7031 ± 0.0000
+  Precision@20: 0.6510 ± 0.0000
+  Precision@50: 0.5639 ± 0.0000
+  AMI (clustering): 0.3767 ± 0.0101
+  AMI (retrieval):  0.7484
+
+PATHOLOGY_LLAMA:
+  Precision@ 1: 0.8470 ± 0.0000
+  Precision@ 5: 0.7870 ± 0.0000
+  Precision@10: 0.7398 ± 0.0000
+  Precision@20: 0.6763 ± 0.0000
+  Precision@50: 0.5645 ± 0.0000
+  AMI (clustering): 0.3286 ± 0.0126
+  AMI (retrieval):  0.7741
+
+PATHOLOGY_MEDGEMMA:
+  Precision@ 1: 0.8302 ± 0.0000
+  Precision@ 5: 0.7649 ± 0.0000
+  Precision@10: 0.7132 ± 0.0000
+  Precision@20: 0.6466 ± 0.0000
+  Precision@50: 0.5291 ± 0.0000
+  AMI (clustering): 0.2104 ± 0.0033
+  AMI (retrieval):  0.7581
+
+PATHOLOGY_QWEN:
+  Precision@ 1: 0.8613 ± 0.0000
+  Precision@ 5: 0.8155 ± 0.0000
+  Precision@10: 0.7803 ± 0.0000
+  Precision@20: 0.7327 ± 0.0000
+  Precision@50: 0.6506 ± 0.0000
+  AMI (clustering): 0.4670 ± 0.0064
+  AMI (retrieval):  0.8158
+
+MODEL COMPARISON:
+------------------------------------------------------------
+
+ENCODER-ONLY vs DECODER-ONLY (Precision@10):
+------------------------------
+
+CLINICAL:
+  Encoder-only models:
+    gatortron: 0.9641
+    qwen: 0.9957
+  Decoder-only models:
+    medgemma: 0.9547
+    llama: 0.9652
+
+PATHOLOGY:
+  Encoder-only models:
+    gatortron: 0.7031
+    qwen: 0.7803
+  Decoder-only models:
+    medgemma: 0.7132
+    llama: 0.7398
+
+
+MEDICAL vs GENERAL PURPOSE (Precision@10):
+------------------------------
+
+CLINICAL:
+  Medical-focused models:
+    gatortron: 0.9641
+    medgemma: 0.9547
+  General-purpose models:
+    qwen: 0.9957
+    llama: 0.9652
+
+PATHOLOGY:
+  Medical-focused models:
+    gatortron: 0.7031
+    medgemma: 0.7132
+  General-purpose models:
+    qwen: 0.7803
+    llama: 0.7398
