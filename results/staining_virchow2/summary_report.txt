@@ -1,0 +1,17 @@
+Stain Normalization Impact on Virchow2 Embeddings
+============================================================
+
+Total slides processed: 200
+BRCA slides: 100
+BLCA slides: 100
+Feature dimensions: 2048
+Normalization method: macenko
+Pooling method: mean_max
+
+Classification Results:
+------------------------------------------------------------
+Model                     With Norm       Without Norm    Improvement    
+------------------------------------------------------------
+logistic_regression       0.8250          0.8250          +0.0000
+random_forest             0.8250          0.7750          +0.0500
+neural_network            0.8250          0.8000          +0.0250
