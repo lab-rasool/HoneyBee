@@ -1,0 +1,55 @@
+PATHOLOGY CLASSIFICATION FINE-TUNING RESULTS
+============================================================
+Generated: 2025-07-01 12:12:38
+
+METHODOLOGY:
+------------------------------
+• Approach: Neural network classifiers on pre-computed embeddings
+• Architecture: 3-layer MLP with ReLU and Dropout
+• Training: 20 epochs max with early stopping
+• Models: gatortron, qwen, llama, medgemma
+
+RESULTS:
+------------------------------
+Model         Baseline    Fine-tuned   Improvement
+--------------------------------------------------
+GATORTRON      78.41%      91.07%      +12.66%
+QWEN           84.90%      92.73%       +7.82%
+LLAMA          82.45%      92.96%      +10.50%
+MEDGEMMA       84.05%      94.29%      +10.24%
+
+
+DETAILED METRICS:
+------------------------------
+
+GATORTRON:
+  Neural Network Accuracy: 91.07%
+  Neural Network F1 Score: 91.01%
+  Samples: 10857
+  Classes: 32
+
+QWEN:
+  Neural Network Accuracy: 92.73%
+  Neural Network F1 Score: 92.68%
+  Samples: 10857
+  Classes: 32
+
+LLAMA:
+  Neural Network Accuracy: 92.96%
+  Neural Network F1 Score: 92.88%
+  Samples: 10857
+  Classes: 32
+
+MEDGEMMA:
+  Neural Network Accuracy: 94.29%
+  Neural Network F1 Score: 94.24%
+  Samples: 10857
+  Classes: 32
+
+
+CONCLUSIONS:
+------------------------------
+• Simple neural network classifiers achieve good performance
+• Most models show improvement over baseline
+• Pre-computed LLM embeddings are effective features
+• Target accuracy of 90% is achieved by some models

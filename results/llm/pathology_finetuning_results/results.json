@@ -1,0 +1,66 @@
+{
+  "gatortron": {
+    "neural_network": {
+      "accuracy": 0.9106813996316758,
+      "f1_score": 0.9101008443547909
+    },
+    "random_forest": {
+      "accuracy": 0.7918968692449355,
+      "f1_score": 0.7747164014756053
+    },
+    "improvement": {
+      "accuracy": 0.1187845303867403,
+      "f1_score": 0.1353844428791856
+    },
+    "num_samples": 10857,
+    "num_classes": 32
+  },
+  "qwen": {
+    "neural_network": {
+      "accuracy": 0.927255985267035,
+      "f1_score": 0.9268156015865795
+    },
+    "random_forest": {
+      "accuracy": 0.8485267034990792,
+      "f1_score": 0.838576042496812
+    },
+    "improvement": {
+      "accuracy": 0.0787292817679558,
+      "f1_score": 0.08823955908976755
+    },
+    "num_samples": 10857,
+    "num_classes": 32
+  },
+  "llama": {
+    "neural_network": {
+      "accuracy": 0.9295580110497238,
+      "f1_score": 0.9288486347465582
+    },
+    "random_forest": {
+      "accuracy": 0.8232044198895028,
+      "f1_score": 0.8114011194206859
+    },
+    "improvement": {
+      "accuracy": 0.10635359116022103,
+      "f1_score": 0.11744751532587228
+    },
+    "num_samples": 10857,
+    "num_classes": 32
+  },
+  "medgemma": {
+    "neural_network": {
+      "accuracy": 0.9429097605893186,
+      "f1_score": 0.942418382974721
+    },
+    "random_forest": {
+      "accuracy": 0.8411602209944752,
+      "f1_score": 0.8301403717858912
+    },
+    "improvement": {
+      "accuracy": 0.10174953959484345,
+      "f1_score": 0.11227801118882985
+    },
+    "num_samples": 10857,
+    "num_classes": 32
+  }
+}
