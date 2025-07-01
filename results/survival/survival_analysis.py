@@ -803,8 +803,126 @@ class SurvivalAnalysis:
         
         print("\nAnalysis complete! Results saved to:", self.output_path)
     
+    def generate_latex_table(self, results_df: pd.DataFrame):
+        """Generate LaTeX tables in the requested format, breaking into groups of 6 projects"""
+        # Define modality groups with proper names
+        modality_groups = [
+            ('Clinical Features', ['clinical']),
+            ('Pathology Features', ['pathology']),
+            ('Radiology Features', ['radiology']),
+            ('Molecular Features', ['molecular']),
+            ('WSI Features', ['wsi']),
+            ('Concatenated Features', ['concat']),
+            ('Mean Pooling', ['mean_pool']),
+            ('Kronecker Product', ['kronecker'])
+        ]
+        
+        # Define model names
+        model_names = {
+            'cox': 'Cox',
+            'rsf': 'RSF',
+            'deepsurv': 'DeepSurv'
+        }
+        
+        # Get unique projects (excluding merged ones)
+        unique_projects = sorted(results_df['project_id'].unique())
+        
+        # Split projects into groups of 6
+        projects_per_table = 6
+        project_groups = [unique_projects[i:i+projects_per_table] 
+                         for i in range(0, len(unique_projects), projects_per_table)]
+        
+        all_latex_tables = []
+        
+        for table_idx, project_group in enumerate(project_groups):
+            # Start building the LaTeX table
+            latex_lines = []
+            latex_lines.append(r'\begin{sidewaystable}[htbp]')
+            latex_lines.append(r'    \centering')
+            
+            # Adjust caption based on which table this is
+            if len(project_groups) > 1:
+                caption = f'Survival analysis results across TCGA cancer types (Part {table_idx + 1} of {len(project_groups)})'
+            else:
+                caption = 'Survival analysis results across different TCGA cancer types'
+            caption += ' using various feature modalities and models. C-index values are reported as mean ± standard deviation across 5-fold cross-validation.'
+            
+            latex_lines.append(r'    \caption{' + caption + '}')
+            latex_lines.append(r'    \label{tab:survival_results_' + str(table_idx + 1) + '}')
+            
+            # Create column specification
+            n_cols = len(project_group)
+            col_spec = '@{}ll' + 'c' * n_cols + '@{}'
+            latex_lines.append(r'    \begin{tabular}{' + col_spec + '}')
+            latex_lines.append(r'        \toprule')
+            
+            # Header row
+            header = r'        \textbf{Category} & \textbf{Method}'
+            for project in project_group:
+                # Clean project name (remove TCGA- prefix for compactness)
+                clean_name = project.replace('TCGA-', '')
+                header += r' & \textbf{' + clean_name + '}'
+            latex_lines.append(header + r' \\')
+            latex_lines.append(r'        \midrule')
+            
+            # Add data rows
+            for category_name, modalities in modality_groups:
+                first_row = True
+                for model in ['cox', 'rsf', 'deepsurv']:
+                    row = '        '
+                    if first_row:
+                        row += r'\multirow{3}{*}{\textbf{' + category_name + r'}} '
+                    row += r'& ' + model_names[model]
+                    
+                    for project in project_group:
+                        # Get results for this combination
+                        mask = (results_df['project_id'] == project) & \
+                               (results_df['modality'].isin(modalities)) & \
+                               (results_df['model'] == model)
+                        
+                        matching = results_df[mask]
+                        if len(matching) > 0:
+                            mean_val = matching.iloc[0]['mean_c_index']
+                            std_val = matching.iloc[0]['std_c_index']
+                            row += f' & {mean_val:.3f} ± {std_val:.3f}'
+                        else:
+                            row += ' & -'
+                    
+                    row += r' \\'
+                    latex_lines.append(row)
+                    first_row = False
+                
+                # Add midrule after each category except the last
+                if category_name != modality_groups[-1][0]:
+                    latex_lines.append(r'        \midrule')
+            
+            latex_lines.append(r'        \bottomrule')
+            latex_lines.append(r'    \end{tabular}')
+            latex_lines.append(r'    \footnotetext{WSI: Whole Slide Image; RSF: Random Survival Forest. All values represent concordance indices (C-index) where higher values indicate better predictive performance.}')
+            latex_lines.append(r'\end{sidewaystable}')
+            
+            all_latex_tables.append('\n'.join(latex_lines))
+        
+        # Save all tables to one file
+        full_latex = '\n\n'.join(all_latex_tables)
+        with open(os.path.join(self.output_path, 'survival_results_tables.tex'), 'w') as f:
+            f.write(full_latex)
+        
+        # Also save individual table files
+        for idx, table in enumerate(all_latex_tables):
+            with open(os.path.join(self.output_path, f'survival_results_table_part{idx+1}.tex'), 'w') as f:
+                f.write(table)
+        
+        print(f"\nLaTeX tables saved to:")
+        print(f"  - Combined: {os.path.join(self.output_path, 'survival_results_tables.tex')}")
+        for idx in range(len(project_groups)):
+            print(f"  - Part {idx+1}: {os.path.join(self.output_path, f'survival_results_table_part{idx+1}.tex')}")
+        
     def generate_summary_plots(self, results_df: pd.DataFrame):
         """Generate summary visualizations"""
+        # Generate LaTeX table first
+        self.generate_latex_table(results_df)
+        
         # C-index comparison by modality
         fig, ax = plt.subplots(figsize=(12, 8))
         

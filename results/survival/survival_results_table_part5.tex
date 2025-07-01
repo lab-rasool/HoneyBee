@@ -1,0 +1,43 @@
+\begin{sidewaystable}[htbp]
+    \centering
+    \caption{Survival analysis results across TCGA cancer types (Part 5 of 6) using various feature modalities and models. C-index values are reported as mean ± standard deviation across 5-fold cross-validation.}
+    \label{tab:survival_results_5}
+    \begin{tabular}{@{}llcccccc@{}}
+        \toprule
+        \textbf{Category} & \textbf{Method} & \textbf{SARC} & \textbf{SKCM} & \textbf{STAD} & \textbf{TGCT} & \textbf{THCA} & \textbf{THYM} \\
+        \midrule
+        \multirow{3}{*}{\textbf{Clinical Features}} & Cox & 0.851 ± 0.021 & 0.825 ± 0.014 & 0.831 ± 0.017 & 0.871 ± 0.194 & 0.989 ± 0.004 & 0.978 ± 0.032 \\
+        & RSF & 0.808 ± 0.034 & 0.767 ± 0.040 & 0.739 ± 0.042 & 0.782 ± 0.174 & 0.923 ± 0.121 & 0.872 ± 0.072 \\
+        & DeepSurv & 0.847 ± 0.038 & 0.832 ± 0.017 & 0.839 ± 0.018 & 0.707 ± 0.346 & 0.984 ± 0.010 & 0.937 ± 0.043 \\
+        \midrule
+        \multirow{3}{*}{\textbf{Pathology Features}} & Cox & - & 0.468 ± 0.037 & 0.535 ± 0.058 & 0.237 ± 0.147 & 0.695 ± 0.168 & - \\
+        & RSF & - & 0.486 ± 0.031 & 0.500 ± 0.043 & 0.560 ± 0.237 & 0.601 ± 0.241 & - \\
+        & DeepSurv & - & 0.505 ± 0.036 & 0.531 ± 0.056 & 0.346 ± 0.186 & 0.680 ± 0.049 & - \\
+        \midrule
+        \multirow{3}{*}{\textbf{Radiology Features}} & Cox & - & - & - & - & - & - \\
+        & RSF & - & - & - & - & - & - \\
+        & DeepSurv & - & - & - & - & - & - \\
+        \midrule
+        \multirow{3}{*}{\textbf{Molecular Features}} & Cox & 0.525 ± 0.095 & 0.493 ± 0.045 & 0.513 ± 0.030 & 0.243 ± 0.170 & 0.388 ± 0.185 & 0.674 ± 0.200 \\
+        & RSF & 0.455 ± 0.078 & 0.456 ± 0.022 & 0.496 ± 0.015 & 0.391 ± 0.345 & 0.587 ± 0.165 & 0.439 ± 0.207 \\
+        & DeepSurv & 0.540 ± 0.061 & 0.472 ± 0.036 & 0.520 ± 0.036 & 0.289 ± 0.139 & 0.566 ± 0.174 & 0.635 ± 0.232 \\
+        \midrule
+        \multirow{3}{*}{\textbf{WSI Features}} & Cox & - & 0.550 ± 0.048 & 0.469 ± 0.082 & 0.525 ± 0.173 & - & - \\
+        & RSF & - & 0.513 ± 0.039 & 0.510 ± 0.020 & 0.456 ± 0.161 & - & - \\
+        & DeepSurv & - & 0.532 ± 0.044 & 0.502 ± 0.057 & 0.450 ± 0.112 & - & - \\
+        \midrule
+        \multirow{3}{*}{\textbf{Concatenated Features}} & Cox & 0.842 ± 0.032 & 0.745 ± 0.020 & 0.654 ± 0.067 & 0.796 ± 0.164 & 0.956 ± 0.040 & 0.983 ± 0.033 \\
+        & RSF & 0.797 ± 0.040 & 0.742 ± 0.024 & 0.650 ± 0.059 & 0.774 ± 0.163 & 0.845 ± 0.217 & 0.859 ± 0.100 \\
+        & DeepSurv & 0.813 ± 0.040 & 0.789 ± 0.014 & 0.760 ± 0.033 & 0.676 ± 0.263 & 0.963 ± 0.037 & 0.967 ± 0.029 \\
+        \midrule
+        \multirow{3}{*}{\textbf{Mean Pooling}} & Cox & 0.746 ± 0.058 & 0.596 ± 0.026 & 0.580 ± 0.083 & 0.667 ± 0.245 & 0.750 ± 0.149 & 0.974 ± 0.034 \\
+        & RSF & 0.705 ± 0.045 & 0.576 ± 0.062 & 0.506 ± 0.066 & 0.643 ± 0.169 & 0.687 ± 0.229 & 0.882 ± 0.067 \\
+        & DeepSurv & 0.759 ± 0.049 & 0.646 ± 0.032 & 0.591 ± 0.036 & 0.736 ± 0.202 & 0.766 ± 0.110 & 0.966 ± 0.034 \\
+        \midrule
+        \multirow{3}{*}{\textbf{Kronecker Product}} & Cox & 0.625 ± 0.081 & 0.627 ± 0.047 & 0.567 ± 0.035 & 0.542 ± 0.228 & 0.720 ± 0.134 & 0.684 ± 0.143 \\
+        & RSF & 0.582 ± 0.095 & 0.615 ± 0.047 & 0.577 ± 0.033 & 0.592 ± 0.255 & 0.621 ± 0.236 & 0.721 ± 0.211 \\
+        & DeepSurv & 0.635 ± 0.085 & 0.659 ± 0.050 & 0.633 ± 0.045 & 0.504 ± 0.183 & 0.683 ± 0.145 & 0.830 ± 0.149 \\
+        \bottomrule
+    \end{tabular}
+    \footnotetext{WSI: Whole Slide Image; RSF: Random Survival Forest. All values represent concordance indices (C-index) where higher values indicate better predictive performance.}
+\end{sidewaystable}
