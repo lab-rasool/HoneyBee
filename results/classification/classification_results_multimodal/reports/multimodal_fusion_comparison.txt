@@ -1,42 +1,42 @@
 # Multimodal Cancer Classification Results
 ============================================================
-Generated on: 2025-06-25 19:07:28
+Generated on: 2025-07-01 21:59:33
 
 ## Multimodal Fusion Methods Comparison
 
 Best fusion method: CONCAT
-Best accuracy: 0.8979 (±0.0042)
+Best accuracy: 0.9872 (±0.0021)
 
 ### Detailed Fusion Results
 
 #### CONCAT
-- Accuracy: 0.8979 (±0.0042)
-- F1-Score: 0.8954 (±0.0045)
-- Precision: 0.9010 (±0.0039)
-- Recall: 0.8979 (±0.0042)
+- Accuracy: 0.9872 (±0.0021)
+- F1-Score: 0.9866 (±0.0022)
+- Precision: 0.9880 (±0.0020)
+- Recall: 0.9872 (±0.0021)
 
 #### MEAN_POOL
-- Accuracy: 0.7071 (±0.0092)
-- F1-Score: 0.6917 (±0.0091)
-- Precision: 0.7139 (±0.0073)
-- Recall: 0.7071 (±0.0092)
+- Accuracy: 0.9197 (±0.0058)
+- F1-Score: 0.9130 (±0.0065)
+- Precision: 0.9193 (±0.0063)
+- Recall: 0.9197 (±0.0058)
 
 #### KP
-- Accuracy: 0.8952 (±0.0053)
-- F1-Score: 0.8925 (±0.0056)
-- Precision: 0.8987 (±0.0049)
-- Recall: 0.8952 (±0.0053)
+- Accuracy: 0.9850 (±0.0014)
+- F1-Score: 0.9840 (±0.0019)
+- Precision: 0.9862 (±0.0012)
+- Recall: 0.9850 (±0.0014)
 
 ## Individual Modality Results
 
 
 ### CLINICAL
-- Accuracy: 0.8858 (±0.0063)
-- F1-Score: 0.8833 (±0.0065)
+- Accuracy: 0.9854 (±0.0032)
+- F1-Score: 0.9851 (±0.0032)
 
 ### PATHOLOGY
-- Accuracy: 0.4445 (±0.0080)
-- F1-Score: 0.4166 (±0.0081)
+- Accuracy: 0.7867 (±0.0060)
+- F1-Score: 0.7713 (±0.0064)
 
 ### RADIOLOGY
 - Accuracy: 0.4778 (±0.0351)
@@ -53,13 +53,12 @@ Best accuracy: 0.8979 (±0.0042)
 ## Modality Combination Statistics
 
 Top 10 most common modality combinations:
-- clinical,pathology,molecular,wsi: 6939 patients
-- clinical,pathology,molecular: 2706 patients
-- clinical,pathology,radiology,molecular,wsi: 950 patients
-- clinical,pathology: 205 patients
-- clinical,molecular: 176 patients
+- clinical,pathology,molecular,wsi: 6937 patients
+- clinical,pathology,molecular: 2702 patients
+- clinical,pathology,radiology,molecular,wsi: 949 patients
 - clinical,pathology,radiology,molecular: 155 patients
-- clinical,pathology,wsi: 149 patients
-- clinical,radiology: 38 patients
-- clinical,molecular,wsi: 11 patients
-- clinical,wsi: 6 patients
+- clinical,pathology,wsi: 19 patients
+- molecular,wsi: 13 patients
+- clinical,pathology: 9 patients
+- radiology,wsi: 4 patients
+- radiology,molecular,wsi: 2 patients
