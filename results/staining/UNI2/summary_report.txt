@@ -1,0 +1,17 @@
+Stain Normalization Impact on UNI2-h Embeddings
+============================================================
+
+Total slides processed: 200
+BRCA slides: 100
+BLCA slides: 100
+Feature dimensions: 3072
+Normalization method: macenko
+Pooling method: mean_max
+
+Classification Results:
+------------------------------------------------------------
+Model                     With Norm       Without Norm    Improvement    
+------------------------------------------------------------
+logistic_regression       0.9000          0.9250          -0.0250
+random_forest             0.9000          0.8500          +0.0500
+neural_network            0.9500          0.9750          -0.0250
