@@ -573,6 +573,34 @@ class SurvivalAnalysis:
                 results['c_indices'].append(test_c_index)
                 results['fold_models'].append((model, scaler))
                 
+                # Save individual fold model
+                model_filename = f'{merged_project}_{modality}_{model_type}_fold{fold}.pkl'
+                model_filepath = os.path.join(self.output_path, 'models', model_filename)
+                
+                model_data = {
+                    'model': model,
+                    'scaler': scaler,
+                    'model_type': model_type,
+                    'modality': modality,
+                    'project': merged_project,
+                    'fold': fold,
+                    'train_c_index': c_index,
+                    'test_c_index': test_c_index,
+                    'n_samples_train': len(X_train),
+                    'n_samples_test': len(X_test),
+                    'n_features': X.shape[1]
+                }
+                
+                # Add model-specific components
+                if model_type == 'cox' and hasattr(model, '_pca'):
+                    model_data['pca'] = model._pca
+                elif model_type == 'deepsurv':
+                    model_data['device'] = str(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+                    model_data['input_dim'] = X.shape[1]
+                
+                with open(model_filepath, 'wb') as f:
+                    pickle.dump(model_data, f)
+                
             except Exception as e:
                 print(f"    Error in fold {fold+1}: {str(e)}")
                 # Use random predictions as fallback
@@ -583,6 +611,20 @@ class SurvivalAnalysis:
         
         results['mean_c_index'] = np.mean(results['c_indices'])
         results['std_c_index'] = np.std(results['c_indices'])
+        
+        # Save best model separately for easy access
+        if results['c_indices']:
+            best_fold_idx = np.argmax(results['c_indices'])
+            best_model_filename = f'{merged_project}_{modality}_{model_type}_best.pkl'
+            best_model_filepath = os.path.join(self.output_path, 'models', best_model_filename)
+            
+            # Copy the best fold model file
+            best_fold_filename = f'{merged_project}_{modality}_{model_type}_fold{best_fold_idx}.pkl'
+            best_fold_filepath = os.path.join(self.output_path, 'models', best_fold_filename)
+            
+            if os.path.exists(best_fold_filepath):
+                import shutil
+                shutil.copy2(best_fold_filepath, best_model_filepath)
         
         return results
     

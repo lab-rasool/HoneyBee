@@ -230,7 +230,7 @@ class FinetunedTSNEVisualizer:
         
         ax.set_xlabel('t-SNE 1', fontsize=12)
         ax.set_ylabel('t-SNE 2', fontsize=12)
-        ax.set_title(title, fontsize=14, fontweight='bold')
+        # ax.set_title(title, fontsize=14, fontweight='bold')
         ax.grid(True, alpha=0.3)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
@@ -341,8 +341,8 @@ class FinetunedTSNEVisualizer:
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
         
-        plt.suptitle('Pathology Text Embeddings - Fine-tuned Model Comparison', 
-                    fontsize=16, fontweight='bold')
+        # plt.suptitle('Pathology Text Embeddings - Fine-tuned Model Comparison', 
+        #             fontsize=16, fontweight='bold')
         plt.tight_layout()
         
         filename_base = os.path.join(VISUALIZATION_DIR, 'comparisons', 
@@ -352,6 +352,153 @@ class FinetunedTSNEVisualizer:
         plt.close()
         
         print(f"Saved comparison plot: {filename_base}.pdf/svg")
+    
+    def create_original_vs_finetuned_comparison(self, original_tsne_results, finetuned_tsne_results):
+        """Create a comparison plot showing original vs finetuned embeddings with integrated legend."""
+        import matplotlib.gridspec as gridspec
+        import textwrap
+        
+        # Create figure with GridSpec for custom layout - 4 rows x 3 columns
+        fig = plt.figure(figsize=(14, 16))
+        gs = gridspec.GridSpec(4, 3, width_ratios=[1, 1, 0.6], 
+                              height_ratios=[1, 1, 1, 1], hspace=0.25, wspace=0.2,
+                              left=0.05, right=0.95, top=0.98, bottom=0.02)
+        
+        models = ['gatortron', 'qwen', 'medgemma', 'llama']
+        model_titles = {
+            'gatortron': 'GatorTron',
+            'qwen': 'Qwen',
+            'medgemma': 'Med-Gemma', 
+            'llama': 'Llama-3.2-1B'
+        }
+        
+        tcga_color_groups = self.get_tcga_color_scheme()
+        tcga_descriptions = self.get_tcga_descriptions()
+        markers = ['o', 's', '^', 'v', 'D', 'p', '*', 'h', 'X', 'd']
+        
+        # Collect all unique labels for consistent legend
+        all_labels = set()
+        for model in models:
+            orig_key = f"pathology_{model}"
+            finetuned_key = f"pathology_{model}_finetuned"
+            if orig_key in original_tsne_results:
+                _, labels, _ = original_tsne_results[orig_key]
+                labels = pd.Series(labels).fillna('Unknown').astype(str).values
+                all_labels.update(labels)
+        
+        unique_labels = sorted([l for l in all_labels if l != 'Unknown'])
+        if 'Unknown' in all_labels:
+            unique_labels.append('Unknown')
+        
+        # Create color and marker mappings
+        color_dict = {}
+        marker_dict = {}
+        for i, label in enumerate(unique_labels):
+            if label == 'Unknown':
+                color_dict[label] = 'lightgray'
+                marker_dict[label] = 'o'
+            elif label in tcga_color_groups:
+                color_dict[label] = tcga_color_groups[label]
+                marker_dict[label] = markers[i % len(markers)]
+            else:
+                color_dict[label] = plt.cm.Set3(i % 12)
+                marker_dict[label] = markers[i % len(markers)]
+        
+        # Plot embeddings - each row is a model, column 0 is original, column 1 is finetuned
+        for row_idx, model in enumerate(models):
+            # Plot original embeddings (left column)
+            key = f"pathology_{model}"
+            if key in original_tsne_results:
+                ax = fig.add_subplot(gs[row_idx, 0])
+                embeddings_2d, labels, indices = original_tsne_results[key]
+                
+                # Convert labels
+                labels = pd.Series(labels).fillna('Unknown').astype(str).values
+                
+                # Plot each cancer type
+                for label in unique_labels:
+                    mask = labels == label
+                    if np.any(mask):
+                        color = color_dict[label]
+                        marker = marker_dict[label]
+                        ax.scatter(embeddings_2d[mask, 0], embeddings_2d[mask, 1], 
+                                 c=[color], marker=marker, alpha=0.6, s=50, 
+                                 edgecolors='black', linewidth=0.4)
+                
+                ax.set_title(f'{model_titles[model]} (Original)', fontsize=14, fontweight='bold', pad=10)
+                ax.set_xlabel('t-SNE 1', fontsize=12)
+                ax.set_ylabel('t-SNE 2', fontsize=12)
+                ax.tick_params(axis='both', which='major', labelsize=10)
+                ax.grid(True, alpha=0.3)
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+            
+            # Plot finetuned embeddings (right column)
+            key_finetuned = f"pathology_{model}_finetuned"
+            if key_finetuned in finetuned_tsne_results:
+                ax = fig.add_subplot(gs[row_idx, 1])
+                embeddings_2d, labels, indices = finetuned_tsne_results[key_finetuned]
+                
+                # Convert labels
+                labels = pd.Series(labels).fillna('Unknown').astype(str).values
+                
+                # Plot each cancer type
+                for label in unique_labels:
+                    mask = labels == label
+                    if np.any(mask):
+                        color = color_dict[label]
+                        marker = marker_dict[label]
+                        ax.scatter(embeddings_2d[mask, 0], embeddings_2d[mask, 1], 
+                                 c=[color], marker=marker, alpha=0.6, s=50, 
+                                 edgecolors='black', linewidth=0.4)
+                
+                ax.set_title(f'{model_titles[model]} (Fine-tuned)', fontsize=14, fontweight='bold', pad=10)
+                ax.set_xlabel('t-SNE 1', fontsize=12)
+                ax.set_ylabel('t-SNE 2', fontsize=12)
+                ax.tick_params(axis='both', which='major', labelsize=10)
+                ax.grid(True, alpha=0.3)
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+        
+        # Create legend in the 3rd column (spanning all rows)
+        ax_legend = fig.add_subplot(gs[:, 2])
+        ax_legend.axis('off')
+        
+        # Create legend entries
+        legend_entries = []
+        for label in unique_labels:
+            color = color_dict[label]
+            marker = marker_dict[label]
+            
+            # Get description
+            description = tcga_descriptions.get(label, label)
+            
+            # Wrap long descriptions
+            wrapped_desc = textwrap.fill(description, width=30)
+            
+            # Create legend entry with marker and description
+            legend_entries.append(
+                ax_legend.scatter([], [], c=[color], marker=marker, s=100, 
+                                edgecolors='black', linewidth=0.1, alpha=0.8,
+                                label=f"{label}:\n{wrapped_desc}")
+            )
+        
+        # Add legend spanning full height with proper boundaries
+        legend = ax_legend.legend(handles=legend_entries, loc='center', ncol=1, 
+                                 frameon=True, fancybox=True, shadow=True,
+                                 fontsize=12, title='TCGA Cancer Types', title_fontsize=12,
+                                 labelspacing=0.75, handletextpad=0.4,
+                                 bbox_to_anchor=(0.5, 0.5), bbox_transform=ax_legend.transAxes,
+                                 borderaxespad=0)
+        
+        # Save the figure
+        filename_base = os.path.join(VISUALIZATION_DIR, 'comparisons', 
+                                    'tsne_original_vs_finetuned_pathology')
+        plt.savefig(f"{filename_base}.pdf", dpi=300, bbox_inches='tight')
+        plt.savefig(f"{filename_base}.svg", format='svg', bbox_inches='tight')
+        plt.close()
+        
+        print(f"Saved original vs finetuned comparison: {filename_base}.pdf/svg")
     
     def load_original_embeddings(self, model_name):
         """Load original embeddings and metadata."""
@@ -427,6 +574,7 @@ class FinetunedTSNEVisualizer:
         print("\n=== Running Fine-tuned t-SNE Visualization ===")
         
         all_tsne_results = {}
+        original_tsne_results = {}
         
         for model in MODELS:
             key = f"pathology_{model}_finetuned"
@@ -472,7 +620,7 @@ class FinetunedTSNEVisualizer:
             # Get labels
             project_ids = original_data['project_ids']
             
-            # Compute t-SNE
+            # Compute t-SNE for finetuned embeddings
             embeddings_2d, indices = self.compute_tsne(embeddings)
             
             # Handle sampling for labels
@@ -491,10 +639,29 @@ class FinetunedTSNEVisualizer:
             self.create_tsne_plot_with_separate_legend(
                 embeddings_2d, project_ids_plot, title, filename_base
             )
+            
+            # Compute t-SNE for original embeddings
+            print(f"Computing t-SNE for original {model} embeddings...")
+            original_embeddings_2d, original_indices = self.compute_tsne(original_data['embeddings'])
+            
+            # Handle sampling for original labels
+            if original_indices is not None:
+                original_project_ids_plot = [project_ids[i] for i in original_indices]
+            else:
+                original_project_ids_plot = project_ids
+            
+            # Store original t-SNE results
+            original_key = f"pathology_{model}"
+            original_tsne_results[original_key] = (original_embeddings_2d, original_project_ids_plot, original_indices)
         
         # Create comparison plot
         if all_tsne_results:
             self.create_model_comparison_plot(all_tsne_results)
+            
+        # Create original vs finetuned comparison
+        if original_tsne_results and all_tsne_results:
+            print("\nCreating original vs fine-tuned comparison...")
+            self.create_original_vs_finetuned_comparison(original_tsne_results, all_tsne_results)
         
         print("\n=== Fine-tuned Visualization Complete ===")
 
