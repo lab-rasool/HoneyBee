@@ -23,3 +23,8 @@ scikit-image
 imageio
 albumentations
 peft
+cucim
+openslide-python
+colour-science
+spams
+scipy

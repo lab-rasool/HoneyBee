@@ -11,9 +11,15 @@ from .radiology_processor import (
     RadiologyProcessor,
     RadiologyImage,
 )
+from .pathology_processor import (
+    PathologyProcessor,
+    process_pathology,
+)
 
 __all__ = [
     "ClinicalProcessor",
     "RadiologyProcessor",
     "RadiologyImage",
+    "PathologyProcessor",
+    "process_pathology",
 ]
