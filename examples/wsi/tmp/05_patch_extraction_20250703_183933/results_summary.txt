@@ -1,0 +1,27 @@
+Results Summary
+==================================================
+
+wsi_path:
+  /mnt/f/Projects/HoneyBee/examples/samples/sample.svs
+
+extraction_methods:
+  grid: {'patches_extracted': 50, 'stride': 1024, 'overlap': '50%'}
+  random: {'patches_extracted': 30, 'tissue_only': True, 'confidence_threshold': 0.8}
+  multiscale: {'locations': 3, 'scales': [1, 2, 4]}
+  context: {'patches': 3, 'context_size': 128}
+
+quality_metrics:
+  brightness: 202.87350791879254
+  contrast: 42.09803779421581
+  saturation: 8.821597068816402
+  edge_density: 2006.345735340444
+  focus_measure: 2006.345735340444
+  tissue_percentage: 0.5969905931122449
+
+performance:
+  parallel_extraction: 25 patches
+  workers: 4
+
+output_directory:
+  /mnt/f/Projects/HoneyBee/examples/wsi/tmp/05_patch_extraction_20250703_183933
+

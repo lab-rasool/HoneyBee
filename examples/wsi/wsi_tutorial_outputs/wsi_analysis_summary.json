@@ -1,0 +1,25 @@
+{
+  "wsi_path": "/mnt/f/Projects/HoneyBee/examples/samples/sample.svs",
+  "wsi_properties": {
+    "dimensions": [
+      27965,
+      25146
+    ],
+    "pyramid_levels": 3,
+    "file_size_gb": 0.14192128833383322
+  },
+  "tissue_detection": {
+    "classical_tissue_percent": 33.96612980622961,
+    "deep_learning_tissue_tiles": 46,
+    "total_tiles": 156
+  },
+  "normalization_times": {
+    "reinhard": 0.014985402425130209,
+    "macenko": 0.026869853337605793,
+    "vahadane": 0.0360260804494222
+  },
+  "stain_statistics": {
+    "hematoxylin_mean": 0.04622694956627969,
+    "eosin_mean": 0.0034224482403470554
+  }
+}

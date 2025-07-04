@@ -1,0 +1,13 @@
+Tissue Detection Statistics
+==================================================
+
+Slide: /mnt/f/Projects/HoneyBee/examples/samples/sample.svs
+Tile size: 512
+Max patches: 156
+
+Total tiles analyzed: 156
+Tissue tiles (>80% conf): 46 (29.5%)
+Background tiles: 65 (41.7%)
+Artifact tiles: 45 (28.8%)
+Patches extracted: 46
+Patch dimensions: (46, 224, 224, 3)

@@ -1,0 +1,29 @@
+Results Summary
+==================================================
+
+wsi_path:
+  /mnt/f/Projects/HoneyBee/examples/samples/sample.svs
+
+num_patches_extracted:
+  15
+
+patch_size:
+  512x512
+
+normalization_times:
+  reinhard: 0.096s
+  macenko: 0.091s
+  vahadane: 0.135s
+
+batch_performance:
+  num_patches: 10
+  reinhard_per_patch: 0.011s
+  macenko_per_patch: 0.024s
+  vahadane_per_patch: 0.038s
+
+features_demonstrated:
+  ['Three normalization methods', 'Multiple target options', 'Batch processing', 'Stain augmentation', 'Performance comparison']
+
+output_directory:
+  /mnt/f/Projects/HoneyBee/examples/wsi/tmp/03_stain_normalization_20250703_181708
+

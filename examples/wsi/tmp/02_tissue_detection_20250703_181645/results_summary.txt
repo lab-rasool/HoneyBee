@@ -1,0 +1,31 @@
+Results Summary
+==================================================
+
+wsi_path:
+  /mnt/f/Projects/HoneyBee/examples/samples/sample.svs
+
+detection_level:
+  2
+
+detection_resolution:
+  1747 x 1571
+
+classical_detection:
+  tissue_percentage: 33.97%
+  tissue_pixels: 932213
+  total_pixels: 2744537
+
+deep_learning_detection:
+  total_tiles: 156
+  tissue_tiles: 46
+  background_tiles: 65
+  artifact_tiles: 45
+  tile_size: 512
+
+comparison_metrics:
+  iou: 0.758
+  dice: 0.863
+
+output_directory:
+  /mnt/f/Projects/HoneyBee/examples/wsi/tmp/02_tissue_detection_20250703_181645
+

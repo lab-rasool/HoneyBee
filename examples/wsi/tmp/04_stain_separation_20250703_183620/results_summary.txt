@@ -1,0 +1,31 @@
+Results Summary
+==================================================
+
+wsi_path:
+  /mnt/f/Projects/HoneyBee/examples/samples/sample.svs
+
+num_patches_processed:
+  15
+
+patch_size:
+  256x256
+
+stain_separation_method:
+  Color deconvolution (HED)
+
+reconstruction_quality:
+  mse: 787.95
+  psnr: 19.17 dB
+
+stain_statistics:
+  hematoxylin_mean: 0.029
+  hematoxylin_std: 0.032
+  eosin_mean: 0.004
+  eosin_std: 0.002
+
+features_demonstrated:
+  ['H&E stain separation', 'Individual channel visualization', 'Stain reconstruction', 'Stain intensity modification', 'Batch processing', 'Statistical analysis']
+
+output_directory:
+  /mnt/f/Projects/HoneyBee/examples/wsi/tmp/04_stain_separation_20250703_183620
+

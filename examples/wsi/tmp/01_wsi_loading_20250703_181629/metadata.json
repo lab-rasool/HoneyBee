@@ -1,0 +1,123 @@
+{
+  "aperio": {
+    "AppMag": "20",
+    "DSR ID": "ap1258-dsr",
+    "Date": "01/15/08",
+    "Filename": "2791",
+    "Header": "Aperio Image Library v8.2.43\r\n28560x25196 [0,0 27965x25146] (240x240) JPEG/RGB Q=70",
+    "ImageID": "2791",
+    "Left": "46.376050",
+    "LineAreaXOffset": "0.012096",
+    "LineAreaYOffset": "-0.021773",
+    "LineCameraSkew": "0.000989",
+    "MPP": "0.5001",
+    "OriginalWidth": "28560",
+    "Originalheight": "25196",
+    "ScanScope ID": "SS1258",
+    "StripeWidth": "2034",
+    "Time": "12:30:08",
+    "Title": "none",
+    "Top": "20.047489",
+    "User": "c63d0b3e-0ed4-4bd2-b137-81256e033d40"
+  },
+  "cucim": {
+    "associated_images": [
+      "thumbnail"
+    ],
+    "channel_names": [
+      "R",
+      "G",
+      "B"
+    ],
+    "coord_sys": "LPS",
+    "dims": "YXC",
+    "direction": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "dtype": {
+      "bits": 8,
+      "code": 1,
+      "lanes": 1
+    },
+    "ndim": 3,
+    "origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "path": "/mnt/f/Projects/HoneyBee/examples/samples/sample.svs",
+    "resolutions": {
+      "level_count": 3,
+      "level_dimensions": [
+        [
+          27965,
+          25146
+        ],
+        [
+          6991,
+          6286
+        ],
+        [
+          1747,
+          1571
+        ]
+      ],
+      "level_downsamples": [
+        1.0,
+        4.00023078918457,
+        16.00690269470215
+      ],
+      "level_tile_sizes": [
+        [
+          240,
+          240
+        ],
+        [
+          240,
+          240
+        ],
+        [
+          240,
+          240
+        ]
+      ]
+    },
+    "shape": [
+      25146,
+      27965,
+      3
+    ],
+    "spacing": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "spacing_units": [
+      "",
+      "",
+      "color"
+    ],
+    "typestr": "|u1"
+  },
+  "tiff": {
+    "model": "",
+    "resolution_unit": "",
+    "software": "",
+    "x_resolution": 1.0,
+    "y_resolution": 1.0
+  }
+}
