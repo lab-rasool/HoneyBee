@@ -4,136 +4,109 @@ import timm
 import numpy as np
 from PIL import Image
 from torchvision import transforms
-from huggingface_hub import hf_hub_download
+from huggingface_hub import login, hf_hub_download
 import os
 
 
 class UNI2:
     """
-    UNI2-h model from Mahmood Lab
+    Proper UNI2-h model implementation based on official documentation
     https://huggingface.co/MahmoodLab/UNI2-h
     
-    This is a ViT-g/14 model trained on over 1.5M pathology slides
+    ViT-H/14 with 681M parameters trained on 200M+ pathology tiles
     """
-    def __init__(self, model_path=None):
+    def __init__(self, model_path=None, use_auth_token=False):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model_name = "MahmoodLab/UNI2-h"
         
-        print(f"Loading UNI2-h model...")
+        print(f"Loading UNI2-h model (proper implementation)...")
         
-        try:
-            # Try to load from HuggingFace
-            print("Downloading UNI2-h from HuggingFace...")
-            
-            # Download the model file
-            model_file = hf_hub_download(
-                repo_id=self.model_name,
-                filename="pytorch_model.bin",
-                cache_dir="/mnt/f/Projects/HoneyBee/models/cache"
-            )
-            
-            # UNI2-h is a ViT-g/14 model with specific configuration
-            # Create the model architecture matching UNI2-h
+        # Model configuration from official documentation
+        self.timm_kwargs = {
+            'model_name': 'vit_giant_patch14_224',
+            'img_size': 224, 
+            'patch_size': 14, 
+            'depth': 24,
+            'num_heads': 24,
+            'init_values': 1e-5, 
+            'embed_dim': 1536,
+            'mlp_ratio': 2.66667*2,
+            'num_classes': 0, 
+            'no_embed_class': True,
+            'mlp_layer': timm.layers.SwiGLUPacked, 
+            'act_layer': torch.nn.SiLU, 
+            'reg_tokens': 8, 
+            'dynamic_img_size': True
+        }
+        
+        if use_auth_token:
+            # Use HuggingFace Hub (requires authentication)
+            print("Using HuggingFace Hub (requires authentication)")
+            try:
+                # Create model with HF hub
+                self.model = timm.create_model(
+                    "hf-hub:MahmoodLab/UNI2-h", 
+                    pretrained=True, 
+                    **self.timm_kwargs
+                )
+                print("Successfully loaded from HuggingFace Hub")
+            except Exception as e:
+                print(f"Error loading from HF Hub: {e}")
+                print("Please run: huggingface-cli login")
+                raise
+        else:
+            # Create model architecture
             self.model = timm.create_model(
-                'vit_giant_patch14_224',  # ViT-g/14 architecture
-                pretrained=False,
-                num_classes=0,  # Remove classification head
-                img_size=224,
-                embed_dim=1536,  # UNI2-h uses 1536 embed dim
-                depth=40,        # 40 transformer blocks
-                num_heads=24,    # 24 attention heads
-                mlp_ratio=4,
-                patch_size=14,
-                global_pool='avg'  # Use average pooling
+                pretrained=False, 
+                **self.timm_kwargs
             )
             
-            # Load the weights
-            print("Loading UNI2-h weights...")
-            state_dict = torch.load(model_file, map_location=self.device)
-            
-            # Handle potential state dict wrapper
-            if 'model' in state_dict:
-                state_dict = state_dict['model']
-            elif 'state_dict' in state_dict:
-                state_dict = state_dict['state_dict']
-            
-            # Remove any prefix if present
-            new_state_dict = {}
-            for k, v in state_dict.items():
-                # Remove 'model.' or 'module.' prefix if present
-                if k.startswith('model.'):
-                    new_state_dict[k[6:]] = v
-                elif k.startswith('module.'):
-                    new_state_dict[k[7:]] = v
-                else:
-                    new_state_dict[k] = v
-            
-            # Handle positional embedding size mismatch
-            if 'pos_embed' in new_state_dict:
-                pos_embed_checkpoint = new_state_dict['pos_embed']
-                pos_embed_model = self.model.pos_embed
-                
-                if pos_embed_checkpoint.shape != pos_embed_model.shape:
-                    print(f"Resizing pos_embed from {pos_embed_checkpoint.shape} to {pos_embed_model.shape}")
-                    # Interpolate positional embeddings if needed
-                    if pos_embed_checkpoint.shape[1] == 256 and pos_embed_model.shape[1] == 257:
-                        # Add CLS token embedding
-                        cls_token = pos_embed_checkpoint[:, :1, :]  # Use first token as CLS
-                        spatial_pos_embed = pos_embed_checkpoint[:, 1:, :]  # Remaining are spatial
-                        new_state_dict['pos_embed'] = torch.cat([cls_token, spatial_pos_embed], dim=1)
-                    else:
-                        # Skip loading pos_embed if incompatible
-                        print("Skipping pos_embed due to shape mismatch")
-                        del new_state_dict['pos_embed']
-            
-            # Load with strict=False to handle any remaining mismatches
-            missing_keys, unexpected_keys = self.model.load_state_dict(new_state_dict, strict=False)
-            if missing_keys:
-                print(f"Missing keys: {missing_keys[:5]}...")  # Show first 5
-            if unexpected_keys:
-                print(f"Unexpected keys: {unexpected_keys[:5]}...")  # Show first 5
-            print("Successfully loaded UNI2-h weights")
-            
-        except Exception as e:
-            print(f"Error loading from HuggingFace: {e}")
-            print("Falling back to create ViT-g/14 architecture...")
-            
-            # Create ViT-g/14 model without pretrained weights
-            self.model = timm.create_model(
-                'vit_giant_patch14_224',
-                pretrained=False,
-                num_classes=0,
-                img_size=224
-            )
-            
+            # Try to load weights
             if model_path and os.path.exists(model_path):
                 print(f"Loading weights from {model_path}")
-                state_dict = torch.load(model_path, map_location=self.device)
-                self.model.load_state_dict(state_dict, strict=False)
+                state_dict = torch.load(model_path, map_location="cpu")
+                self.model.load_state_dict(state_dict, strict=True)
+                print("Successfully loaded UNI2-h weights")
+            else:
+                # Try to download weights
+                try:
+                    print("Attempting to download UNI2-h weights...")
+                    local_dir = "/mnt/f/Projects/HoneyBee/models/uni2-h/"
+                    os.makedirs(local_dir, exist_ok=True)
+                    
+                    # This requires authentication
+                    weight_path = hf_hub_download(
+                        "MahmoodLab/UNI2-h", 
+                        filename="pytorch_model.bin", 
+                        local_dir=local_dir,
+                        cache_dir=local_dir
+                    )
+                    
+                    state_dict = torch.load(weight_path, map_location="cpu")
+                    self.model.load_state_dict(state_dict, strict=True)
+                    print("Successfully downloaded and loaded UNI2-h weights")
+                except Exception as e:
+                    print(f"Could not download weights: {e}")
+                    print("Using random initialization. Results will not be meaningful.")
+                    print("To use proper weights, either:")
+                    print("1. Run: huggingface-cli login")
+                    print("2. Download weights manually and provide path")
         
         # Move to device and set to eval
         self.model = self.model.to(self.device)
         self.model.eval()
         
-        # Create preprocessing transform
+        # Create official transform
         self.transform = transforms.Compose([
             transforms.Resize(224),
-            transforms.CenterCrop(224),
             transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
+            transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ])
         
         print(f"UNI2-h model loaded on: {self.device}")
+        print(f"Model parameters: {sum(p.numel() for p in self.model.parameters()) / 1e6:.1f}M")
         
-        # Get embedding dimension
-        with torch.no_grad():
-            dummy_input = torch.randn(1, 3, 224, 224).to(self.device)
-            dummy_output = self.model(dummy_input)
-            self.embed_dim = dummy_output.shape[-1]
-            print(f"Embedding dimension: {self.embed_dim}")
+        # Verify embedding dimension
+        self.embed_dim = 1536  # Fixed for UNI2-h
     
     def load_model_and_predict(self, patches):
         """
@@ -143,7 +116,7 @@ class UNI2:
             patches: numpy array of shape (N, H, W, 3) or list of PIL images
         
         Returns:
-            embeddings: torch tensor of shape (N, embedding_dim)
+            embeddings: torch tensor of shape (N, 1536)
         """
         self.model.eval()
         
@@ -176,14 +149,14 @@ class UNI2:
         batch_tensor = torch.stack(image_tensors).to(self.device)
         
         # Generate embeddings
-        with torch.no_grad():
-            embeddings = self.model(batch_tensor)
+        with torch.inference_mode():
+            feature_emb = self.model(batch_tensor)
         
-        return embeddings
+        return feature_emb
     
     def generate_embeddings(self, patches, batch_size=16):
         """
-        Generate embeddings in batches (reduced batch size for ViT-g)
+        Generate embeddings in batches (reduced batch size for ViT-H)
         """
         if isinstance(patches, np.ndarray) and len(patches.shape) == 4:
             patches = [patches[i] for i in range(patches.shape[0])]

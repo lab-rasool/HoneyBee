@@ -118,6 +118,12 @@ class Slide:
         return suitableTileAddresses
 
     def getTile(self, tileAddress, writeToNumpy=False):
+        """
+        Get a tile from the slide based on its address.
+        :param tileAddress: A tuple (x, y) representing the tile address.
+        :param writeToNumpy: If True, return the tile as a numpy array.
+        :return: The tile image, either as a PIL Image or a numpy array.
+        """
         if len(tileAddress) == 2 and isinstance(tileAddress, tuple):
             if (
                 self.numTilesInX >= tileAddress[0]

@@ -37,7 +37,7 @@ sys.path.append('/mnt/f/Projects/HoneyBee/honeybee/models/UNI2')
 sys.path.append('/mnt/f/Projects/HoneyBee/honeybee/models/TissueDetector')
 
 # Direct imports
-from uni2_proper import UNI2
+from uni2 import UNI2
 from tissue_detector import TissueDetector
 
 # Import required modules
