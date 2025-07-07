@@ -10,5 +10,6 @@ __pycache__
 /paper
 /to_delete
 /models
+/honeybee/models/TissueDetector/weights
 
 CLAUDE.md
