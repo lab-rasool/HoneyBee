@@ -1,0 +1,72 @@
+HONEYBEE CANCER CLASSIFICATION RESULTS - RANDOM FOREST
+============================================================
+Generated: 2025-07-07 14:46:23
+
+PERFORMANCE SUMMARY
+------------------------------------------------------------
+
+CLINICAL:
+  Samples: 10,771
+  Features: 1,024
+  Classes: 32
+  Cross-validation accuracy: 0.9903 (±0.0018)
+  Test accuracy: 0.9905 (±0.0012)
+  Test F1-Score: 0.9904 (±0.0012)
+  Test Precision: 0.9909
+  Test Recall: 0.9905
+  Best accuracy: 0.9930
+
+PATHOLOGY:
+  Samples: 10,857
+  Features: 1,024
+  Classes: 32
+  Cross-validation accuracy: 0.8081 (±0.0091)
+  Test accuracy: 0.8117 (±0.0056)
+  Test F1-Score: 0.7939 (±0.0061)
+  Test Precision: 0.8109
+  Test Recall: 0.8117
+  Best accuracy: 0.8246
+
+MOLECULAR:
+  Samples: 13,153
+  Features: 48
+  Classes: 32
+  Cross-validation accuracy: 0.5682 (±0.0102)
+  Test accuracy: 0.5742 (±0.0102)
+  Test F1-Score: 0.5639 (±0.0095)
+  Test Precision: 0.5777
+  Test Recall: 0.5742
+  Best accuracy: 0.5887
+
+MULTIMODAL_CONCAT:
+  Samples: 2,994
+  Features: 4,120
+  Classes: 32
+  Cross-validation accuracy: 0.9422 (±0.0101)
+  Test accuracy: 0.9476 (±0.0074)
+  Test F1-Score: 0.9424 (±0.0081)
+  Test Precision: 0.9494
+  Test Recall: 0.9476
+  Best accuracy: 0.9566
+
+MULTIMODAL_MEAN_POOL:
+  Samples: 2,994
+  Features: 1,024
+  Classes: 32
+  Cross-validation accuracy: 0.8774 (±0.0110)
+  Test accuracy: 0.8656 (±0.0105)
+  Test F1-Score: 0.8486 (±0.0126)
+  Test Precision: 0.8629
+  Test Recall: 0.8656
+  Best accuracy: 0.8831
+
+MULTIMODAL_KRONECKER:
+  Samples: 2,994
+  Features: 100
+  Classes: 32
+  Cross-validation accuracy: 0.6894 (±0.0108)
+  Test accuracy: 0.6866 (±0.0136)
+  Test F1-Score: 0.6773 (±0.0149)
+  Test Precision: 0.6942
+  Test Recall: 0.6866
+  Best accuracy: 0.7095
