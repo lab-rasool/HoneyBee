@@ -1,0 +1,4 @@
+study_id,modality,body_part
+CT001,CT,Chest
+CT002,CT,Abdomen
+MR001,MR,Brain
