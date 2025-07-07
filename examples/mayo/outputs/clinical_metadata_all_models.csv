@@ -1,0 +1,5 @@
+text_id,text_preview,text_length,gatortron_embedding_dim,qwen_embedding_dim,llama_embedding_dim,medgemma_embedding_dim
+sample_1,Patient Name:  PATIENT P.N 1 AGESEX: M :RIN NAME :...,1000,1024,1024,2048,2560
+sample_2,Patient presents with adenocarcinoma of the lung. ...,88,1024,1024,2048,2560
+sample_3,Follow-up CT scan shows partial response to treatm...,84,1024,1024,2048,2560
+sample_4,Pathology report confirms invasive ductal carcinom...,76,1024,1024,2048,2560

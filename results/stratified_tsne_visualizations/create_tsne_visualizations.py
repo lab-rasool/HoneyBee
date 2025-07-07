@@ -11,13 +11,10 @@ matplotlib.use('Agg')  # Set non-interactive backend
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.manifold import TSNE
-from sklearn.preprocessing import StandardScaler
-from sklearn.impute import SimpleImputer
 import os
 import pickle
 import argparse
 from matplotlib.patches import Patch
-from matplotlib.lines import Line2D
 import warnings
 warnings.filterwarnings('ignore')
 
