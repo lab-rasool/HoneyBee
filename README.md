@@ -11,7 +11,7 @@
   [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
   [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
   
-  [Documentation](https://lab-rasool.github.io/HoneyBee/) | [Paper](https://arxiv.org/abs/2405.07460) | [Examples](examples/) | [Demo](app.py)
+  [Documentation](https://lab-rasool.github.io/HoneyBee/) | [Paper](https://arxiv.org/abs/2405.07460) | [Examples](examples/) | [Demo](app.py) | [Google Colab](https://colab.research.google.com/)
 </div>
 
 ## 🚀 Overview
