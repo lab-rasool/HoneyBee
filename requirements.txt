@@ -26,5 +26,8 @@ peft
 cucim
 openslide-python
 colour-science
-spams
 scipy
+pytesseract
+onnxruntime
+SimpleITK
+pydicom
