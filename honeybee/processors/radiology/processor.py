@@ -20,7 +20,7 @@ from scipy.ndimage import binary_fill_holes
 import cv2
 
 # Import modular components
-from ...loaders.radiology import DicomLoader, NiftiLoader, ImageMetadata, load_medical_image
+from ...loaders.Radiology import DicomLoader, NiftiLoader, ImageMetadata, load_medical_image
 from .preprocessing import (
     Denoiser, IntensityNormalizer, WindowLevelAdjuster, ArtifactReducer,
     preprocess_ct, preprocess_mri, preprocess_pet
