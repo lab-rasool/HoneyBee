@@ -1,0 +1,33 @@
+LLM EMBEDDINGS CLUSTERING METRICS REPORT
+================================================================================
+Generated: 2025-07-16 18:16:53
+Sample size: 1000
+
+SUMMARY RESULTS
+--------------------------------------------------------------------------------
+Text Type    Model        Embeddings   AMI        NMI        Samples    Clusters  
+--------------------------------------------------------------------------------
+clinical     gatortron    pretrained   0.7092     0.7518     1000       32        
+clinical     qwen         pretrained   0.7853     0.8162     1000       32        
+clinical     medgemma     pretrained   0.5896     0.6482     1000       32        
+clinical     llama        pretrained   0.6045     0.6611     1000       32        
+pathology    gatortron    pretrained   0.3469     0.4375     1000       32        
+pathology    gatortron    finetuned    0.9133     0.9257     1000       32        
+pathology    qwen         pretrained   0.3934     0.4784     1000       32        
+pathology    qwen         finetuned    0.9349     0.9443     1000       32        
+pathology    medgemma     pretrained   0.2552     0.3579     1000       32        
+pathology    medgemma     finetuned    0.9342     0.9434     1000       32        
+pathology    llama        pretrained   0.3246     0.4176     1000       32        
+pathology    llama        finetuned    0.9262     0.9367     1000       32        
+
+
+IMPROVEMENTS (Fine-tuned vs Pre-trained)
+--------------------------------------------------------------------------------
+Text Type    Model        AMI Change      NMI Change     
+--------------------------------------------------------------------------------
+pathology    gatortron    +0.5665         +0.4882        
+pathology    qwen         +0.5415         +0.4659        
+pathology    medgemma     +0.6790         +0.5855        
+pathology    llama        +0.6017         +0.5191        
+
+================================================================================
