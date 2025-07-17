@@ -129,7 +129,7 @@ class TSNEVisualizer:
             print(f"  {n_mods} modalities: {modality_counts[n_mods]} patients")
     
     def create_tsne_plot_with_separate_legend(self, embeddings, labels, title, filename_base, figsize=(10, 8)):
-        """Create a t-SNE plot with a separate legend file"""
+        """Create a t-SNE plot with legend on the plot"""
         # Convert labels to strings to handle mixed types
         labels = pd.Series(labels).fillna('Unknown').astype(str).values
         
@@ -255,117 +255,55 @@ class TSNEVisualizer:
         
         ax.set_xlabel('t-SNE 1', fontsize=12)
         ax.set_ylabel('t-SNE 2', fontsize=12)
-        ax.set_title(title, fontsize=14, fontweight='bold')
+        # Remove title
         ax.grid(True, alpha=0.3)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         
-        plt.tight_layout()
-        plt.savefig(f"{filename_base}_plot.pdf", dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        # Always create separate legend file
-        # Adjust figure size based on number of categories
-        if n_colors <= 5:
-            fig_height = 2
-        elif n_colors <= 10:
-            fig_height = 3
-        elif n_colors <= 15:
-            fig_height = 4
-        else:
-            fig_height = max(6, n_colors * 0.3)
-        
-        # Wider figure for TCGA descriptions
-        fig_width = 12 if (is_tcga and n_colors > 10) else 8
+        # Add legend to the plot
+        # For plots with many categories (cancer types/organ sites), place legend vertically on the right
+        if n_colors > 10 and (is_cancer_type or is_tcga or 'organ site' in title.lower()):
+            # Calculate optimal font size and spacing to make legend fill figure height
+            fig_height_inches = fig.get_figheight()
             
-        fig_legend, ax_legend = plt.subplots(figsize=(fig_width, fig_height))
-        ax_legend.axis('off')
-        
-        # Create legend elements
-        from matplotlib.lines import Line2D
-        legend_elements = []
-        
-        if (is_cancer_type or is_tcga) and n_colors > 10:
-            # For cancer types with markers, create Line2D elements
-            # Add cancer type descriptions for TCGA projects
-            tcga_descriptions = {
-                'TCGA-ACC': 'Adrenocortical carcinoma',
-                'TCGA-BLCA': 'Bladder urothelial carcinoma',
-                'TCGA-BRCA': 'Breast invasive carcinoma',
-                'TCGA-CESC': 'Cervical squamous cell carcinoma',
-                'TCGA-CHOL': 'Cholangiocarcinoma',
-                'TCGA-COAD': 'Colon adenocarcinoma',
-                'TCGA-DLBC': 'Diffuse large B-cell lymphoma',
-                'TCGA-ESCA': 'Esophageal carcinoma',
-                'TCGA-GBM': 'Glioblastoma multiforme',
-                'TCGA-HNSC': 'Head and neck squamous cell carcinoma',
-                'TCGA-KICH': 'Kidney chromophobe',
-                'TCGA-KIRC': 'Kidney renal clear cell carcinoma',
-                'TCGA-KIRP': 'Kidney renal papillary cell carcinoma',
-                'TCGA-LAML': 'Acute myeloid leukemia',
-                'TCGA-LGG': 'Brain lower grade glioma',
-                'TCGA-LIHC': 'Liver hepatocellular carcinoma',
-                'TCGA-LUAD': 'Lung adenocarcinoma',
-                'TCGA-LUSC': 'Lung squamous cell carcinoma',
-                'TCGA-MESO': 'Mesothelioma',
-                'TCGA-OV': 'Ovarian serous cystadenocarcinoma',
-                'TCGA-PAAD': 'Pancreatic adenocarcinoma',
-                'TCGA-PCPG': 'Pheochromocytoma and paraganglioma',
-                'TCGA-PRAD': 'Prostate adenocarcinoma',
-                'TCGA-READ': 'Rectum adenocarcinoma',
-                'TCGA-SARC': 'Sarcoma',
-                'TCGA-SKCM': 'Skin cutaneous melanoma',
-                'TCGA-STAD': 'Stomach adenocarcinoma',
-                'TCGA-TGCT': 'Testicular germ cell tumors',
-                'TCGA-THCA': 'Thyroid carcinoma',
-                'TCGA-THYM': 'Thymoma',
-                'TCGA-UCEC': 'Uterine corpus endometrial carcinoma',
-                'TCGA-UCS': 'Uterine carcinosarcoma',
-                'TCGA-UVM': 'Uveal melanoma'
-            }
+            # We want the legend to span the full figure height
+            # Total height = n_colors * (font_size + spacing between items)
+            # Assuming font_size in points and spacing proportional to font_size
             
-            for label in unique_labels:
-                if label == 'Unknown':
-                    color = 'lightgray'
-                    marker = 'o'
-                    display_label = label
-                else:
-                    color = color_dict[label]
-                    marker = marker_dict[label]
-                    # Add description if it's a TCGA project
-                    if label in tcga_descriptions:
-                        display_label = f"{label}: {tcga_descriptions[label]}"
-                    else:
-                        display_label = label
-                legend_elements.append(Line2D([0], [0], marker=marker, color='w', 
-                                            markerfacecolor=color, markeredgecolor='black',
-                                            markersize=8, label=display_label, linestyle='None'))
+            # Start with a base calculation
+            # Each item needs: font height + spacing
+            # Typical spacing is about 1.5x font size for good readability
+            target_height_points = fig_height_inches * 72  # Convert inches to points
+            
+            # Account for top/bottom padding (about 10% total)
+            usable_height = target_height_points * 0.95
+            
+            # Calculate font size assuming spacing = 1.5 * font_size
+            # So each item takes 2.5 * font_size vertical space
+            optimal_fontsize = usable_height / (n_colors * 2.5)
+            
+            # Constrain to reasonable range but allow larger sizes
+            optimal_fontsize = min(16, max(8, optimal_fontsize))
+            
+            # Calculate label spacing as proportion of font size
+            # Larger spacing helps spread items to fill height
+            label_spacing = max(1.0, (usable_height / n_colors - optimal_fontsize) / optimal_fontsize)
+            
+            # Create vertical legend on the right side
+            legend = ax.legend(loc='center left', bbox_to_anchor=(1.02, 0.5),
+                              ncol=1, fontsize=optimal_fontsize, frameon=True, fancybox=True,
+                              shadow=True, borderaxespad=0.5, labelspacing=label_spacing)
         else:
-            # For other categories, use patches
-            for label in unique_labels:
-                if label == 'Unknown':
-                    color = 'lightgray'
-                else:
-                    color = color_dict[label]
-                legend_elements.append(Patch(facecolor=color, edgecolor='black', label=label))
-        
-        # Calculate number of columns based on number of labels
-        if n_colors <= 5:
-            ncol = 1
-        elif n_colors <= 10:
-            ncol = 1
-        elif n_colors <= 20:
-            ncol = 2
-        else:
-            ncol = 3
-        
-        # Add legend
-        legend = ax_legend.legend(handles=legend_elements, loc='center', ncol=ncol, 
-                                 fontsize=10, frameon=True, fancybox=True, shadow=True)
+            # For plots with fewer categories, use automatic placement
+            legend = ax.legend(loc='best', fontsize=8, frameon=True, fancybox=True, 
+                              shadow=True, borderaxespad=0.5)
         
         plt.tight_layout()
-        plt.savefig(f"{filename_base}_legend.pdf", dpi=300, bbox_inches='tight')
+        plt.savefig(f"{filename_base}.pdf", dpi=300, bbox_inches='tight')
         plt.close()
+        
+        # Skip creating separate legend file
+        return
     
     def visualize_individual_modalities(self):
         """Create t-SNE visualizations for each individual modality"""
@@ -459,13 +397,9 @@ class TSNEVisualizer:
                     os.path.join(modality_dir, f'{modality_name}_tsne_by_organ_site')
                 )
     
-    def create_multimodal_embeddings_batch(self, patient_list, max_patients=3000):
+    def create_multimodal_embeddings_batch(self, patient_list):
         """Create multimodal embeddings efficiently using batch processing"""
-        # Sample if too many patients
-        if len(patient_list) > max_patients:
-            print(f"\nSampling {max_patients} patients for visualization...")
-            np.random.seed(42)
-            patient_list = np.random.choice(patient_list, max_patients, replace=False).tolist()
+        # Use all patients - no sampling
         
         print(f"\nCreating multimodal embeddings for {len(patient_list)} patients...")
         
@@ -593,6 +527,31 @@ class TSNEVisualizer:
                 os.path.join(fusion_dir, f'{fusion_method}_tsne_by_cancer_type')
             )
             
+            # By sex
+            genders = fusion_patient_data['gender'].values
+            self.create_tsne_plot_with_separate_legend(
+                embeddings_2d, genders,
+                f't-SNE of Multimodal {fusion_method.upper()} by Sex',
+                os.path.join(fusion_dir, f'{fusion_method}_tsne_by_sex')
+            )
+            
+            # By age group
+            age_groups = fusion_patient_data['age_group'].values
+            self.create_tsne_plot_with_separate_legend(
+                embeddings_2d, age_groups,
+                f't-SNE of Multimodal {fusion_method.upper()} by Age Group',
+                os.path.join(fusion_dir, f'{fusion_method}_tsne_by_age_group')
+            )
+            
+            # By organ site
+            if 'tissue_or_organ_of_origin' in fusion_patient_data.columns:
+                organ_sites = fusion_patient_data['tissue_or_organ_of_origin'].values
+                self.create_tsne_plot_with_separate_legend(
+                    embeddings_2d, organ_sites,
+                    f't-SNE of Multimodal {fusion_method.upper()} by Organ Site',
+                    os.path.join(fusion_dir, f'{fusion_method}_tsne_by_organ_site')
+                )
+            
             # By modality combination
             modality_labels = []
             for pid in fusion_patient_data['case_id'].values:
@@ -653,9 +612,7 @@ def main():
     print("\n" + "="*60)
     print("ALL VISUALIZATIONS COMPLETED!")
     print("="*60)
-    print("\nOutput format: PDF with separate legend files for all visualizations")
-    print("Legend files: *_legend.pdf")
-    print("Plot files: *_plot.pdf")
+    print("\nOutput format: PDF with legends included on plots")
     print(f"Results saved in: {args.output_dir}")
 
 
