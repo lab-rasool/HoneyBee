@@ -4,6 +4,15 @@ Corrected Stain Normalization Methods for Digital Pathology
 Fixed implementations that properly handle H&E stain separation.
 """
 
+__all__ = [
+    'ReinhardNormalizer', 'MacenkoNormalizer', 'VahadaneNormalizer',
+    'ColorAugmenter', 'BaseNormalizer', 
+    'normalize_reinhard', 'normalize_macenko', 'normalize_vahadane',
+    'normalize_stain_tissue_aware',
+    'rgb_to_od', 'od_to_rgb', 'get_stain_matrix_macenko', 'validate_stain_matrix',
+    'STAIN_NORM_TARGETS', 'STAIN_MATRIX_DEFAULT'
+]
+
 import numpy as np
 import cv2
 from typing import Optional, Tuple, Dict, Union
@@ -16,9 +25,9 @@ STAIN_NORM_TARGETS = {
         "mean_lab": np.array([66.98, 128.77, 113.74]),
         "std_lab": np.array([15.89, 10.22, 9.41]),
         "stain_matrix": np.array([
-            [0.5626, 0.8269, 0.0000],
-            [0.7201, -0.4738, 0.5063],
-            [0.4062, -0.3028, -0.8616]
+            [0.644, 0.093],  # Red channel: H and E absorption
+            [0.717, 0.954],  # Green channel: H and E absorption
+            [0.267, 0.283]   # Blue channel: H and E absorption
         ])
     }
 }
@@ -26,14 +35,15 @@ STAIN_NORM_TARGETS = {
 
 def rgb_to_od(rgb):
     """Convert RGB to optical density"""
-    rgb = rgb.astype(np.float64)
-    od = -np.log10((rgb + 1) / 256)
+    rgb = rgb.astype(np.float32)
+    # Add epsilon to avoid log(0)
+    od = -np.log((rgb + 1) / 256)  # Use natural log, not log10
     return od
 
 
 def od_to_rgb(od):
     """Convert optical density to RGB"""
-    rgb = 256 * (10**(-od)) - 1
+    rgb = 256 * np.exp(-od) - 1  # Use natural exp, not 10^x
     rgb = np.clip(rgb, 0, 255).astype(np.uint8)
     return rgb
 
@@ -43,65 +53,161 @@ def normalize_rows(A):
     return A / np.linalg.norm(A, axis=1, keepdims=True)
 
 
-def get_stain_matrix(rgb_image, luminosity_threshold=0.8, angular_percentiles=(1, 99)):
+def get_stain_matrix_macenko(rgb_image, tissue_mask=None, debug=False):
     """
-    Extract stain matrix using the method of Macenko et al.
+    Extract H&E stain matrix using Macenko method.
     
     Args:
         rgb_image: RGB image
-        luminosity_threshold: Threshold for background removal
-        angular_percentiles: Percentiles for robust angle estimation
+        tissue_mask: Optional binary mask indicating tissue regions
+        debug: If True, return additional debug information
         
     Returns:
         Stain matrix (3x2) with H and E vectors as columns
+        If debug=True, returns (stain_matrix, debug_info)
     """
-    # Convert to OD
-    od = rgb_to_od(rgb_image)
+    debug_info = {}
     
-    # Remove background
-    od_flat = od.reshape(-1, 3)
-    optical_density = np.sqrt(np.sum(od_flat**2, axis=1))
-    mask = optical_density > luminosity_threshold
+    # Default H&E matrix
+    default_matrix = np.array([[0.650, 0.072],  # H and E red absorption
+                              [0.704, 0.990],  # H and E green absorption  
+                              [0.286, 0.105]])  # H and E blue absorption
     
-    if np.sum(mask) < 100:
-        # Return default H&E stain matrix
-        return np.array([[0.65, 0.70, 0.29],  # Hematoxylin
-                        [0.07, 0.99, 0.11]]).T  # Eosin
+    try:
+        # Convert to optical density
+        od = rgb_to_od(rgb_image)
+        
+        # Remove pixels with low optical density (background)
+        od_flat = od.reshape(-1, 3)
+        
+        # Apply tissue mask if provided
+        if tissue_mask is not None:
+            tissue_mask_flat = tissue_mask.flatten()
+            od_flat = od_flat[tissue_mask_flat]
+        
+        # Remove transparent pixels
+        od_flat = od_flat[(od_flat > 0.15).any(axis=1)]
+        
+        if len(od_flat) < 100:
+            # Return default H&E matrix if not enough pixels
+            return default_matrix if not debug else (default_matrix, debug_info)
+        
+        # Compute eigenvectors using covariance (more stable than SVD for this use case)
+        cov = np.cov(od_flat.T)
+        eigenvalues, eigenvectors = np.linalg.eigh(cov)
+        
+        # Sort eigenvectors by eigenvalues in descending order
+        idx = eigenvalues.argsort()[::-1]
+        eigenvectors = eigenvectors[:, idx]
+        
+        # Project data onto the plane spanned by the first two principal components
+        projection = od_flat @ eigenvectors[:, :2]
+        
+        # Find the angle of each point in the 2D plane
+        angles = np.arctan2(projection[:, 1], projection[:, 0])
+        
+        # Find robust min and max angles
+        min_angle = np.percentile(angles, 1)
+        max_angle = np.percentile(angles, 99)
+        
+        # Convert angles back to stain vectors
+        vec1 = eigenvectors[:, 0] * np.cos(min_angle) + eigenvectors[:, 1] * np.sin(min_angle)
+        vec2 = eigenvectors[:, 0] * np.cos(max_angle) + eigenvectors[:, 1] * np.sin(max_angle)
+        
+        # Normalize vectors
+        vec1 = vec1 / np.linalg.norm(vec1)
+        vec2 = vec2 / np.linalg.norm(vec2)
+        
+        # Ensure all values are positive
+        if vec1[0] < 0: vec1 = -vec1
+        if vec2[0] < 0: vec2 = -vec2
+        
+        # Simple heuristic: Hematoxylin has higher blue component
+        # Eosin has higher green component
+        if vec1[2] > vec2[2]:  # vec1 has more blue
+            h_vec, e_vec = vec1, vec2
+        else:
+            h_vec, e_vec = vec2, vec1
+        
+        stain_matrix = np.column_stack([h_vec, e_vec])
+        
+        if debug:
+            debug_info['od_pixels_analyzed'] = len(od_flat)
+            debug_info['vec1'] = vec1
+            debug_info['vec2'] = vec2
+            debug_info['h_vec'] = h_vec
+            debug_info['e_vec'] = e_vec
+            debug_info['eigenvalues'] = eigenvalues
+            return stain_matrix, debug_info
+        
+        return stain_matrix
+        
+    except Exception as e:
+        # If any error occurs, return default matrix
+        if debug:
+            debug_info['error'] = str(e)
+            return default_matrix, debug_info
+        return default_matrix
+
+
+def validate_stain_matrix(stain_matrix):
+    """
+    Validate and diagnose issues with stain matrix.
     
-    # Get tissue pixels
-    od_tissue = od_flat[mask]
+    Returns dict with validation results and diagnostics.
+    """
+    results = {
+        'valid': True,
+        'warnings': [],
+        'h_vector': stain_matrix[:, 0],
+        'e_vector': stain_matrix[:, 1],
+        'h_characteristics': {},
+        'e_characteristics': {}
+    }
     
-    # Compute eigenvectors
-    cov = np.cov(od_tissue.T)
-    eigenvalues, eigenvectors = np.linalg.eigh(cov)
+    # Check basic validity
+    if stain_matrix.shape != (3, 2):
+        results['valid'] = False
+        results['warnings'].append(f"Invalid shape: {stain_matrix.shape}")
+        return results
     
-    # Sort eigenvectors by eigenvalues in descending order
-    idx = eigenvalues.argsort()[::-1]
-    eigenvectors = eigenvectors[:, idx]
+    # Check for negative values
+    if np.any(stain_matrix < 0):
+        results['warnings'].append("Negative values detected in stain matrix")
     
-    # Project data onto plane spanned by first two eigenvectors
-    projection = od_tissue @ eigenvectors[:, :2]
+    # Analyze H vector (should have high red/green absorption)
+    h_vec = stain_matrix[:, 0]
+    results['h_characteristics'] = {
+        'red_od': h_vec[0],
+        'green_od': h_vec[1],
+        'blue_od': h_vec[2],
+        'red_green_ratio': h_vec[0] / (h_vec[1] + 1e-6),
+        'appears_purple': h_vec[0] > 0.5 and h_vec[1] > 0.5 and h_vec[2] < 0.4
+    }
     
-    # Find angular coordinates
-    angles = np.arctan2(projection[:, 1], projection[:, 0])
+    # Analyze E vector (should have low red, high green/blue absorption)
+    e_vec = stain_matrix[:, 1]
+    results['e_characteristics'] = {
+        'red_od': e_vec[0],
+        'green_od': e_vec[1],
+        'blue_od': e_vec[2],
+        'red_green_ratio': e_vec[0] / (e_vec[1] + 1e-6),
+        'appears_pink': e_vec[0] < 0.3 and e_vec[1] > 0.7
+    }
     
-    # Find robust min/max angles
-    min_angle = np.percentile(angles, angular_percentiles[0])
-    max_angle = np.percentile(angles, angular_percentiles[1])
+    # Check if vectors might be swapped
+    if (results['h_characteristics']['red_od'] < results['e_characteristics']['red_od']):
+        results['warnings'].append("H and E vectors might be swapped")
     
-    # Convert back to stain vectors
-    v1 = eigenvectors[:, 0] * np.cos(min_angle) + eigenvectors[:, 1] * np.sin(min_angle)
-    v2 = eigenvectors[:, 0] * np.cos(max_angle) + eigenvectors[:, 1] * np.sin(max_angle)
+    # Check if H vector looks correct
+    if not results['h_characteristics']['appears_purple']:
+        results['warnings'].append("H vector doesn't match expected purple/blue characteristics")
     
-    # Normalize vectors
-    v1 = v1 / np.linalg.norm(v1)
-    v2 = v2 / np.linalg.norm(v2)
+    # Check if E vector looks correct
+    if not results['e_characteristics']['appears_pink']:
+        results['warnings'].append("E vector doesn't match expected pink characteristics")
     
-    # Order stain vectors - hematoxylin first (has higher optical density)
-    if v1[0] < v2[0]:
-        v1, v2 = v2, v1
-    
-    return np.column_stack([v1, v2])
+    return results
 
 
 class ReinhardNormalizer:
@@ -140,7 +246,7 @@ class ReinhardNormalizer:
         """Transform source image using fitted parameters."""
         if self.target_mean is None:
             raise ValueError("Normalizer must be fitted first")
-        
+            
         # Convert to LAB
         source_bgr = cv2.cvtColor(source_image, cv2.COLOR_RGB2BGR)
         source_lab = cv2.cvtColor(source_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
@@ -150,22 +256,20 @@ class ReinhardNormalizer:
         source_std = np.std(source_lab.reshape(-1, 3), axis=0)
         
         # Normalize each channel
-        result_lab = source_lab.copy()
+        normalized_lab = source_lab.copy()
         for i in range(3):
             # Avoid division by zero
-            if source_std[i] < 1e-6:
-                result_lab[:, :, i] = source_lab[:, :, i] - source_mean[i] + self.target_mean[i]
+            if source_std[i] > 0:
+                normalized_lab[:, :, i] = (source_lab[:, :, i] - source_mean[i]) * (self.target_std[i] / source_std[i]) + self.target_mean[i]
             else:
-                result_lab[:, :, i] = ((source_lab[:, :, i] - source_mean[i]) / source_std[i]) * self.target_std[i] + self.target_mean[i]
-        
-        # Clip to valid LAB range in OpenCV (0-255 for all channels)
-        result_lab = np.clip(result_lab, 0, 255).astype(np.uint8)
+                normalized_lab[:, :, i] = source_lab[:, :, i] - source_mean[i] + self.target_mean[i]
         
         # Convert back to RGB
-        result_bgr = cv2.cvtColor(result_lab, cv2.COLOR_LAB2BGR)
-        result_rgb = cv2.cvtColor(result_bgr, cv2.COLOR_BGR2RGB)
+        normalized_lab = np.clip(normalized_lab, 0, 255).astype(np.uint8)
+        normalized_bgr = cv2.cvtColor(normalized_lab, cv2.COLOR_LAB2BGR)
+        normalized = cv2.cvtColor(normalized_bgr, cv2.COLOR_BGR2RGB)
         
-        return result_rgb
+        return normalized
 
 
 class MacenkoNormalizer:
@@ -175,24 +279,50 @@ class MacenkoNormalizer:
     Separates and normalizes H&E stains using singular value decomposition.
     """
     
-    def __init__(self, luminosity_threshold=0.8, angular_percentiles=(1, 99)):
-        self.luminosity_threshold = luminosity_threshold
-        self.angular_percentiles = angular_percentiles
+    def __init__(self, use_tissue_mask=True):
         self.target_stain_matrix = None
-        self.target_max_conc = None
+        self.target_max_concentrations = None
+        self.use_tissue_mask = use_tissue_mask
     
-    def fit(self, target_image: np.ndarray):
+    def _get_tissue_mask(self, image: np.ndarray) -> np.ndarray:
+        """Simple tissue detection based on luminance."""
+        # Convert to grayscale
+        gray = np.dot(image[...,:3], [0.299, 0.587, 0.114])
+        # Threshold - tissue is darker than background
+        tissue_mask = gray < 235
+        return tissue_mask
+    
+    def fit(self, target_image: np.ndarray, tissue_mask: Optional[np.ndarray] = None):
         """Fit normalizer to target image."""
-        self.target_stain_matrix = get_stain_matrix(
-            target_image, 
-            self.luminosity_threshold, 
-            self.angular_percentiles
-        )
+        # Get tissue mask if needed
+        if self.use_tissue_mask and tissue_mask is None:
+            tissue_mask = self._get_tissue_mask(target_image)
         
-        # Get target concentrations for reference
+        # Get target stain matrix
+        self.target_stain_matrix = get_stain_matrix_macenko(target_image, tissue_mask)
+        
+        # Validate stain matrix shape
+        assert self.target_stain_matrix.shape == (3, 2), \
+            f"Stain matrix should be 3x2, got {self.target_stain_matrix.shape}"
+        
+        # Get target stain concentrations
         od = rgb_to_od(target_image)
-        concentrations = self._get_concentrations(od, self.target_stain_matrix)
-        self.target_max_conc = np.percentile(concentrations, 99, axis=0)
+        od_flat = od.reshape(-1, 3)
+        
+        # Apply tissue mask to concentrations calculation if available
+        if self.use_tissue_mask and tissue_mask is not None:
+            tissue_mask_flat = tissue_mask.flatten()
+            od_flat_tissue = od_flat[tissue_mask_flat]
+        else:
+            od_flat_tissue = od_flat
+        
+        # Calculate concentrations using least squares with rcond=-1
+        # Solve: stain_matrix @ concentrations.T = od_flat.T
+        # This gives us concentrations for each pixel
+        concentrations = np.linalg.lstsq(self.target_stain_matrix, od_flat_tissue.T, rcond=-1)[0].T
+        
+        # Get 99th percentile concentrations (simpler approach)
+        self.target_max_concentrations = np.percentile(concentrations, 99, axis=0)
         
         return self
     
@@ -207,81 +337,105 @@ class MacenkoNormalizer:
             self.target_max_conc = np.array([1.0, 1.0])
         return self
     
-    def transform(self, source_image: np.ndarray) -> np.ndarray:
+    def transform(self, source_image: np.ndarray, tissue_mask: Optional[np.ndarray] = None) -> np.ndarray:
         """Transform source image using fitted parameters."""
         if self.target_stain_matrix is None:
             raise ValueError("Normalizer must be fitted first")
-        
+            
+        # Get tissue mask if needed
+        if self.use_tissue_mask and tissue_mask is None:
+            tissue_mask = self._get_tissue_mask(source_image)
+            
         # Get source stain matrix
-        source_stain_matrix = get_stain_matrix(
-            source_image,
-            self.luminosity_threshold,
-            self.angular_percentiles
-        )
+        source_stain_matrix = get_stain_matrix_macenko(source_image, tissue_mask)
         
-        # Convert to OD
-        source_od = rgb_to_od(source_image)
+        # Convert to optical density
+        od = rgb_to_od(source_image)
+        od_flat = od.reshape(-1, 3)
         
-        # Get source concentrations
-        source_concentrations = self._get_concentrations(source_od, source_stain_matrix)
+        # Get source concentrations using lstsq with rcond=-1
+        # Solve: stain_matrix @ concentrations.T = od_flat.T
+        source_concentrations = np.linalg.lstsq(source_stain_matrix, od_flat.T, rcond=-1)[0].T
         
-        # Get max concentrations
-        source_max_conc = np.percentile(source_concentrations, 99, axis=0)
+        # Normalize concentrations similar to working implementation
+        # Calculate 99th percentile for both source and target
+        source_conc_99 = np.percentile(source_concentrations, 99, axis=0)
         
-        # Normalize concentrations to match target
-        normalized_conc = source_concentrations.copy()
-        for i in range(2):
-            if source_max_conc[i] > 0:
-                normalized_conc[:, i] = normalized_conc[:, i] * (self.target_max_conc[i] / source_max_conc[i])
+        # Simple scaling to match target range
+        normalized_concentrations = source_concentrations.copy()
+        for i in range(2):  # For H and E
+            if source_conc_99[i] > 0:
+                # Scale to match target 99th percentile
+                scale = self.target_max_concentrations[i] / source_conc_99[i]
+                normalized_concentrations[:, i] = source_concentrations[:, i] * scale
         
-        # Reconstruct using target stain matrix
-        od_reconstructed = normalized_conc @ self.target_stain_matrix.T
+        # Create result image preserving background
+        # Reconstruct OD from normalized concentrations
+        od_reconstructed = np.dot(normalized_concentrations, self.target_stain_matrix.T)
         od_reconstructed = od_reconstructed.reshape(source_image.shape)
         
-        # Convert back to RGB
-        rgb_normalized = od_to_rgb(od_reconstructed)
+        # Convert OD back to RGB using base 10 (not base e)
+        trans = od_to_rgb(od_reconstructed)
         
-        return rgb_normalized
+        # Preserve background regions if using tissue mask
+        if self.use_tissue_mask and tissue_mask is not None:
+            result = source_image.copy()
+            result[tissue_mask] = trans[tissue_mask]
+            return result
+        else:
+            return trans
     
-    def _get_concentrations(self, od: np.ndarray, stain_matrix: np.ndarray) -> np.ndarray:
-        """Get stain concentrations using least squares"""
-        od_flat = od.reshape(-1, 3)
-        # Use pseudo-inverse for stability
-        concentrations = od_flat @ np.linalg.pinv(stain_matrix).T
-        # Ensure non-negative concentrations
-        concentrations = np.maximum(concentrations, 0)
-        return concentrations
 
 
 class VahadaneNormalizer:
     """
-    Vahadane stain normalization - using the same approach as Macenko
-    but with different concentration normalization.
+    Vahadane stain normalization - uses structure-preserving color normalization.
     """
     
-    def __init__(self, luminosity_threshold=0.8, angular_percentiles=(1, 99)):
-        self.luminosity_threshold = luminosity_threshold
-        self.angular_percentiles = angular_percentiles
+    def __init__(self, use_tissue_mask=True):
         self.target_stain_matrix = None
         self.target_concentrations_stats = None
+        self.use_tissue_mask = use_tissue_mask
     
-    def fit(self, target_image: np.ndarray):
+    def _get_tissue_mask(self, image: np.ndarray) -> np.ndarray:
+        """Simple tissue detection based on luminance."""
+        # Convert to grayscale
+        gray = np.dot(image[...,:3], [0.299, 0.587, 0.114])
+        # Threshold - tissue is darker than background
+        tissue_mask = gray < 235
+        return tissue_mask
+    
+    def fit(self, target_image: np.ndarray, tissue_mask: Optional[np.ndarray] = None):
         """Fit normalizer to target image."""
-        self.target_stain_matrix = get_stain_matrix(
-            target_image,
-            self.luminosity_threshold,
-            self.angular_percentiles
-        )
+        # Get tissue mask if needed
+        if self.use_tissue_mask and tissue_mask is None:
+            tissue_mask = self._get_tissue_mask(target_image)
         
-        # Get target concentration statistics
+        # Get target stain matrix
+        self.target_stain_matrix = get_stain_matrix_macenko(target_image, tissue_mask)
+        
+        # Validate stain matrix shape
+        assert self.target_stain_matrix.shape == (3, 2), \
+            f"Stain matrix should be 3x2, got {self.target_stain_matrix.shape}"
+        
+        # Get target stain concentrations
         od = rgb_to_od(target_image)
-        concentrations = self._get_concentrations(od, self.target_stain_matrix)
+        od_flat = od.reshape(-1, 3)
         
-        # Store multiple percentiles for better matching
+        # Apply tissue mask to concentrations calculation if available
+        if self.use_tissue_mask and tissue_mask is not None:
+            tissue_mask_flat = tissue_mask.flatten()
+            od_flat_tissue = od_flat[tissue_mask_flat]
+        else:
+            od_flat_tissue = od_flat
+        
+        # Calculate concentrations using lstsq with rcond=-1
+        concentrations = np.linalg.lstsq(self.target_stain_matrix, od_flat_tissue.T, rcond=-1)[0].T
+        
+        # Store concentration statistics for Vahadane style normalization
         self.target_concentrations_stats = {
             'mean': np.mean(concentrations, axis=0),
-            'std': np.std(concentrations, axis=0),
-            'percentiles': np.percentile(concentrations, [1, 25, 50, 75, 99], axis=0)
+            'std': np.std(concentrations, axis=0)
         }
         
         return self
@@ -293,65 +447,75 @@ class VahadaneNormalizer:
         if 'concentration_stats' in params:
             self.target_concentrations_stats = params['concentration_stats']
         elif self.target_stain_matrix is not None:
-            # Use default stats if not provided
+            # Use more realistic default stats based on typical H&E
             self.target_concentrations_stats = {
-                'mean': np.array([0.5, 0.5]),
-                'std': np.array([0.15, 0.15]),
-                'percentiles': np.array([[0.1, 0.1], [0.3, 0.3], [0.5, 0.5], [0.7, 0.7], [0.9, 0.9]])
+                'mean': np.array([0.7, 0.3]),  # H typically higher than E
+                'std': np.array([0.3, 0.15]),
+                'percentiles': np.array([[0.2, 0.05], [0.5, 0.2], [0.7, 0.3], [0.9, 0.4], [1.2, 0.6]])
             }
         return self
     
-    def transform(self, source_image: np.ndarray) -> np.ndarray:
+    def transform(self, source_image: np.ndarray, tissue_mask: Optional[np.ndarray] = None) -> np.ndarray:
         """Transform source image using fitted parameters."""
         if self.target_stain_matrix is None:
             raise ValueError("Normalizer must be fitted first")
-        
+            
+        # Get tissue mask if needed
+        if self.use_tissue_mask and tissue_mask is None:
+            tissue_mask = self._get_tissue_mask(source_image)
+            
         # Get source stain matrix
-        source_stain_matrix = get_stain_matrix(
-            source_image,
-            self.luminosity_threshold,
-            self.angular_percentiles
-        )
+        source_stain_matrix = get_stain_matrix_macenko(source_image, tissue_mask)
         
-        # Convert to OD
-        source_od = rgb_to_od(source_image)
+        # Convert to optical density
+        od = rgb_to_od(source_image)
+        od_flat = od.reshape(-1, 3)
         
-        # Get source concentrations
-        source_concentrations = self._get_concentrations(source_od, source_stain_matrix)
+        # Get source concentrations using lstsq with rcond=-1
+        # Solve: stain_matrix @ concentrations.T = od_flat.T
+        source_concentrations = np.linalg.lstsq(source_stain_matrix, od_flat.T, rcond=-1)[0].T
         
-        # Get source statistics
-        source_stats = {
-            'mean': np.mean(source_concentrations, axis=0),
-            'std': np.std(source_concentrations, axis=0),
-            'percentiles': np.percentile(source_concentrations, [1, 25, 50, 75, 99], axis=0)
-        }
+        # Get source statistics from tissue regions only
+        if self.use_tissue_mask and tissue_mask is not None:
+            tissue_mask_flat = tissue_mask.flatten()
+            tissue_concentrations = source_concentrations[tissue_mask_flat]
+            source_mean = np.mean(tissue_concentrations, axis=0)
+            source_std = np.std(tissue_concentrations, axis=0)
+        else:
+            source_mean = np.mean(source_concentrations, axis=0)
+            source_std = np.std(source_concentrations, axis=0)
         
-        # Normalize concentrations using histogram matching approach
-        normalized_conc = source_concentrations.copy()
-        for i in range(2):
-            if source_stats['std'][i] > 0:
-                # Z-score normalization followed by rescaling
-                normalized_conc[:, i] = (source_concentrations[:, i] - source_stats['mean'][i]) / source_stats['std'][i]
-                normalized_conc[:, i] = normalized_conc[:, i] * self.target_concentrations_stats['std'][i] + self.target_concentrations_stats['mean'][i]
-                
-                # Ensure non-negative
-                normalized_conc[:, i] = np.maximum(normalized_conc[:, i], 0)
+        # Vahadane style normalization: match mean and std of concentrations
+        normalized_concentrations = source_concentrations.copy()
+        for i in range(2):  # For H and E
+            if source_std[i] > 0:
+                # Standardize then rescale to target distribution
+                normalized_concentrations[:, i] = (source_concentrations[:, i] - source_mean[i]) / source_std[i]
+                normalized_concentrations[:, i] = (normalized_concentrations[:, i] * 
+                                                 self.target_concentrations_stats['std'][i] + 
+                                                 self.target_concentrations_stats['mean'][i])
+                # Ensure non-negative concentrations
+                normalized_concentrations[:, i] = np.maximum(normalized_concentrations[:, i], 0)
+                # Clip extreme values
+                normalized_concentrations[:, i] = np.minimum(normalized_concentrations[:, i], 
+                                                           self.target_concentrations_stats['mean'][i] + 3 * self.target_concentrations_stats['std'][i])
         
-        # Reconstruct using target stain matrix
-        od_reconstructed = normalized_conc @ self.target_stain_matrix.T
+        # Create result image
+        # Reconstruct OD from normalized concentrations
+        od_reconstructed = np.dot(normalized_concentrations, self.target_stain_matrix.T)
         od_reconstructed = od_reconstructed.reshape(source_image.shape)
         
-        # Convert back to RGB
-        rgb_normalized = od_to_rgb(od_reconstructed)
+        # Convert OD back to RGB using base 10 (not base e)
+        trans = od_to_rgb(od_reconstructed)
         
-        return rgb_normalized
+        # Preserve background regions if using tissue mask
+        if self.use_tissue_mask and tissue_mask is not None:
+            result = source_image.copy()
+            result[tissue_mask] = trans[tissue_mask]
+            return result
+        else:
+            return trans
     
-    def _get_concentrations(self, od: np.ndarray, stain_matrix: np.ndarray) -> np.ndarray:
-        """Get stain concentrations using least squares"""
-        od_flat = od.reshape(-1, 3)
-        concentrations = od_flat @ np.linalg.pinv(stain_matrix).T
-        concentrations = np.maximum(concentrations, 0)
-        return concentrations
 
 
 # Convenience functions
@@ -362,18 +526,78 @@ def normalize_reinhard(source: np.ndarray, target: np.ndarray) -> np.ndarray:
     return normalizer.transform(source)
 
 
-def normalize_macenko(source: np.ndarray, target: np.ndarray) -> np.ndarray:
+def normalize_macenko(source: np.ndarray, target: np.ndarray, use_tissue_mask: bool = True) -> np.ndarray:
     """Quick Macenko normalization."""
-    normalizer = MacenkoNormalizer()
+    normalizer = MacenkoNormalizer(use_tissue_mask=use_tissue_mask)
     normalizer.fit(target)
     return normalizer.transform(source)
 
 
-def normalize_vahadane(source: np.ndarray, target: np.ndarray) -> np.ndarray:
+def normalize_vahadane(source: np.ndarray, target: np.ndarray, use_tissue_mask: bool = True) -> np.ndarray:
     """Quick Vahadane normalization."""
-    normalizer = VahadaneNormalizer()
+    normalizer = VahadaneNormalizer(use_tissue_mask=use_tissue_mask)
     normalizer.fit(target)
     return normalizer.transform(source)
+
+
+def normalize_stain_tissue_aware(source: np.ndarray, 
+                                target: np.ndarray, 
+                                method: str = "macenko",
+                                tissue_threshold: int = 235,
+                                debug: bool = False) -> Union[np.ndarray, Tuple[np.ndarray, Dict]]:
+    """
+    Tissue-aware stain normalization that preserves background.
+    
+    Args:
+        source: Source RGB image to normalize
+        target: Target RGB image for normalization reference
+        method: Normalization method ("reinhard", "macenko", "vahadane")
+        tissue_threshold: Threshold for tissue detection (0-255)
+        debug: If True, return debug information
+        
+    Returns:
+        Normalized RGB image
+        If debug=True, returns (normalized_image, debug_info)
+    """
+    # Simple tissue detection
+    def get_tissue_mask(image):
+        gray = np.dot(image[...,:3], [0.299, 0.587, 0.114])
+        return gray < tissue_threshold
+    
+    # Get tissue masks
+    source_mask = get_tissue_mask(source)
+    target_mask = get_tissue_mask(target)
+    
+    debug_info = {
+        'source_tissue_ratio': np.sum(source_mask) / source_mask.size,
+        'target_tissue_ratio': np.sum(target_mask) / target_mask.size,
+        'method': method
+    }
+    
+    # Select normalizer
+    if method.lower() == "reinhard":
+        normalizer = ReinhardNormalizer()
+        normalizer.fit(target)
+        normalized = normalizer.transform(source)
+    elif method.lower() == "macenko":
+        normalizer = MacenkoNormalizer(use_tissue_mask=True)
+        normalizer.fit(target, target_mask)
+        normalized = normalizer.transform(source, source_mask)
+    elif method.lower() == "vahadane":
+        normalizer = VahadaneNormalizer(use_tissue_mask=True)
+        normalizer.fit(target, target_mask)
+        normalized = normalizer.transform(source, source_mask)
+    else:
+        raise ValueError(f"Unknown method: {method}")
+    
+    if debug:
+        # Add stain matrix info for Macenko/Vahadane
+        if hasattr(normalizer, 'target_stain_matrix'):
+            debug_info['target_stain_matrix'] = normalizer.target_stain_matrix
+            debug_info['stain_validation'] = validate_stain_matrix(normalizer.target_stain_matrix)
+        return normalized, debug_info
+    
+    return normalized
 
 
 # Compatibility classes and functions
@@ -470,7 +694,7 @@ class ColorAugmenter:
 
 # Constants for compatibility
 STAIN_MATRIX_DEFAULT = np.array([
-    [0.65, 0.70, 0.29],  # Hematoxylin
-    [0.07, 0.99, 0.11],  # Eosin
-    [0.29, 0.11, 0.90]   # DAB/Background
+    [0.644, 0.093],  # Red channel: H and E absorption
+    [0.717, 0.954],  # Green channel: H and E absorption
+    [0.267, 0.283]   # Blue channel: H and E absorption
 ])

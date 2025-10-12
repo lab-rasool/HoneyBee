@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Generate markdown and LaTeX tables for survival analysis C-index results.
+Creates 7 separate transposed tables, with multimodal methods split for better fit.
 """
 
 import pandas as pd
@@ -9,165 +10,426 @@ import numpy as np
 # Load the survival analysis summary
 df = pd.read_csv('survival_analysis_summary_v3.csv')
 
-# Get unique projects and modalities
-projects = df['merged_project'].unique()
-modalities = ['clinical', 'pathology', 'radiology', 'molecular', 'wsi', 'concat', 'mean_pool', 'kronecker']
+# Get unique projects and models
+projects = sorted(df['merged_project'].unique())
+models = ['cox', 'rsf', 'deepsurv']
 
-# For this analysis, we'll focus on Cox model results
-model_type = 'cox'
-
-# Create a pivot table for easier access
-pivot_df = df[df['model'] == model_type].pivot_table(
-    index='modality', 
-    columns='merged_project', 
-    values=['mean_c_index', 'std_c_index'],
-    aggfunc='first'
-)
-
-# Create the results dictionary
-results = {}
-for project in projects:
-    results[project] = {}
-    for modality in modalities:
-        try:
-            mean_val = pivot_df[('mean_c_index', project)][modality]
-            std_val = pivot_df[('std_c_index', project)][modality]
-            results[project][modality] = (mean_val, std_val)
-        except:
-            results[project][modality] = (np.nan, np.nan)
-
-# Define better modality names
-modality_names = {
-    'clinical': 'Clinical',
-    'pathology': 'Pathology',
-    'radiology': 'Radiology',
-    'molecular': 'Molecular',
-    'wsi': 'WSI',
-    'concat': 'Multimodal (Concat)',
-    'mean_pool': 'Multimodal (Mean Pool)',
-    'kronecker': 'Multimodal (Kronecker)'
+# Define modality groups
+modality_groups = {
+    'Clinical Features': ['clinical'],
+    'Pathology Report Features': ['pathology'],
+    'Radiology Features': ['radiology'],
+    'Molecular Features': ['molecular'],
+    'WSI Features': ['wsi'],
+    'Multimodal Features (Concatenation & Mean Pooling)': ['concat', 'mean_pool'],
+    'Multimodal Features (Kronecker Product)': ['kronecker']
 }
 
-# Generate Markdown table
-print("## Survival Analysis C-Index Results (Cox Model)\n")
-print("| Modality | " + " | ".join(projects) + " |")
-print("|" + "-"*10 + "|" + "|".join(["-"*20 for _ in projects]) + "|")
+# Model display names
+model_names = {
+    'cox': 'Cox',
+    'rsf': 'RSF',
+    'deepsurv': 'DeepSurv'
+}
 
-for modality in modalities:
-    row = f"| {modality_names[modality]:<20} |"
-    for project in projects:
-        mean_val, std_val = results[project][modality]
-        if not np.isnan(mean_val):
-            row += f" {mean_val:.3f} ± {std_val:.3f} |"
+# Multimodal method names
+multimodal_names = {
+    'concat': 'Concatenation',
+    'mean_pool': 'Mean Pooling',
+    'kronecker': 'Kronecker Product'
+}
+
+def format_value(mean_val, std_val):
+    """Format C-index value with standard deviation."""
+    if not np.isnan(mean_val):
+        return f"{mean_val:.3f} ± {std_val:.3f}"
+    else:
+        return "-"
+
+def generate_latex_table(feature_name, projects_subset, results_dict, table_num=None, is_multimodal=False, modalities=None):
+    """Generate LaTeX table for a single feature category."""
+    print(f"\n% ===== {feature_name.upper()} =====")
+    
+    # Filter out projects where all values are "-"
+    filtered_projects = []
+    for project in projects_subset:
+        has_data = False
+        if is_multimodal:
+            # Check if any multimodal method has data
+            for method in modalities:
+                for model in models:
+                    if results_dict.get(project, {}).get(method, {}).get(model, "-") != "-":
+                        has_data = True
+                        break
+                if has_data:
+                    break
         else:
-            row += " - |"
-    print(row)
+            for model in models:
+                if results_dict.get(project, {}).get(model, "-") != "-":
+                    has_data = True
+                    break
+        if has_data:
+            filtered_projects.append(project)
+    
+    # If no data for this feature, skip the table
+    if not filtered_projects:
+        print(f"% No data available for {feature_name}")
+        return
+    
+    caption = f"Survival analysis results - {feature_name}. C-index values are reported as mean ± standard deviation across 5-fold cross-validation."
+    
+    label = f"survival_{feature_name.lower().replace(' ', '_').replace('(', '').replace(')', '').replace('&', 'and')}"
+    if table_num:
+        label += f"_{table_num}"
+    
+    if is_multimodal:
+        # Determine which methods to show
+        methods_to_show = modalities
+        
+        if len(methods_to_show) == 2:  # Concat + Mean Pool
+            print(f"\\begin{{table}}[htbp]")
+            print(f"    \\centering")
+            print(f"    \\caption{{{caption}}}")
+            print(f"    \\label{{tab:{label}}}")
+            print(f"    \\begin{{tabular}}{{@{{}}l|ccc|ccc@{{}}}}")
+            print(f"        \\toprule")
+            print(f"        & \\multicolumn{{3}}{{c|}}{{\\textbf{{Concatenation}}}} & \\multicolumn{{3}}{{c}}{{\\textbf{{Mean Pooling}}}} \\\\")
+            print(f"        \\cmidrule(lr){{2-4}} \\cmidrule(lr){{5-7}}")
+            print(f"        \\textbf{{Cancer}} & \\textbf{{Cox}} & \\textbf{{RSF}} & \\textbf{{DeepSurv}} & \\textbf{{Cox}} & \\textbf{{RSF}} & \\textbf{{DeepSurv}} \\\\")
+            print(f"        \\midrule")
+            
+            for project in filtered_projects:
+                project_short = project.replace('TCGA-', '')
+                row = f"        {project_short:<4}"
+                
+                # Add values for each multimodal method
+                for method_key in methods_to_show:
+                    for model in models:
+                        value = results_dict.get(project, {}).get(method_key, {}).get(model, "-")
+                        row += f" & {value}"
+                
+                row += " \\\\"
+                print(row)
+            
+            print(f"        \\bottomrule")
+            print(f"    \\end{{tabular}}")
+            print(f"\\end{{table}}")
+        
+        elif len(methods_to_show) == 1:  # Kronecker only
+            print(f"\\begin{{table}}[htbp]")
+            print(f"    \\centering")
+            print(f"    \\caption{{{caption}}}")
+            print(f"    \\label{{tab:{label}}}")
+            print(f"    \\begin{{tabular}}{{@{{}}lccc@{{}}}}")
+            print(f"        \\toprule")
+            print(f"        \\textbf{{Cancer Type}} & \\textbf{{Cox}} & \\textbf{{RSF}} & \\textbf{{DeepSurv}} \\\\")
+            print(f"        \\midrule")
+            
+            for project in filtered_projects:
+                project_short = project.replace('TCGA-', '')
+                row = f"        {project_short:<4}"
+                
+                method_key = methods_to_show[0]
+                for model in models:
+                    value = results_dict.get(project, {}).get(method_key, {}).get(model, "-")
+                    row += f" & {value}"
+                
+                row += " \\\\"
+                print(row)
+            
+            print(f"        \\bottomrule")
+            print(f"    \\end{{tabular}}")
+            print(f"\\end{{table}}")
+    else:
+        # Regular single-modality table
+        print(f"\\begin{{table}}[htbp]")
+        print(f"    \\centering")
+        print(f"    \\caption{{{caption}}}")
+        print(f"    \\label{{tab:{label}}}")
+        print(f"    \\begin{{tabular}}{{@{{}}lccc@{{}}}}")
+        print(f"        \\toprule")
+        print(f"        \\textbf{{Cancer Type}} & \\textbf{{Cox}} & \\textbf{{RSF}} & \\textbf{{DeepSurv}} \\\\")
+        print(f"        \\midrule")
+        
+        for project in filtered_projects:
+            project_short = project.replace('TCGA-', '')
+            row = f"        {project_short:<4}"
+            
+            for model in models:
+                value = results_dict.get(project, {}).get(model, "-")
+                row += f" & {value}"
+            
+            row += " \\\\"
+            print(row)
+        
+        print(f"        \\bottomrule")
+        print(f"    \\end{{tabular}}")
+        print(f"\\end{{table}}")
 
-# Generate LaTeX table
-print("\n\n## LaTeX Table\n")
+def generate_markdown_table(feature_name, projects_subset, results_dict, is_multimodal=False, modalities=None):
+    """Generate Markdown table for a single feature category."""
+    if is_multimodal:
+        print(f"\n### {feature_name}")
+        
+        # Filter projects with data
+        filtered_projects = []
+        for project in projects_subset:
+            has_data = False
+            for method in modalities:
+                for model in models:
+                    if results_dict.get(project, {}).get(method, {}).get(model, "-") != "-":
+                        has_data = True
+                        break
+                if has_data:
+                    break
+            if has_data:
+                filtered_projects.append(project)
+        
+        if not filtered_projects:
+            print("*No data available for this feature*")
+            return
+        
+        if len(modalities) == 2:  # Concat + Mean Pool
+            # Create horizontal table with both methods
+            print(f"\n| Cancer | Concatenation ||| Mean Pooling |||")
+            print(f"|--------|---------------|---------------|---------------|---------------|---------------|---------------|")
+            print(f"|        | Cox | RSF | DeepSurv | Cox | RSF | DeepSurv |")
+            print(f"|--------|-----|-----|----------|-----|-----|----------|")
+            
+            for project in filtered_projects:
+                project_short = project.replace('TCGA-', '')
+                row = f"| {project_short:<6} |"
+                
+                # Add values for each multimodal method
+                for method_key in modalities:
+                    for model in models:
+                        value = results_dict.get(project, {}).get(method_key, {}).get(model, "-")
+                        # Shorten values for markdown table
+                        if value != "-" and " ± " in value:
+                            parts = value.split(" ± ")
+                            value = f"{parts[0]}±{parts[1]}"
+                        row += f" {value:<13} |"
+                
+                print(row)
+        
+        elif len(modalities) == 1:  # Kronecker only
+            # Regular table format for single method
+            print(f"\n| Cancer Type | Cox | RSF | DeepSurv |")
+            print(f"|-------------|-----|-----|----------|")
+            
+            method_key = modalities[0]
+            for project in filtered_projects:
+                project_short = project.replace('TCGA-', '')
+                row = f"| {project_short:<11} |"
+                
+                for model in models:
+                    value = results_dict.get(project, {}).get(method_key, {}).get(model, "-")
+                    row += f" {value:<15} |"
+                
+                print(row)
+    else:
+        # Regular single-modality table
+        # Filter out projects where all values are "-"
+        filtered_projects = []
+        for project in projects_subset:
+            has_data = False
+            for model in models:
+                if results_dict.get(project, {}).get(model, "-") != "-":
+                    has_data = True
+                    break
+            if has_data:
+                filtered_projects.append(project)
+        
+        # If no data for this feature, skip the table
+        if not filtered_projects:
+            print(f"\n### {feature_name}")
+            print("*No data available for this feature*")
+            return
+        
+        print(f"\n### {feature_name}")
+        print(f"| Cancer Type | Cox | RSF | DeepSurv |")
+        print(f"|-------------|-----|-----|----------|")
+        
+        for project in filtered_projects:
+            project_short = project.replace('TCGA-', '')
+            row = f"| {project_short:<11} |"
+            
+            for model in models:
+                value = results_dict.get(project, {}).get(model, "-")
+                row += f" {value:<15} |"
+            
+            print(row)
+
+# Process each modality group
+print("# Survival Analysis Results - Transposed Tables\n")
+print("## Markdown Format\n")
+
+for idx, (feature_name, modalities) in enumerate(modality_groups.items(), 1):
+    # Get results for this feature category
+    results_dict = {}
+    
+    is_multimodal = ('Multimodal' in feature_name)
+    
+    if is_multimodal:
+        # Handle multimodal case - multiple modalities
+        for project in projects:
+            results_dict[project] = {}
+            
+            for modality in modalities:
+                results_dict[project][modality] = {}
+                
+                for model in models:
+                    # Filter data
+                    mask = (df['merged_project'] == project) & \
+                           (df['modality'] == modality) & \
+                           (df['model'] == model)
+                    
+                    subset = df[mask]
+                    
+                    if not subset.empty:
+                        mean_val = subset['mean_c_index'].iloc[0]
+                        std_val = subset['std_c_index'].iloc[0]
+                        results_dict[project][modality][model] = format_value(mean_val, std_val)
+                    else:
+                        results_dict[project][modality][model] = "-"
+    else:
+        # Handle single modality case
+        for project in projects:
+            results_dict[project] = {}
+            
+            for model in models:
+                # For this feature category, we'll use the first (and only) modality in the list
+                modality = modalities[0]
+                
+                # Filter data
+                mask = (df['merged_project'] == project) & \
+                       (df['modality'] == modality) & \
+                       (df['model'] == model)
+                
+                subset = df[mask]
+                
+                if not subset.empty:
+                    mean_val = subset['mean_c_index'].iloc[0]
+                    std_val = subset['std_c_index'].iloc[0]
+                    results_dict[project][model] = format_value(mean_val, std_val)
+                else:
+                    results_dict[project][model] = "-"
+    
+    # Generate markdown table
+    generate_markdown_table(feature_name, projects, results_dict, is_multimodal, modalities)
+
+# Generate LaTeX tables
+print("\n\n## LaTeX Format\n")
 print("```latex")
-print("\\begin{table}[htbp]")
-print("\\centering")
-print("\\caption{Survival Analysis C-Index Results (Cox Model) for Different Modalities Across TCGA Projects}")
-print("\\label{tab:survival_cindex}")
-print("\\resizebox{\\textwidth}{!}{%")
-print("\\begin{tabular}{l" + "c" * len(projects) + "}")
-print("\\toprule")
-print("Modality & " + " & ".join([p.replace("TCGA-", "") for p in projects]) + " \\\\")
-print("\\midrule")
 
-# Group modalities
-print("\\multicolumn{" + str(len(projects) + 1) + "}{l}{\\textit{Unimodal}} \\\\")
-for modality in ['clinical', 'pathology', 'radiology', 'molecular', 'wsi']:
-    row = f"{modality_names[modality]}"
-    for project in projects:
-        mean_val, std_val = results[project][modality]
-        if not np.isnan(mean_val):
-            row += f" & ${mean_val:.3f} \\pm {std_val:.3f}$"
-        else:
-            row += " & -"
-    row += " \\\\"
-    print(row)
+for idx, (feature_name, modalities) in enumerate(modality_groups.items(), 1):
+    # Get results for this feature category
+    results_dict = {}
+    
+    is_multimodal = ('Multimodal' in feature_name)
+    
+    if is_multimodal:
+        # Handle multimodal case - multiple modalities
+        for project in projects:
+            results_dict[project] = {}
+            
+            for modality in modalities:
+                results_dict[project][modality] = {}
+                
+                for model in models:
+                    # Filter data
+                    mask = (df['merged_project'] == project) & \
+                           (df['modality'] == modality) & \
+                           (df['model'] == model)
+                    
+                    subset = df[mask]
+                    
+                    if not subset.empty:
+                        mean_val = subset['mean_c_index'].iloc[0]
+                        std_val = subset['std_c_index'].iloc[0]
+                        results_dict[project][modality][model] = format_value(mean_val, std_val)
+                    else:
+                        results_dict[project][modality][model] = "-"
+    else:
+        # Handle single modality case
+        for project in projects:
+            results_dict[project] = {}
+            
+            for model in models:
+                # For this feature category, we'll use the first (and only) modality in the list
+                modality = modalities[0]
+                
+                # Filter data
+                mask = (df['merged_project'] == project) & \
+                       (df['modality'] == modality) & \
+                       (df['model'] == model)
+                
+                subset = df[mask]
+                
+                if not subset.empty:
+                    mean_val = subset['mean_c_index'].iloc[0]
+                    std_val = subset['std_c_index'].iloc[0]
+                    results_dict[project][model] = format_value(mean_val, std_val)
+                else:
+                    results_dict[project][model] = "-"
+    
+    # Generate LaTeX table
+    generate_latex_table(feature_name, projects, results_dict, idx, is_multimodal, modalities)
 
-print("\\midrule")
-print("\\multicolumn{" + str(len(projects) + 1) + "}{l}{\\textit{Multimodal}} \\\\")
-for modality in ['concat', 'mean_pool', 'kronecker']:
-    row = f"{modality_names[modality].replace('Multimodal ', '')}"
-    for project in projects:
-        mean_val, std_val = results[project][modality]
-        if not np.isnan(mean_val):
-            # Bold the best multimodal result for each project
-            best_multi = max([results[project][m][0] for m in ['concat', 'mean_pool', 'kronecker'] 
-                            if not np.isnan(results[project][m][0])])
-            if mean_val == best_multi:
-                row += f" & $\\mathbf{{{mean_val:.3f} \\pm {std_val:.3f}}}$"
-            else:
-                row += f" & ${mean_val:.3f} \\pm {std_val:.3f}$"
-        else:
-            row += " & -"
-    row += " \\\\"
-    print(row)
-
-print("\\bottomrule")
-print("\\end{tabular}%")
-print("}")
-print("\\end{table}")
 print("```")
 
-# Generate a summary statistics section
+# Generate summary statistics
 print("\n\n## Summary Statistics\n")
 
-# Find best performing modality for each project
-print("### Best Performing Modality by Project (Cox Model)\n")
-for project in projects:
-    best_modality = None
-    best_score = -1
-    for modality in modalities:
-        mean_val, _ = results[project][modality]
-        if not np.isnan(mean_val) and mean_val > best_score:
-            best_score = mean_val
-            best_modality = modality
-    print(f"- **{project}**: {modality_names[best_modality]} (C-index: {best_score:.3f})")
+# Find best performing method for each cancer type and feature
+print("### Best Performing Method by Cancer Type and Feature\n")
 
-# Calculate average improvement of multimodal over best unimodal
-print("\n### Multimodal vs Best Unimodal Performance\n")
-for project in projects:
-    # Find best unimodal
-    best_uni = max([results[project][m][0] for m in ['clinical', 'pathology', 'radiology', 'molecular', 'wsi'] 
-                    if not np.isnan(results[project][m][0])])
-    # Find best multimodal
-    best_multi = max([results[project][m][0] for m in ['concat', 'mean_pool', 'kronecker'] 
-                     if not np.isnan(results[project][m][0])])
-    improvement = ((best_multi - best_uni) / best_uni) * 100
-    print(f"- **{project}**: {improvement:+.1f}% ({'improvement' if improvement > 0 else 'degradation'})")
-
-# Create a simplified table showing only the best model for each modality type
-print("\n\n## Simplified Best Performance Table\n")
-print("| Project | Best Unimodal | C-Index | Best Multimodal | C-Index |")
-print("|---------|---------------|---------|-----------------|---------|")
-
-for project in projects:
-    # Find best unimodal
-    best_uni_modality = None
-    best_uni_score = -1
-    for modality in ['clinical', 'pathology', 'radiology', 'molecular', 'wsi']:
-        mean_val, std_val = results[project][modality]
-        if not np.isnan(mean_val) and mean_val > best_uni_score:
-            best_uni_score = mean_val
-            best_uni_std = std_val
-            best_uni_modality = modality
+for feature_name, modalities in modality_groups.items():
+    print(f"\n**{feature_name}:**")
     
-    # Find best multimodal
-    best_multi_modality = None
-    best_multi_score = -1
-    for modality in ['concat', 'mean_pool', 'kronecker']:
-        mean_val, std_val = results[project][modality]
-        if not np.isnan(mean_val) and mean_val > best_multi_score:
-            best_multi_score = mean_val
-            best_multi_std = std_val
-            best_multi_modality = modality
-    
-    print(f"| {project} | {modality_names[best_uni_modality]} | "
-          f"{best_uni_score:.3f} ± {best_uni_std:.3f} | "
-          f"{modality_names[best_multi_modality].replace('Multimodal ', '')} | "
-          f"{best_multi_score:.3f} ± {best_multi_std:.3f} |")
+    if 'Multimodal' in feature_name:
+        # For multimodal, show best across all methods
+        for project in projects[:5]:  # Show first 5 as examples
+            project_short = project.replace('TCGA-', '')
+            best_model = None
+            best_method = None
+            best_score = -1
+            
+            for modality in modalities:
+                for model in models:
+                    mask = (df['merged_project'] == project) & \
+                           (df['modality'] == modality) & \
+                           (df['model'] == model)
+                    subset = df[mask]
+                    
+                    if not subset.empty:
+                        mean_val = subset['mean_c_index'].iloc[0]
+                        if not np.isnan(mean_val) and mean_val > best_score:
+                            best_score = mean_val
+                            best_model = model
+                            best_method = modality
+            
+            if best_model:
+                print(f"  - {project_short}: {multimodal_names[best_method]} + {model_names[best_model]} (C-index: {best_score:.3f})")
+    else:
+        modality = modalities[0]
+        
+        for project in projects[:5]:  # Show first 5 as examples
+            project_short = project.replace('TCGA-', '')
+            best_model = None
+            best_score = -1
+            
+            for model in models:
+                mask = (df['merged_project'] == project) & \
+                       (df['modality'] == modality) & \
+                       (df['model'] == model)
+                subset = df[mask]
+                
+                if not subset.empty:
+                    mean_val = subset['mean_c_index'].iloc[0]
+                    if not np.isnan(mean_val) and mean_val > best_score:
+                        best_score = mean_val
+                        best_model = model
+            
+            if best_model:
+                print(f"  - {project_short}: {model_names[best_model]} (C-index: {best_score:.3f})")

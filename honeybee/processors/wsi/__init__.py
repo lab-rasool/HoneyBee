@@ -14,6 +14,7 @@ from .stain_normalization import (
     normalize_reinhard,
     normalize_macenko,
     normalize_vahadane,
+    normalize_stain_tissue_aware,
     STAIN_NORM_TARGETS
 )
 
@@ -40,6 +41,7 @@ __all__ = [
     'normalize_reinhard',
     'normalize_macenko',
     'normalize_vahadane',
+    'normalize_stain_tissue_aware',
     'STAIN_NORM_TARGETS',
     
     # Stain separation
