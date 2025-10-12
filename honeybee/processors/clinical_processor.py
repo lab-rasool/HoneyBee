@@ -1269,10 +1269,83 @@ class ClinicalProcessor:
             "num_timeline_events": len(result.get("temporal_timeline", [])),
             "entity_types": {}
         }
-        
+
         # Count by type
         for entity in result.get("entities", []):
             entity_type = entity["type"]
             stats["entity_types"][entity_type] = stats["entity_types"].get(entity_type, 0) + 1
-            
+
         return stats
+
+    def generate_embeddings(
+        self,
+        text: Union[str, List[str]],
+        model_name: Optional[str] = None,
+        pooling_method: str = "mean",
+        batch_size: int = 32
+    ) -> np.ndarray:
+        """
+        Generate embeddings for clinical text using biomedical language models
+
+        This is a public API method that allows direct embedding generation
+        without requiring full document processing.
+
+        Args:
+            text: Clinical text string or list of text strings to embed
+            model_name: Name of the biomedical model to use. Options:
+                       - "bioclinicalbert" (default)
+                       - "pubmedbert"
+                       - "gatortron"
+                       - "clinicalt5"
+                       If None, uses the model specified in config or defaults to gatortron
+            pooling_method: How to pool token embeddings. Options:
+                          - "mean": Mean pooling (default)
+                          - "cls": Use CLS token
+                          - "max": Max pooling
+                          - "pooler_output": Use model's pooler output
+            batch_size: Batch size for processing multiple texts
+
+        Returns:
+            numpy array of embeddings with shape (num_texts, embedding_dim)
+
+        Example:
+            >>> processor = ClinicalProcessor()
+            >>> text = "Patient diagnosed with stage IV lung adenocarcinoma"
+            >>> embeddings = processor.generate_embeddings(text, model_name="gatortron")
+            >>> print(embeddings.shape)  # (1, 1024)
+        """
+        # Import HuggingFaceEmbedder
+        try:
+            from ..models import HuggingFaceEmbedder
+        except ImportError:
+            raise ImportError("HuggingFaceEmbedder not available. Please check installation.")
+
+        # Determine which model to use
+        if model_name is None:
+            model_name = self.config.get("tokenization", {}).get("model", "gatortron")
+
+        # Get model configuration
+        if model_name not in BIOMEDICAL_MODELS:
+            raise ValueError(
+                f"Unknown model: {model_name}. "
+                f"Available models: {list(BIOMEDICAL_MODELS.keys())}"
+            )
+
+        model_config = BIOMEDICAL_MODELS[model_name]
+
+        # Initialize embedder
+        self.logger.info(f"Initializing embedder with model: {model_config['model_name']}")
+        embedder = HuggingFaceEmbedder(
+            model_name=model_config["model_name"],
+            pooling_method=pooling_method,
+            max_length=model_config.get("max_length", 512)
+        )
+
+        # Generate embeddings
+        try:
+            embeddings = embedder.generate_embeddings(text, batch_size=batch_size)
+            self.logger.info(f"Generated embeddings with shape: {embeddings.shape}")
+            return embeddings
+        except Exception as e:
+            self.logger.error(f"Error generating embeddings: {e}")
+            raise
