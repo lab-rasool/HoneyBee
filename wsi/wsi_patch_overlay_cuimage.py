@@ -516,9 +516,9 @@ def main():
     parser.add_argument("--uni_model_path", type=str,
                        default="/mnt/d/Models/UNI/pytorch_model.bin",
                        help="Path to UNI model")
-    parser.add_argument("--tile_size", type=int, default=256,
+    parser.add_argument("--tile_size", type=int, default=64,
                        help="Size of patches to extract")
-    parser.add_argument("--max_patches", type=int, default=1000,
+    parser.add_argument("--max_patches", type=int, default=10000,
                        help="Maximum number of patches to process")
     parser.add_argument("--batch_size", type=int, default=32,
                        help="Batch size for embedding generation")

@@ -331,10 +331,10 @@ class MacenkoNormalizer:
         if 'stain_matrix' in params:
             self.target_stain_matrix = params['stain_matrix']
         if 'max_concentrations' in params:
-            self.target_max_conc = params['max_concentrations']
+            self.target_max_concentrations = params['max_concentrations']
         elif self.target_stain_matrix is not None:
             # Use default max concentrations if not provided
-            self.target_max_conc = np.array([1.0, 1.0])
+            self.target_max_concentrations = np.array([1.0, 1.0])
         return self
     
     def transform(self, source_image: np.ndarray, tissue_mask: Optional[np.ndarray] = None) -> np.ndarray:
