@@ -30,4 +30,5 @@ scipy
 pytesseract
 onnxruntime
 SimpleITK
-pydicom
+nibabel
+timm
