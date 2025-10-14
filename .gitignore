@@ -11,5 +11,6 @@ __pycache__
 /to_delete
 /models
 /honeybee/models/TissueDetector/weights
+/BACKUP
 
 CLAUDE.md
