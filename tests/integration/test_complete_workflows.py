@@ -150,7 +150,7 @@ class TestPathologyWorkflow:
 class TestRadiologyWorkflow:
     """Integration tests for radiology processing workflow"""
 
-    @patch('honeybee.loaders.Radiology.load_medical_image')
+    @patch('honeybee.processors.radiology.processor.load_medical_image')
     @patch('honeybee.models.RadImageNet.radimagenet.RadImageNet')
     def test_dicom_to_embeddings(self, mock_model, mock_load, sample_dicom_metadata):
         """Test complete workflow: DICOM → preprocessing → embeddings"""

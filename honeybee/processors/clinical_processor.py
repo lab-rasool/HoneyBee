@@ -90,7 +90,7 @@ CANCER_PATTERNS = {
     "tumor_size": r"(\d+\.?\d*)\s*(cm|mm|centimeter|millimeter)",
     "tnm_stage": r"(?i)(T[0-4][a-c]?|N[0-3][a-c]?|M[0-1][a-c]?)",
     "stage_group": r"(?i)(stage\s*[0-4]|stage\s*I{1,3}V?[A-C]?)",
-    "biomarker_status": r"(?i)(ER|PR|HER2|EGFR|ALK|ROS1|BRAF|KRAS|PD-L1)\s*(positive|negative|mutant|wild[\s-]?type|\+|-|\d+%)",
+    "biomarker_status": r"(?i)(ER|PR|HER2|EGFR|ALK|ROS1|BRAF|KRAS|PD-L1)(?:\s*:\s*|\s+)(positive|negative|mutant|wild[\s-]?type|\+|-|\d+%)",
     "treatment_response": r"(?i)(complete response|partial response|stable disease|progressive disease|CR|PR|SD|PD)"
 }
 

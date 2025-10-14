@@ -47,7 +47,7 @@ class TestRadiologyProcessorInitialization:
 class TestImageLoading:
     """Test image loading functionality"""
 
-    @patch('honeybee.loaders.Radiology.load_medical_image')
+    @patch('honeybee.processors.radiology.processor.load_medical_image')
     def test_load_image_basic(self, mock_load, sample_dicom_metadata):
         """Test basic image loading"""
         mock_image = np.random.randint(-1000, 1000, (64, 128, 128), dtype=np.int16)
