@@ -14,3 +14,13 @@ __pycache__
 /BACKUP
 
 CLAUDE.md
+
+# Build and distribution artifacts
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+
+# PyPI publishing
+.pypirc

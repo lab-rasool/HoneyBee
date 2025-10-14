@@ -5,6 +5,7 @@
   
   **A Scalable Modular Framework for Multimodal AI in Oncology**
   
+  [![PyPI version](https://img.shields.io/pypi/v/honeybee-ml.svg)](https://pypi.org/project/honeybee-ml/)
   [![arXiv](https://img.shields.io/badge/arXiv-2405.07460-b31b1b.svg)](https://arxiv.org/abs/2405.07460)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
   [![GitHub stars](https://img.shields.io/github/stars/lab-rasool/HoneyBee?style=social)](https://github.com/lab-rasool/HoneyBee/stargazers)
@@ -104,6 +105,18 @@ brew install openslide tesseract
 
 ### Installation
 
+#### From PyPI (Recommended)
+
+```bash
+# Install the base package
+pip install honeybee-ml
+
+# Download required NLTK data for clinical processing
+python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"
+```
+
+#### From Source (Development)
+
 ```bash
 # Clone the repository
 git clone https://github.com/lab-rasool/HoneyBee.git
@@ -113,9 +126,9 @@ cd HoneyBee
 pip install -r requirements.txt
 
 # Download required NLTK data
-python -c "import nltk; nltk.download('punkt')"
+python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"
 
-# Install HoneyBee in development mode
+# Install in development mode
 pip install -e .
 ```
 
@@ -152,7 +165,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ```bash
 # Fork and clone your fork
-git clone https://github.com/YOUR_USERNAME/HoneyBee.git
+git clone https://github.com/lab-rasool/HoneyBee.git
 cd HoneyBee
 
 # Create a virtual environment
@@ -190,9 +203,3 @@ If you use HoneyBee in your research, please cite our paper:
     primaryClass={cs.LG}
 }
 ```
-
----
-
-<div align="center">
-  Made with ❤️ by the <a href="https://github.com/lab-rasool">Lab Rasool</a> team
-</div>
