@@ -1,6 +1,0 @@
-modality_combination,count,percentage
-clinical+molecular+pathology,7971,73.42
-clinical+molecular+molecular,2412,22.22
-clinical+pathology+wsi,369,3.4
-clinical+pathology,73,0.67
-clinical+pathology+radiology,32,0.29
