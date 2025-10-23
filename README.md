@@ -6,14 +6,21 @@
   **A Scalable Modular Framework for Multimodal AI in Oncology**
   
   [![PyPI version](https://img.shields.io/pypi/v/honeybee-ml.svg)](https://pypi.org/project/honeybee-ml/)
+  [![Nature Digital Medicine](https://img.shields.io/badge/Nature%20Digital%20Medicine-Published-success.svg)](https://www.nature.com/articles/s41746-025-02003-4)
   [![arXiv](https://img.shields.io/badge/arXiv-2405.07460-b31b1b.svg)](https://arxiv.org/abs/2405.07460)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
   [![GitHub stars](https://img.shields.io/github/stars/lab-rasool/HoneyBee?style=social)](https://github.com/lab-rasool/HoneyBee/stargazers)
   [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
   [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
   
-  [Documentation](https://lab-rasool.github.io/HoneyBee/) | [Paper](https://arxiv.org/abs/2405.07460) | [Examples](examples/) | [Demo](app.py) | [Google Colab](https://colab.research.google.com/)
+  [Documentation](https://lab-rasool.github.io/HoneyBee/) | [Paper](https://www.nature.com/articles/s41746-025-02003-4) | [Examples](examples/) | [Demo](app.py) | [Google Colab](https://colab.research.google.com/)
 </div>
+
+## 📰 Publication
+
+🎉 **HoneyBee has been officially published in [Nature Digital Medicine](https://www.nature.com/articles/s41746-025-02003-4)!**
+
+> Tripathi, A., Waqas, A., Schabath, M.B. et al. HONeYBEE: enabling scalable multimodal AI in oncology through foundation model-driven embeddings. *npj Digit. Med.* **8**, 622 (2025). https://doi.org/10.1038/s41746-025-02003-4
 
 ## 🚀 Overview
 
