@@ -192,14 +192,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 If you use HoneyBee in your research, please cite our paper:
 
-```bibtex
-@article{tripathi2024honeybee,
-    title={HoneyBee: A Scalable Modular Framework for Creating Multimodal Oncology Datasets with Foundational Embedding Models},
-    author={Aakash Tripathi and Asim Waqas and Yasin Yilmaz and Ghulam Rasool},
-    journal={arXiv preprint arXiv:2405.07460},
-    year={2024},
-    eprint={2405.07460},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG}
-}
 ```
+Tripathi, A., Waqas, A., Schabath, M.B. et al. HONeYBEE: enabling scalable multimodal AI in
+oncology through foundation model-driven embeddings. npj Digit. Med. 8, 622 (2025).
+https://doi.org/10.1038/s41746-025-02003-4
+```
+
