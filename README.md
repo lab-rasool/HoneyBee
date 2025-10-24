@@ -5,9 +5,9 @@
   
   **A Scalable Modular Framework for Multimodal AI in Oncology**
   
-  [![PyPI version](https://img.shields.io/pypi/v/honeybee-ml.svg)](https://pypi.org/project/honeybee-ml/)
   [![Nature Digital Medicine](https://img.shields.io/badge/Nature%20Digital%20Medicine-Published-success.svg)](https://www.nature.com/articles/s41746-025-02003-4)
-  [![arXiv](https://img.shields.io/badge/arXiv-2405.07460-b31b1b.svg)](https://arxiv.org/abs/2405.07460)
+  [![PyPI version](https://img.shields.io/pypi/v/honeybee-ml.svg)](https://pypi.org/project/honeybee-ml/)
+  [![PyPI Downloads](https://static.pepy.tech/badge/honeybee-ml)](https://pepy.tech/projects/honeybee-ml)  
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
   [![GitHub stars](https://img.shields.io/github/stars/lab-rasool/HoneyBee?style=social)](https://github.com/lab-rasool/HoneyBee/stargazers)
   [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
@@ -204,4 +204,5 @@ Tripathi, A., Waqas, A., Schabath, M.B. et al. HONeYBEE: enabling scalable multi
 oncology through foundation model-driven embeddings. npj Digit. Med. 8, 622 (2025).
 https://doi.org/10.1038/s41746-025-02003-4
 ```
+
 
