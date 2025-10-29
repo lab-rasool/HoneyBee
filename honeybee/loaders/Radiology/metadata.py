@@ -5,7 +5,7 @@ Standardized metadata container for medical images.
 """
 
 from dataclasses import dataclass, field
-from typing import Tuple, List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 
 @dataclass

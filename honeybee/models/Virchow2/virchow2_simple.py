@@ -1,12 +1,11 @@
-import torch
-import torch.nn as nn
-import timm
+import os
+
 import numpy as np
+import timm
+import torch
+from huggingface_hub import hf_hub_download
 from PIL import Image
 from torchvision import transforms
-import requests
-import os
-from huggingface_hub import hf_hub_download
 
 
 class Virchow2:
@@ -18,7 +17,7 @@ class Virchow2:
     def __init__(self, model_path=None, use_hf=True):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        print(f"Loading Virchow2 model...")
+        print("Loading Virchow2 model...")
 
         # Create DINOv2 ViT-L/14 model
         self.model = timm.create_model(

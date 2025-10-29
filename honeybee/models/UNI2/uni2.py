@@ -1,11 +1,11 @@
-import torch
-import torch.nn as nn
-import timm
+import os
+
 import numpy as np
+import timm
+import torch
+from huggingface_hub import hf_hub_download
 from PIL import Image
 from torchvision import transforms
-from huggingface_hub import login, hf_hub_download
-import os
 
 
 class UNI2:
@@ -19,7 +19,7 @@ class UNI2:
     def __init__(self, model_path=None, use_auth_token=False):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        print(f"Loading UNI2-h model (proper implementation)...")
+        print("Loading UNI2-h model (proper implementation)...")
 
         # Model configuration from official documentation
         self.timm_kwargs = {

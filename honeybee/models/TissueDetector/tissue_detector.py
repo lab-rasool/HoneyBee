@@ -1,8 +1,9 @@
+from pathlib import Path
+
 import torch
 import torch.nn as nn
-from torchvision import models, transforms
-from pathlib import Path
 from huggingface_hub import hf_hub_download
+from torchvision import models, transforms
 
 
 class TissueDetector:
@@ -42,7 +43,7 @@ class TissueDetector:
                     filename="model.safetensors",
                     cache_dir=local_weights_dir.parent / ".cache",
                 )
-                print(f"✓ Downloaded SafeTensors weights from HuggingFace Hub")
+                print("✓ Downloaded SafeTensors weights from HuggingFace Hub")
                 return model_path
             except Exception as e:
                 print(f"SafeTensors not available, trying PyTorch format: {e}")
@@ -53,7 +54,7 @@ class TissueDetector:
                 filename="deep-tissue-detector_densenet_state-dict.pt",
                 cache_dir=local_weights_dir.parent / ".cache",
             )
-            print(f"✓ Downloaded PyTorch weights from HuggingFace Hub")
+            print("✓ Downloaded PyTorch weights from HuggingFace Hub")
             return model_path
 
         except Exception as e:

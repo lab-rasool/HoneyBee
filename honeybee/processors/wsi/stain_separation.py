@@ -5,14 +5,13 @@ Provides color deconvolution functionality for separating individual stains
 in histopathology images, particularly H&E (Hematoxylin & Eosin) stained slides.
 """
 
+from typing import Dict, Optional, Tuple
+
 import numpy as np
-from typing import Tuple, Optional, Dict
-import warnings
-from skimage.color import rgb2hed, hed2rgb
-from skimage.exposure import rescale_intensity
+from skimage.color import hed2rgb, rgb2hed
 
 # Import stain matrix extraction from normalization module
-from .stain_normalization import rgb_to_od, od_to_rgb, get_stain_matrix_macenko
+from .stain_normalization import od_to_rgb, rgb_to_od
 
 
 class StainSeparator:

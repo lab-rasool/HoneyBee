@@ -4,34 +4,29 @@ Radiology Processor
 Main processor for radiological imaging data using modular components.
 """
 
-import os
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Tuple, Any
-import warnings
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import SimpleITK as sitk
 import torch
-import torch.nn as nn
-from scipy import ndimage
-from skimage import morphology, filters, segmentation, measure
 from scipy.ndimage import binary_fill_holes
-import cv2
+from skimage import measure, morphology
 
 # Import modular components
-from ...loaders.Radiology import DicomLoader, NiftiLoader, ImageMetadata, load_medical_image
+from ...loaders.Radiology import DicomLoader, ImageMetadata, NiftiLoader, load_medical_image
+from ...models import REMEDIS, RadImageNet
 from .preprocessing import (
+    ArtifactReducer,
     Denoiser,
     IntensityNormalizer,
     WindowLevelAdjuster,
-    ArtifactReducer,
     preprocess_ct,
     preprocess_mri,
     preprocess_pet,
 )
 from .segmentation import CTSegmenter, MRISegmenter, PETSegmenter
-from ...models import REMEDIS, RadImageNet
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

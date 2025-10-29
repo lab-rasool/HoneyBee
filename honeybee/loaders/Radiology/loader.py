@@ -4,16 +4,14 @@ Medical Image Loaders
 Unified loaders for DICOM and NIfTI formats with metadata extraction.
 """
 
-import os
-import numpy as np
-import pydicom
-import nibabel as nib
-from typing import Union, Dict, List, Tuple, Optional, Any
-from pathlib import Path
-import SimpleITK as sitk
 import logging
 from concurrent.futures import ThreadPoolExecutor
-import warnings
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
+
+import nibabel as nib
+import numpy as np
+import pydicom
 
 from .metadata import ImageMetadata
 

@@ -4,12 +4,12 @@ Radiology Dataset Management
 Dataset class for managing collections of medical images with lazy loading support.
 """
 
-import os
+import logging
+from pathlib import Path
+from typing import List, Optional, Tuple, Union
+
 import numpy as np
 import pydicom
-from typing import Union, List, Tuple, Optional
-from pathlib import Path
-import logging
 
 from .loader import DicomLoader, NiftiLoader
 from .metadata import ImageMetadata

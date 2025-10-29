@@ -5,10 +5,11 @@ Tests all functionality of the clinical text processing module including
 document processing, entity extraction, tokenization, and embedding generation.
 """
 
-import pytest
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-from pathlib import Path
-from unittest.mock import patch, MagicMock, Mock
+import pytest
+
 from honeybee.processors import ClinicalProcessor
 
 

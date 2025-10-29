@@ -1,31 +1,22 @@
-"""
-Clinical Processor for HoneyBee - Fixed Version
-
-Complete implementation for processing clinical oncology data with OCR, tokenization,
-and entity recognition capabilities. This version includes proper error handling and
-default values for configuration options.
-"""
-
-import re
 import json
 import logging
+import re
+import xml.etree.ElementTree as ET
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
-from datetime import datetime
 
-# External dependencies
+import cv2
+import dateutil.parser
+import nltk
 import numpy as np
 import pandas as pd
+import pdf2image
 import pytesseract
+import torch
 from PIL import Image, ImageEnhance, ImageFilter
 from PyPDF2 import PdfReader
-import pdf2image
-import cv2
-import torch
 from transformers import AutoTokenizer
-import nltk
-import dateutil.parser
-import xml.etree.ElementTree as ET
 
 # Ensure NLTK data is available
 try:
@@ -433,7 +424,7 @@ class ClinicalProcessor:
                 with open(file_path, "r", encoding="utf-8") as f:
                     text = f.read()
                 return {"text": text, "extraction_method": "direct_read"}
-            except Exception as e:
+            except Exception:
                 raise ValueError(f"Unsupported file format: {suffix}")
 
     def _process_image_document(self, file_path: Path) -> Dict:

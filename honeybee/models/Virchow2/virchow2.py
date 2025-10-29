@@ -1,9 +1,8 @@
-import torch
-import torch.nn as nn
-from transformers import AutoModel, AutoImageProcessor
-import numpy as np
-from PIL import Image
 import os
+
+import numpy as np
+import torch
+from PIL import Image
 
 
 class Virchow2:
@@ -19,10 +18,10 @@ class Virchow2:
         self.model_name = "paige-ai/Virchow2"
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        print(f"Loading Virchow2 model from HuggingFace...")
+        print("Loading Virchow2 model from HuggingFace...")
         try:
             # Try loading with transformers first
-            from transformers import ViTModel, ViTImageProcessor
+            from transformers import ViTImageProcessor, ViTModel
 
             # Load as a ViT model without classification head
             self.model = ViTModel.from_pretrained(

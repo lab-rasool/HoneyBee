@@ -5,10 +5,11 @@ This module extends HoneyBee's embedding capabilities with Llama models,
 providing enhanced performance for long clinical documents and few-shot scenarios.
 """
 
+from typing import Dict, List, Optional, Union
+
+import numpy as np
 import torch
 from transformers import AutoModel, AutoTokenizer
-from typing import List, Dict, Optional, Union
-import numpy as np
 
 
 class LlamaEmbedder:

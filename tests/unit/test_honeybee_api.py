@@ -4,9 +4,11 @@ Unit tests for the main HoneyBee API
 Tests the core HoneyBee class and its methods for multimodal integration.
 """
 
-import pytest
+from unittest.mock import patch
+
 import numpy as np
-from unittest.mock import patch, MagicMock
+import pytest
+
 from honeybee import HoneyBee
 
 

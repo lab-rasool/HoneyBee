@@ -5,16 +5,16 @@ Modular preprocessing utilities for medical imaging.
 """
 
 from .preprocessing import (
+    ArtifactReducer,
     Denoiser,
     IntensityNormalizer,
     WindowLevelAdjuster,
-    ArtifactReducer,
     preprocess_ct,
     preprocess_mri,
     preprocess_pet,
 )
-from .segmentation import CTSegmenter, MRISegmenter, PETSegmenter
 from .processor import RadiologyProcessor
+from .segmentation import CTSegmenter, MRISegmenter, PETSegmenter
 
 __all__ = [
     "RadiologyProcessor",

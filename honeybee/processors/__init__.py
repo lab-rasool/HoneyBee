@@ -7,10 +7,10 @@ Provides unified interfaces for different data modality processors.
 from .clinical_processor import (
     ClinicalProcessor,
 )
+from .pathology_processor import PathologyProcessor
 
 # Import from new modular structure
 from .radiology import RadiologyProcessor
-from .pathology_processor import PathologyProcessor
 
 # Legacy imports no longer available from radiology_processor
 RadiologyImage = None

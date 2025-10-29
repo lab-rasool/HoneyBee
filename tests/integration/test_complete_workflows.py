@@ -5,10 +5,11 @@ Tests end-to-end pipelines that integrate multiple components across
 clinical, pathology, and radiology modalities.
 """
 
-import pytest
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+import pytest
+
 from honeybee import HoneyBee
 from honeybee.processors import ClinicalProcessor, PathologyProcessor
 from honeybee.processors.radiology import RadiologyProcessor

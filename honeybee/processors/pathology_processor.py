@@ -5,10 +5,11 @@ This module provides a high-level API for pathology image analysis, combining
 tissue detection, stain normalization, patch extraction, and embedding generation.
 """
 
-import numpy as np
-from pathlib import Path
-from typing import Dict, List, Optional, Union, Tuple
 import warnings
+from pathlib import Path
+from typing import Dict, Optional, Union
+
+import numpy as np
 
 # Lazy imports - loaded when needed to avoid requiring all dependencies at import time
 # These will be imported when the corresponding methods are called
@@ -195,10 +196,10 @@ class PathologyProcessor:
         """
         from ..loaders.Slide.slide import Slide
         from .wsi import (
-            ReinhardNormalizer,
-            MacenkoNormalizer,
-            VahadaneNormalizer,
             STAIN_NORM_TARGETS,
+            MacenkoNormalizer,
+            ReinhardNormalizer,
+            VahadaneNormalizer,
         )
 
         # Extract image array if Slide object provided

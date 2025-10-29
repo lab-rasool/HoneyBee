@@ -4,8 +4,6 @@ Based on the Macenko method with proper color space handling.
 """
 
 import numpy as np
-import cv2
-from typing import Optional, Tuple
 
 
 class WorkingMacenkoNormalizer:

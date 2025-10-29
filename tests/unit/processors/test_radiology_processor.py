@@ -5,12 +5,13 @@ Tests all functionality of the radiology imaging processing module including
 DICOM/NIfTI loading, preprocessing, segmentation, and embedding generation.
 """
 
-import pytest
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-from pathlib import Path
-from unittest.mock import patch, MagicMock, Mock
-from honeybee.processors.radiology import RadiologyProcessor
+import pytest
+
 from honeybee.loaders.Radiology.metadata import ImageMetadata
+from honeybee.processors.radiology import RadiologyProcessor
 
 
 class TestRadiologyProcessorInitialization:
@@ -427,7 +428,6 @@ class TestErrorHandling:
 
     def test_preprocess_without_metadata(self, sample_image_3d):
         """Test preprocessing without metadata"""
-        from honeybee.loaders.Radiology.metadata import ImageMetadata
 
         processor = RadiologyProcessor()
         # Should use generic preprocessing

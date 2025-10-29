@@ -1,14 +1,14 @@
+import logging
+from pathlib import Path
+from typing import Dict, List, Optional, Union
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision import models
 import torchvision.transforms as transforms
 from huggingface_hub import hf_hub_download
-import numpy as np
-import os
-from typing import Optional, Union, Dict, List, Tuple
-import logging
-from pathlib import Path
+from torchvision import models
 
 logger = logging.getLogger(__name__)
 

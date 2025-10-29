@@ -1,3 +1,3 @@
-from .llama_embedder import LlamaEmbedder, ClinicalLlamaProcessor
+from .llama_embedder import ClinicalLlamaProcessor, LlamaEmbedder
 
 __all__ = ["LlamaEmbedder", "ClinicalLlamaProcessor"]

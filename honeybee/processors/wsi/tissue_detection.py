@@ -5,14 +5,15 @@ Provides traditional computer vision methods for tissue detection in WSI
 without requiring deep learning models.
 """
 
-import numpy as np
+from typing import Dict, List, Optional, Tuple
+
 import cv2
-from typing import Tuple, Optional, Dict, List
-from scipy.ndimage import sobel, binary_fill_holes, label
-from skimage.filters import threshold_otsu, threshold_multiotsu
-from skimage.morphology import remove_small_objects, binary_closing, binary_opening, disk
-from skimage.color import rgb2hsv, rgb2gray
+import numpy as np
+from scipy.ndimage import binary_fill_holes, label, sobel
+from skimage.color import rgb2gray, rgb2hsv
+from skimage.filters import threshold_multiotsu, threshold_otsu
 from skimage.measure import regionprops
+from skimage.morphology import binary_closing, binary_opening, disk, remove_small_objects
 
 
 class ClassicalTissueDetector:

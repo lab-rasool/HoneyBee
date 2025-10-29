@@ -2,9 +2,8 @@
 Fixed stain normalization implementation based on the working version
 """
 
-import numpy as np
 import cv2
-from typing import Optional, Tuple, Dict, Union
+import numpy as np
 
 
 def normalize_macenko_fixed(source: np.ndarray, target: np.ndarray) -> np.ndarray:

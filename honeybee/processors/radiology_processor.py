@@ -6,6 +6,7 @@ It imports from the new modular structure while maintaining the original API.
 """
 
 import warnings
+
 from .radiology import RadiologyProcessor
 
 # Show deprecation warning

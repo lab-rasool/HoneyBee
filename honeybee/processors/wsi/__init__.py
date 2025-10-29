@@ -7,24 +7,22 @@ tissue detection, stain normalization, and embedding generation.
 
 # Re-export preprocessing components for backward compatibility
 from .stain_normalization import (
-    ReinhardNormalizer,
-    MacenkoNormalizer,
-    VahadaneNormalizer,
-    ColorAugmenter,
-    normalize_reinhard,
-    normalize_macenko,
-    normalize_vahadane,
-    normalize_stain_tissue_aware,
     STAIN_NORM_TARGETS,
+    ColorAugmenter,
+    MacenkoNormalizer,
+    ReinhardNormalizer,
+    VahadaneNormalizer,
+    normalize_macenko,
+    normalize_reinhard,
+    normalize_stain_tissue_aware,
+    normalize_vahadane,
 )
-
 from .stain_separation import (
     StainSeparator,
-    separate_stains,
     get_stain_concentrations,
+    separate_stains,
     visualize_stains,
 )
-
 from .tissue_detection import (
     ClassicalTissueDetector,
     detect_tissue,

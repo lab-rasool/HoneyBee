@@ -22,11 +22,10 @@ __all__ = [
     "STAIN_MATRIX_DEFAULT",
 ]
 
-import numpy as np
-import cv2
-from typing import Optional, Tuple, Dict, Union
-import warnings
+from typing import Dict, Optional, Tuple, Union
 
+import cv2
+import numpy as np
 
 # Standard stain normalization targets
 STAIN_NORM_TARGETS = {

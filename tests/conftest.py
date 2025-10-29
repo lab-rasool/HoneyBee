@@ -6,12 +6,12 @@ that can be used across all test modules.
 """
 
 import sys
-import os
-from pathlib import Path
-import pytest
-import numpy as np
-from unittest.mock import MagicMock, Mock
 import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import numpy as np
+import pytest
 
 # Add HoneyBee to path
 honeybee_path = Path(__file__).parent.parent

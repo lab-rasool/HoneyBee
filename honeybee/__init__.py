@@ -6,7 +6,8 @@ Main module providing unified interface for multimodal data processing.
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Union
+
 import numpy as np
 
 # Import processors
@@ -194,6 +195,5 @@ class HoneyBee:
 
 
 # Re-export commonly used classes
-from .processors import ClinicalProcessor
 
 __all__ = ["HoneyBee", "ClinicalProcessor"]

@@ -9,17 +9,17 @@ Implements various segmentation algorithms for CT, MRI, and PET images:
 - Metabolic volume segmentation for PET
 """
 
-import numpy as np
-from typing import Union, Tuple, Optional, Dict, List
-import cv2
-from scipy import ndimage
-from scipy.ndimage import label, binary_fill_holes, binary_erosion, binary_dilation
-from skimage import morphology, measure, segmentation, feature
-from skimage.filters import threshold_otsu, gaussian
-from skimage.segmentation import watershed
-from skimage.feature import peak_local_max
-import SimpleITK as sitk
 import logging
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import SimpleITK as sitk
+from scipy import ndimage
+from scipy.ndimage import binary_dilation, binary_erosion, binary_fill_holes, label
+from skimage import measure, morphology
+from skimage.feature import peak_local_max
+from skimage.filters import gaussian, threshold_otsu
+from skimage.segmentation import watershed
 
 logger = logging.getLogger(__name__)
 
