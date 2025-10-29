@@ -13,8 +13,8 @@ warnings.warn(
     "Importing from 'radiology_processor' is deprecated. "
     "Please import from 'honeybee.processors.radiology' instead.",
     DeprecationWarning,
-    stacklevel=2
+    stacklevel=2,
 )
 
 # Export for backward compatibility
-__all__ = ['RadiologyProcessor']
+__all__ = ["RadiologyProcessor"]

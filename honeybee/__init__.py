@@ -12,6 +12,7 @@ import numpy as np
 # Import processors
 from .processors import ClinicalProcessor
 
+
 class HoneyBee:
     """
     Main HoneyBee interface for multimodal cancer research applications
@@ -44,10 +45,7 @@ class HoneyBee:
         self.clinical_processor = ClinicalProcessor(config=clinical_config)
 
     def generate_embeddings(
-        self,
-        data: Union[str, List[str], np.ndarray],
-        modality: str = "clinical",
-        **kwargs
+        self, data: Union[str, List[str], np.ndarray], modality: str = "clinical", **kwargs
     ) -> np.ndarray:
         """
         Generate embeddings for different data modalities
@@ -82,27 +80,29 @@ class HoneyBee:
             # In a real implementation, you would have dedicated processors
             self.logger.warning(f"Modality {modality} not fully implemented, returning placeholder")
             return np.random.randn(1, 768)  # Placeholder embedding
-    
+
     def integrate_embeddings(self, embeddings_list: List[np.ndarray]) -> np.ndarray:
         """
         Integrate embeddings from multiple modalities
-        
+
         Args:
             embeddings_list: List of embedding arrays from different modalities
-            
+
         Returns:
             Integrated multimodal embeddings
         """
         if not embeddings_list:
             raise ValueError("No embeddings provided")
-        
+
         # Simple concatenation strategy
         # In a real implementation, you might use attention mechanisms or learned fusion
         integrated = np.concatenate(embeddings_list, axis=-1)
-        
-        self.logger.info(f"Integrated {len(embeddings_list)} modalities into shape {integrated.shape}")
+
+        self.logger.info(
+            f"Integrated {len(embeddings_list)} modalities into shape {integrated.shape}"
+        )
         return integrated
-    
+
     def predict_survival(self, embeddings: np.ndarray) -> Dict:
         """
         Predict survival outcomes from multimodal embeddings
@@ -121,14 +121,14 @@ class HoneyBee:
             "survival_probability": 0.75,
             "risk_score": 0.25,
             "confidence": 0.85,
-            "time_to_event": 365  # days
+            "time_to_event": 365,  # days
         }
 
     def process_clinical(
         self,
         document_path: Optional[Union[str, Path]] = None,
         text: Optional[str] = None,
-        save_output: bool = False
+        save_output: bool = False,
     ) -> Dict:
         """
         Process clinical documents or text
@@ -162,7 +162,7 @@ class HoneyBee:
         input_dir: Union[str, Path],
         file_pattern: str = "*",
         save_output: bool = True,
-        output_dir: Optional[Union[str, Path]] = None
+        output_dir: Optional[Union[str, Path]] = None,
     ) -> List[Dict]:
         """
         Process multiple clinical documents in batch
@@ -189,8 +189,9 @@ class HoneyBee:
             input_dir=input_dir,
             file_pattern=file_pattern,
             save_output=save_output,
-            output_dir=output_dir
+            output_dir=output_dir,
         )
+
 
 # Re-export commonly used classes
 from .processors import ClinicalProcessor

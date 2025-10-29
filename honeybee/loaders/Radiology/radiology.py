@@ -51,18 +51,14 @@ class DICOMPreprocessor:
                 )
             elif current_size > self.target_size:
                 start = (current_size - self.target_size) // 2
-                image = image[
-                    start : start + self.target_size, start : start + self.target_size
-                ]
+                image = image[start : start + self.target_size, start : start + self.target_size]
         return image
 
     def normalize_image(self, image):
         if self.normalize:
             min_val = np.min(image)
             max_val = np.max(image)
-            return (
-                (image - min_val) / (max_val - min_val) if max_val > min_val else image
-            )
+            return (image - min_val) / (max_val - min_val) if max_val > min_val else image
         return image
 
     def convert_to_three_channels(self, image):

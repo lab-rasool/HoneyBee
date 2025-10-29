@@ -30,16 +30,15 @@ class CTSegmenter:
     def __init__(self):
         self.lung_threshold = -320  # HU threshold for lung
         self.organ_thresholds = {
-            'liver': (-50, 150),
-            'spleen': (40, 130),
-            'kidney': (30, 120),
-            'bone': (200, 3000),
-            'muscle': (0, 100),
-            'fat': (-150, -30)
+            "liver": (-50, 150),
+            "spleen": (40, 130),
+            "kidney": (30, 120),
+            "bone": (200, 3000),
+            "muscle": (0, 100),
+            "fat": (-150, -30),
         }
 
-    def segment_lungs(self, image: np.ndarray,
-                     enhanced: bool = True) -> np.ndarray:
+    def segment_lungs(self, image: np.ndarray, enhanced: bool = True) -> np.ndarray:
         """
         Enhanced lung segmentation for CT
 
@@ -131,8 +130,7 @@ class CTSegmenter:
 
         return refined_mask
 
-    def segment_organs(self, image: np.ndarray,
-                      organs: List[str] = None) -> Dict[str, np.ndarray]:
+    def segment_organs(self, image: np.ndarray, organs: List[str] = None) -> Dict[str, np.ndarray]:
         """
         Multi-organ segmentation
 
@@ -141,7 +139,7 @@ class CTSegmenter:
             organs: List of organs to segment (default: ['liver', 'spleen', 'kidney'])
         """
         if organs is None:
-            organs = ['liver', 'spleen', 'kidney']
+            organs = ["liver", "spleen", "kidney"]
 
         results = {}
 
@@ -166,9 +164,9 @@ class CTSegmenter:
         mask = morphology.remove_small_holes(mask, area_threshold=200)
 
         # Organ-specific refinements
-        if organ == 'liver':
+        if organ == "liver":
             mask = self._refine_liver_segmentation(mask, image)
-        elif organ == 'kidney':
+        elif organ == "kidney":
             mask = self._refine_kidney_segmentation(mask, image)
 
         return mask
@@ -205,16 +203,19 @@ class CTSegmenter:
             refined_mask = np.zeros_like(mask)
             for comp in largest_two:
                 if comp > 0:  # Skip background
-                    refined_mask |= (labeled == comp)
+                    refined_mask |= labeled == comp
 
             return refined_mask
 
         return mask
 
-    def detect_nodules(self, image: np.ndarray,
-                      lung_mask: Optional[np.ndarray] = None,
-                      min_size: float = 3.0,
-                      max_size: float = 30.0) -> List[Dict]:
+    def detect_nodules(
+        self,
+        image: np.ndarray,
+        lung_mask: Optional[np.ndarray] = None,
+        min_size: float = 3.0,
+        max_size: float = 30.0,
+    ) -> List[Dict]:
         """
         Detect lung nodules
 
@@ -248,24 +249,25 @@ class CTSegmenter:
         nodules = []
         for blob in blobs:
             nodule = {
-                'position': blob[:3] if len(image.shape) == 3 else blob[:2],
-                'radius': blob[-1],
-                'diameter': blob[-1] * 2,
-                'intensity': image[tuple(map(int, blob[:len(image.shape)]))],
+                "position": blob[:3] if len(image.shape) == 3 else blob[:2],
+                "radius": blob[-1],
+                "diameter": blob[-1] * 2,
+                "intensity": image[tuple(map(int, blob[: len(image.shape)]))],
             }
             nodules.append(nodule)
 
         return nodules
 
-    def _detect_blobs_2d(self, image: np.ndarray, sigmas: np.ndarray,
-                        mask: np.ndarray) -> np.ndarray:
+    def _detect_blobs_2d(
+        self, image: np.ndarray, sigmas: np.ndarray, mask: np.ndarray
+    ) -> np.ndarray:
         """Detect blobs in 2D using LoG"""
         # Apply Laplacian of Gaussian
         log_images = []
 
         for sigma in sigmas:
             # LoG filter
-            log_image = ndimage.gaussian_laplace(image, sigma=sigma) * sigma ** 2
+            log_image = ndimage.gaussian_laplace(image, sigma=sigma) * sigma**2
             log_images.append(log_image)
 
         # Stack and find local maxima
@@ -276,7 +278,7 @@ class CTSegmenter:
             -log_stack.max(axis=-1),  # Negative for bright blobs
             min_distance=int(sigmas.min()),
             threshold_abs=0.1,
-            exclude_border=False
+            exclude_border=False,
         )
 
         # Filter by mask
@@ -290,8 +292,9 @@ class CTSegmenter:
 
         return np.array(blobs) if blobs else np.array([])
 
-    def _detect_blobs_3d(self, image: np.ndarray, sigmas: np.ndarray,
-                        mask: np.ndarray) -> np.ndarray:
+    def _detect_blobs_3d(
+        self, image: np.ndarray, sigmas: np.ndarray, mask: np.ndarray
+    ) -> np.ndarray:
         """Detect blobs in 3D volume"""
         # For 3D, we'll process slice by slice and then combine
         all_blobs = []
@@ -325,7 +328,7 @@ class CTSegmenter:
                 continue
 
             # Find all blobs within threshold
-            distances = np.sqrt(np.sum((blobs[:, :3] - blobs[i][:3])**2, axis=1))
+            distances = np.sqrt(np.sum((blobs[:, :3] - blobs[i][:3]) ** 2, axis=1))
             nearby = distances < distance_threshold
 
             # Average position and max radius
@@ -338,9 +341,13 @@ class CTSegmenter:
 
         return np.array(merged)
 
-    def segment_tumor(self, image: np.ndarray, seed_point: Tuple[int, ...],
-                     lower_threshold: float = -100,
-                     upper_threshold: float = 200) -> np.ndarray:
+    def segment_tumor(
+        self,
+        image: np.ndarray,
+        seed_point: Tuple[int, ...],
+        lower_threshold: float = -100,
+        upper_threshold: float = 200,
+    ) -> np.ndarray:
         """
         Segment tumor using region growing from seed point
 
@@ -359,7 +366,7 @@ class CTSegmenter:
             seedList=[seed_point[::-1]],  # SimpleITK uses (x, y, z) order
             lower=lower_threshold,
             upper=upper_threshold,
-            replaceValue=1
+            replaceValue=1,
         )
 
         # Convert back to numpy
@@ -377,14 +384,14 @@ class MRISegmenter:
 
     def __init__(self):
         self.brain_templates = {
-            't1': {'threshold_factor': 0.5},
-            't2': {'threshold_factor': 0.6},
-            'flair': {'threshold_factor': 0.4}
+            "t1": {"threshold_factor": 0.5},
+            "t2": {"threshold_factor": 0.6},
+            "flair": {"threshold_factor": 0.4},
         }
 
-    def extract_brain(self, image: np.ndarray,
-                     sequence: str = 't1',
-                     method: str = 'threshold') -> np.ndarray:
+    def extract_brain(
+        self, image: np.ndarray, sequence: str = "t1", method: str = "threshold"
+    ) -> np.ndarray:
         """
         Brain extraction (skull stripping)
 
@@ -393,11 +400,11 @@ class MRISegmenter:
             sequence: MRI sequence type ('t1', 't2', 'flair')
             method: Extraction method ('threshold', 'watershed', 'morphological')
         """
-        if method == 'threshold':
+        if method == "threshold":
             return self._threshold_brain_extraction(image, sequence)
-        elif method == 'watershed':
+        elif method == "watershed":
             return self._watershed_brain_extraction(image)
-        elif method == 'morphological':
+        elif method == "morphological":
             return self._morphological_brain_extraction(image)
         else:
             raise ValueError(f"Unknown method: {method}")
@@ -405,7 +412,7 @@ class MRISegmenter:
     def _threshold_brain_extraction(self, image: np.ndarray, sequence: str) -> np.ndarray:
         """Simple threshold-based brain extraction"""
         # Get threshold factor for sequence
-        factor = self.brain_templates.get(sequence, {}).get('threshold_factor', 0.5)
+        factor = self.brain_templates.get(sequence, {}).get("threshold_factor", 0.5)
 
         # Calculate threshold
         threshold = threshold_otsu(image) * factor
@@ -491,9 +498,13 @@ class MRISegmenter:
 
         return brain_mask
 
-    def segment_tumor(self, image: np.ndarray, seed_point: Tuple[int, ...],
-                     lower_threshold: Optional[float] = None,
-                     upper_threshold: Optional[float] = None) -> np.ndarray:
+    def segment_tumor(
+        self,
+        image: np.ndarray,
+        seed_point: Tuple[int, ...],
+        lower_threshold: Optional[float] = None,
+        upper_threshold: Optional[float] = None,
+    ) -> np.ndarray:
         """
         Segment tumor using region growing from seed point
 
@@ -518,7 +529,7 @@ class MRISegmenter:
             seedList=[seed_point[::-1]],  # SimpleITK uses (x, y, z) order
             lower=float(lower_threshold),
             upper=float(upper_threshold),
-            replaceValue=1
+            replaceValue=1,
         )
 
         # Convert back to numpy
@@ -536,15 +547,18 @@ class PETSegmenter:
 
     def __init__(self):
         self.suv_thresholds = {
-            'fixed': 2.5,
-            'liver': 1.5,  # Multiplier for liver mean
-            'blood': 2.0   # Multiplier for blood pool
+            "fixed": 2.5,
+            "liver": 1.5,  # Multiplier for liver mean
+            "blood": 2.0,  # Multiplier for blood pool
         }
 
-    def segment_metabolic_volume(self, image: np.ndarray,
-                               method: str = 'fixed',
-                               threshold: Optional[float] = None,
-                               reference_region: Optional[np.ndarray] = None) -> np.ndarray:
+    def segment_metabolic_volume(
+        self,
+        image: np.ndarray,
+        method: str = "fixed",
+        threshold: Optional[float] = None,
+        reference_region: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
         """
         Segment metabolically active tumor volume
 
@@ -554,20 +568,21 @@ class PETSegmenter:
             threshold: Manual threshold override
             reference_region: Mask for reference region (liver, blood pool)
         """
-        if method == 'fixed':
+        if method == "fixed":
             return self._fixed_threshold_segmentation(image, threshold)
-        elif method == 'adaptive':
+        elif method == "adaptive":
             return self._adaptive_threshold_segmentation(image, reference_region)
-        elif method == 'gradient':
+        elif method == "gradient":
             return self._gradient_based_segmentation(image)
         else:
             raise ValueError(f"Unknown method: {method}")
 
-    def _fixed_threshold_segmentation(self, image: np.ndarray,
-                                    threshold: Optional[float] = None) -> np.ndarray:
+    def _fixed_threshold_segmentation(
+        self, image: np.ndarray, threshold: Optional[float] = None
+    ) -> np.ndarray:
         """Fixed SUV threshold segmentation"""
         if threshold is None:
-            threshold = self.suv_thresholds['fixed']
+            threshold = self.suv_thresholds["fixed"]
 
         # Simple thresholding
         mask = image > threshold
@@ -580,8 +595,9 @@ class PETSegmenter:
 
         return mask
 
-    def _adaptive_threshold_segmentation(self, image: np.ndarray,
-                                       reference_region: Optional[np.ndarray] = None) -> np.ndarray:
+    def _adaptive_threshold_segmentation(
+        self, image: np.ndarray, reference_region: Optional[np.ndarray] = None
+    ) -> np.ndarray:
         """Adaptive threshold based on reference region"""
         if reference_region is None:
             # Auto-detect liver region (simplified)
@@ -591,10 +607,10 @@ class PETSegmenter:
         # Calculate reference statistics
         if reference_region.any():
             reference_mean = image[reference_region].mean()
-            threshold = reference_mean * self.suv_thresholds['liver']
+            threshold = reference_mean * self.suv_thresholds["liver"]
         else:
             # Fallback to fixed threshold
-            threshold = self.suv_thresholds['fixed']
+            threshold = self.suv_thresholds["fixed"]
 
         # Apply threshold
         mask = image > threshold
@@ -645,8 +661,8 @@ class PETSegmenter:
         if len(image.shape) == 3:
             # Assume axial orientation
             z_center = image.shape[0] // 2
-            liver_mask[:z_center//2] = False  # Remove lower slices
-            liver_mask[int(z_center*1.5):] = False  # Remove upper slices
+            liver_mask[: z_center // 2] = False  # Remove lower slices
+            liver_mask[int(z_center * 1.5) :] = False  # Remove upper slices
 
         # Get largest connected component
         labeled, num_features = label(liver_mask)
@@ -661,11 +677,11 @@ class PETSegmenter:
         """Calculate SUV metrics for segmented region"""
         if not mask.any():
             return {
-                'suv_max': 0.0,
-                'suv_mean': 0.0,
-                'suv_peak': 0.0,
-                'mtv': 0.0,  # Metabolic tumor volume
-                'tlg': 0.0   # Total lesion glycolysis
+                "suv_max": 0.0,
+                "suv_mean": 0.0,
+                "suv_peak": 0.0,
+                "mtv": 0.0,  # Metabolic tumor volume
+                "tlg": 0.0,  # Total lesion glycolysis
             }
 
         # Extract values in mask
@@ -688,24 +704,24 @@ class PETSegmenter:
         tlg = suv_mean * mtv
 
         return {
-            'suv_max': float(suv_max),
-            'suv_mean': float(suv_mean),
-            'suv_peak': float(suv_peak),
-            'mtv': float(mtv),
-            'tlg': float(tlg)
+            "suv_max": float(suv_max),
+            "suv_mean": float(suv_mean),
+            "suv_peak": float(suv_peak),
+            "mtv": float(mtv),
+            "tlg": float(tlg),
         }
 
-    def _calculate_suv_peak(self, image: np.ndarray, center: Tuple[int, ...],
-                          radius: int = 6) -> float:
+    def _calculate_suv_peak(
+        self, image: np.ndarray, center: Tuple[int, ...], radius: int = 6
+    ) -> float:
         """Calculate SUV peak in sphere around point"""
         # Create sphere mask
         if len(image.shape) == 2:
-            y, x = np.ogrid[:image.shape[0], :image.shape[1]]
-            mask = (x - center[1])**2 + (y - center[0])**2 <= radius**2
+            y, x = np.ogrid[: image.shape[0], : image.shape[1]]
+            mask = (x - center[1]) ** 2 + (y - center[0]) ** 2 <= radius**2
         else:
-            z, y, x = np.ogrid[:image.shape[0], :image.shape[1], :image.shape[2]]
-            mask = ((x - center[2])**2 + (y - center[1])**2 +
-                   (z - center[0])**2 <= radius**2)
+            z, y, x = np.ogrid[: image.shape[0], : image.shape[1], : image.shape[2]]
+            mask = (x - center[2]) ** 2 + (y - center[1]) ** 2 + (z - center[0]) ** 2 <= radius**2
 
         # Calculate mean in sphere
         if mask.any():

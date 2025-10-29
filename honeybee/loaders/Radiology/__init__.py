@@ -9,11 +9,11 @@ from .dataset import RadiologyDataset
 from .metadata import ImageMetadata
 
 __all__ = [
-    'DicomLoader',
-    'NiftiLoader',
-    'RadiologyDataset',
-    'ImageMetadata',
-    'load_medical_image',
-    'load_dicom_series',
-    'get_metadata'
+    "DicomLoader",
+    "NiftiLoader",
+    "RadiologyDataset",
+    "ImageMetadata",
+    "load_medical_image",
+    "load_dicom_series",
+    "get_metadata",
 ]

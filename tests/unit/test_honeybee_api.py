@@ -31,13 +31,14 @@ class TestHoneyBeeInitialization:
         """Test that clinical processor is properly initialized"""
         honeybee = HoneyBee()
         from honeybee.processors import ClinicalProcessor
+
         assert isinstance(honeybee.clinical_processor, ClinicalProcessor)
 
 
 class TestGenerateEmbeddings:
     """Test generate_embeddings method"""
 
-    @patch('honeybee.processors.ClinicalProcessor.generate_embeddings')
+    @patch("honeybee.processors.ClinicalProcessor.generate_embeddings")
     def test_clinical_embeddings_single_text(self, mock_generate):
         """Test generating embeddings for single clinical text"""
         mock_generate.return_value = np.random.randn(1, 768)
@@ -50,7 +51,7 @@ class TestGenerateEmbeddings:
         assert embeddings.shape == (1, 768)
         mock_generate.assert_called_once_with(text)
 
-    @patch('honeybee.processors.ClinicalProcessor.generate_embeddings')
+    @patch("honeybee.processors.ClinicalProcessor.generate_embeddings")
     def test_clinical_embeddings_multiple_texts(self, mock_generate):
         """Test generating embeddings for multiple clinical texts"""
         mock_generate.return_value = np.random.randn(3, 768)
@@ -59,7 +60,7 @@ class TestGenerateEmbeddings:
         texts = [
             "Patient with breast cancer",
             "Stage III adenocarcinoma",
-            "ER positive HER2 negative"
+            "ER positive HER2 negative",
         ]
         embeddings = honeybee.generate_embeddings(texts, modality="clinical")
 
@@ -67,7 +68,7 @@ class TestGenerateEmbeddings:
         assert embeddings.shape == (3, 768)
         mock_generate.assert_called_once_with(texts)
 
-    @patch('honeybee.processors.ClinicalProcessor.generate_embeddings')
+    @patch("honeybee.processors.ClinicalProcessor.generate_embeddings")
     def test_clinical_embeddings_with_model_name(self, mock_generate):
         """Test generating embeddings with specific model"""
         mock_generate.return_value = np.random.randn(1, 768)
@@ -75,9 +76,7 @@ class TestGenerateEmbeddings:
         honeybee = HoneyBee()
         text = "Patient with cancer"
         embeddings = honeybee.generate_embeddings(
-            text,
-            modality="clinical",
-            model_name="pubmedbert"
+            text, modality="clinical", model_name="pubmedbert"
         )
 
         assert embeddings is not None
@@ -87,8 +86,7 @@ class TestGenerateEmbeddings:
         """Test that pathology modality returns placeholder"""
         honeybee = HoneyBee()
         embeddings = honeybee.generate_embeddings(
-            np.random.randn(224, 224, 3),
-            modality="pathology"
+            np.random.randn(224, 224, 3), modality="pathology"
         )
 
         # Should return placeholder embedding
@@ -99,8 +97,7 @@ class TestGenerateEmbeddings:
         """Test that radiology modality returns placeholder"""
         honeybee = HoneyBee()
         embeddings = honeybee.generate_embeddings(
-            np.random.randn(64, 128, 128),
-            modality="radiology"
+            np.random.randn(64, 128, 128), modality="radiology"
         )
 
         # Should return placeholder embedding
@@ -111,10 +108,7 @@ class TestGenerateEmbeddings:
         """Test that non-text input for clinical raises error"""
         honeybee = HoneyBee()
         with pytest.raises(ValueError, match="Clinical modality requires text input"):
-            honeybee.generate_embeddings(
-                np.random.randn(100, 100),
-                modality="clinical"
-            )
+            honeybee.generate_embeddings(np.random.randn(100, 100), modality="clinical")
 
 
 class TestIntegrateEmbeddings:
@@ -144,7 +138,7 @@ class TestIntegrateEmbeddings:
     def test_integrate_three_modalities(self):
         """Test integrating embeddings from three modalities"""
         honeybee = HoneyBee()
-        emb1 = np.random.randn(1, 768)   # Clinical
+        emb1 = np.random.randn(1, 768)  # Clinical
         emb2 = np.random.randn(1, 1024)  # Pathology
         emb3 = np.random.randn(1, 2048)  # Radiology
 
@@ -174,13 +168,10 @@ class TestIntegrateEmbeddings:
 class TestProcessClinical:
     """Test process_clinical method"""
 
-    @patch('honeybee.processors.ClinicalProcessor.process')
+    @patch("honeybee.processors.ClinicalProcessor.process")
     def test_process_document(self, mock_process, temp_pdf_file):
         """Test processing clinical document"""
-        mock_process.return_value = {
-            "text": "Patient with cancer",
-            "entities": []
-        }
+        mock_process.return_value = {"text": "Patient with cancer", "entities": []}
 
         honeybee = HoneyBee()
         result = honeybee.process_clinical(document_path=temp_pdf_file)
@@ -189,13 +180,10 @@ class TestProcessClinical:
         assert "text" in result
         mock_process.assert_called_once()
 
-    @patch('honeybee.processors.ClinicalProcessor.process_text')
+    @patch("honeybee.processors.ClinicalProcessor.process_text")
     def test_process_text(self, mock_process_text, sample_clinical_text):
         """Test processing clinical text directly"""
-        mock_process_text.return_value = {
-            "text": sample_clinical_text,
-            "entities": []
-        }
+        mock_process_text.return_value = {"text": sample_clinical_text, "entities": []}
 
         honeybee = HoneyBee()
         result = honeybee.process_clinical(text=sample_clinical_text)
@@ -210,19 +198,13 @@ class TestProcessClinical:
         with pytest.raises(ValueError, match="Either document_path or text must be provided"):
             honeybee.process_clinical()
 
-    @patch('honeybee.processors.ClinicalProcessor.process')
+    @patch("honeybee.processors.ClinicalProcessor.process")
     def test_process_with_save_output(self, mock_process, temp_pdf_file):
         """Test processing with save_output=True"""
-        mock_process.return_value = {
-            "text": "Patient with cancer",
-            "entities": []
-        }
+        mock_process.return_value = {"text": "Patient with cancer", "entities": []}
 
         honeybee = HoneyBee()
-        result = honeybee.process_clinical(
-            document_path=temp_pdf_file,
-            save_output=True
-        )
+        result = honeybee.process_clinical(document_path=temp_pdf_file, save_output=True)
 
         assert result is not None
         mock_process.assert_called_once_with(temp_pdf_file, save_output=True)
@@ -231,12 +213,12 @@ class TestProcessClinical:
 class TestProcessClinicalBatch:
     """Test process_clinical_batch method"""
 
-    @patch('honeybee.processors.ClinicalProcessor.process_batch')
+    @patch("honeybee.processors.ClinicalProcessor.process_batch")
     def test_batch_processing(self, mock_process_batch, temp_dir):
         """Test batch processing of clinical documents"""
         mock_process_batch.return_value = [
             {"text": "Doc 1", "entities": []},
-            {"text": "Doc 2", "entities": []}
+            {"text": "Doc 2", "entities": []},
         ]
 
         honeybee = HoneyBee()
@@ -246,35 +228,26 @@ class TestProcessClinicalBatch:
         assert len(results) == 2
         mock_process_batch.assert_called_once()
 
-    @patch('honeybee.processors.ClinicalProcessor.process_batch')
+    @patch("honeybee.processors.ClinicalProcessor.process_batch")
     def test_batch_with_pattern(self, mock_process_batch, temp_dir):
         """Test batch processing with file pattern"""
         mock_process_batch.return_value = []
 
         honeybee = HoneyBee()
-        results = honeybee.process_clinical_batch(
-            input_dir=temp_dir,
-            file_pattern="*.pdf"
-        )
+        results = honeybee.process_clinical_batch(input_dir=temp_dir, file_pattern="*.pdf")
 
         assert results is not None
         mock_process_batch.assert_called_once_with(
-            input_dir=temp_dir,
-            file_pattern="*.pdf",
-            save_output=True,
-            output_dir=None
+            input_dir=temp_dir, file_pattern="*.pdf", save_output=True, output_dir=None
         )
 
-    @patch('honeybee.processors.ClinicalProcessor.process_batch')
+    @patch("honeybee.processors.ClinicalProcessor.process_batch")
     def test_batch_with_output_dir(self, mock_process_batch, temp_dir, temp_output_dir):
         """Test batch processing with custom output directory"""
         mock_process_batch.return_value = []
 
         honeybee = HoneyBee()
-        results = honeybee.process_clinical_batch(
-            input_dir=temp_dir,
-            output_dir=temp_output_dir
-        )
+        results = honeybee.process_clinical_batch(input_dir=temp_dir, output_dir=temp_output_dir)
 
         assert results is not None
         mock_process_batch.assert_called_once()
@@ -306,13 +279,13 @@ class TestPredictSurvival:
 class TestEndToEnd:
     """End-to-end tests for HoneyBee API"""
 
-    @patch('honeybee.processors.ClinicalProcessor.process_text')
-    @patch('honeybee.processors.ClinicalProcessor.generate_embeddings')
+    @patch("honeybee.processors.ClinicalProcessor.process_text")
+    @patch("honeybee.processors.ClinicalProcessor.generate_embeddings")
     def test_complete_clinical_workflow(self, mock_generate, mock_process, sample_clinical_text):
         """Test complete workflow: text → processing → embeddings"""
         mock_process.return_value = {
             "text": sample_clinical_text,
-            "entities": [{"type": "tumor", "text": "invasive ductal carcinoma"}]
+            "entities": [{"type": "tumor", "text": "invasive ductal carcinoma"}],
         }
         mock_generate.return_value = np.random.randn(1, 768)
 
@@ -328,7 +301,7 @@ class TestEndToEnd:
         assert embeddings is not None
         assert embeddings.shape == (1, 768)
 
-    @patch('honeybee.processors.ClinicalProcessor.generate_embeddings')
+    @patch("honeybee.processors.ClinicalProcessor.generate_embeddings")
     def test_multimodal_integration_workflow(self, mock_generate):
         """Test multimodal integration workflow"""
         mock_generate.return_value = np.random.randn(1, 768)

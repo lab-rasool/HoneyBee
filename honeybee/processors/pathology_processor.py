@@ -53,8 +53,7 @@ class PathologyProcessor:
         # Lazy loading - embedding model will be loaded when needed
         if self.model_name not in ["uni", "uni2", "virchow2", "remedis"]:
             raise ValueError(
-                f"Unknown model: {model}. "
-                f"Supported models: uni, uni2, virchow2, remedis"
+                f"Unknown model: {model}. Supported models: uni, uni2, virchow2, remedis"
             )
 
     def load_wsi(
@@ -63,7 +62,7 @@ class PathologyProcessor:
         tile_size: int = 512,
         max_patches: int = 500,
         visualize: bool = False,
-        verbose: bool = False
+        verbose: bool = False,
     ):
         """
         Load whole slide image.
@@ -89,7 +88,7 @@ class PathologyProcessor:
             tile_size=tile_size,
             max_patches=max_patches,
             visualize=visualize,
-            verbose=verbose
+            verbose=verbose,
         )
         return slide
 
@@ -99,7 +98,7 @@ class PathologyProcessor:
         method: str = "otsu",
         tissue_detector_path: Optional[str] = None,
         min_tissue_size: int = 1000,
-        **kwargs
+        **kwargs,
     ) -> np.ndarray:
         """
         Detect tissue regions in WSI.
@@ -135,9 +134,7 @@ class PathologyProcessor:
             # Use deep learning tissue detector
             if self.tissue_detector_dl is None:
                 if tissue_detector_path is None:
-                    raise ValueError(
-                        "tissue_detector_path required for deeplearning method"
-                    )
+                    raise ValueError("tissue_detector_path required for deeplearning method")
                 self.tissue_detector_dl = TissueDetector(model_path=tissue_detector_path)
 
             # If we have a Slide object, use its detection method
@@ -147,15 +144,15 @@ class PathologyProcessor:
                     slide_image_path=str(wsi.slide_image_path),
                     tile_size=wsi.tileSize,
                     tissue_detector=self.tissue_detector_dl,
-                    visualize=False
+                    visualize=False,
                 )
 
                 # Extract tissue mask from predictions
                 mask = np.zeros((wsi_with_detection.numTilesInY, wsi_with_detection.numTilesInX))
                 for address in wsi_with_detection.iterateTiles():
                     tile_info = wsi_with_detection.tileDictionary[address]
-                    if 'tissueLevel' in tile_info:
-                        mask[address[1], address[0]] = tile_info['tissueLevel']
+                    if "tissueLevel" in tile_info:
+                        mask[address[1], address[0]] = tile_info["tissueLevel"]
 
                 return mask > 0.5  # Binary mask with threshold
             else:
@@ -167,11 +164,7 @@ class PathologyProcessor:
                 method = "otsu_hsv"
 
         # Use classical detection methods
-        detector = ClassicalTissueDetector(
-            method=method,
-            min_tissue_size=min_tissue_size,
-            **kwargs
-        )
+        detector = ClassicalTissueDetector(method=method, min_tissue_size=min_tissue_size, **kwargs)
         return detector.detect(image)
 
     def normalize_stain(
@@ -180,7 +173,7 @@ class PathologyProcessor:
         method: str = "reinhard",
         target: Optional[np.ndarray] = None,
         use_target_params: bool = True,
-        **kwargs
+        **kwargs,
     ) -> np.ndarray:
         """
         Normalize stain appearance.
@@ -205,7 +198,7 @@ class PathologyProcessor:
             ReinhardNormalizer,
             MacenkoNormalizer,
             VahadaneNormalizer,
-            STAIN_NORM_TARGETS
+            STAIN_NORM_TARGETS,
         )
 
         # Extract image array if Slide object provided
@@ -244,17 +237,12 @@ class PathologyProcessor:
                 raise ValueError("Either target image or use_target_params=True required")
         else:
             raise ValueError(
-                f"Unknown normalization method: {method}. "
-                f"Supported: reinhard, macenko, vahadane"
+                f"Unknown normalization method: {method}. Supported: reinhard, macenko, vahadane"
             )
 
         return normalizer.transform(image)
 
-    def separate_stains(
-        self,
-        wsi,
-        method: str = "hed"
-    ) -> Dict[str, np.ndarray]:
+    def separate_stains(self, wsi, method: str = "hed") -> Dict[str, np.ndarray]:
         """
         Separate H&E stain components.
 
@@ -289,13 +277,13 @@ class PathologyProcessor:
 
         # Rename 'background' to 'dab' for consistency with website docs
         return {
-            'hematoxylin': result['hematoxylin'],
-            'eosin': result['eosin'],
-            'dab': result.get('background', np.zeros_like(result['hematoxylin'])),
-            'rgb_h': result.get('rgb_h'),
-            'rgb_e': result.get('rgb_e'),
-            'rgb_d': result.get('rgb_d'),
-            'concentrations': result.get('concentrations')
+            "hematoxylin": result["hematoxylin"],
+            "eosin": result["eosin"],
+            "dab": result.get("background", np.zeros_like(result["hematoxylin"])),
+            "rgb_h": result.get("rgb_h"),
+            "rgb_e": result.get("rgb_e"),
+            "rgb_d": result.get("rgb_d"),
+            "concentrations": result.get("concentrations"),
         }
 
     def extract_patches(
@@ -305,7 +293,7 @@ class PathologyProcessor:
         patch_size: int = 256,
         overlap: float = 0.0,
         min_tissue_percentage: float = 0.5,
-        target_patch_size: Optional[int] = None
+        target_patch_size: Optional[int] = None,
     ) -> np.ndarray:
         """
         Extract patches from tissue regions.
@@ -328,7 +316,7 @@ class PathologyProcessor:
             target_patch_size = patch_size
 
         # Use Slide's built-in patch extraction if available
-        if hasattr(wsi, 'load_patches_concurrently'):
+        if hasattr(wsi, "load_patches_concurrently"):
             try:
                 # Extract patches with high tissue content
                 patches = wsi.load_patches_concurrently(target_patch_size=target_patch_size)
@@ -344,7 +332,7 @@ class PathologyProcessor:
             tile_info = wsi.tileDictionary[address]
 
             # Check tissue content
-            tissue_level = tile_info.get('tissueLevel', 0)
+            tissue_level = tile_info.get("tissueLevel", 0)
             if tissue_level >= threshold:
                 # Extract patch
                 patch = wsi.getTile(address, writeToNumpy=True)
@@ -354,21 +342,18 @@ class PathologyProcessor:
                     # Resize if needed
                     if patch.shape[0] != target_patch_size or patch.shape[1] != target_patch_size:
                         from skimage.transform import resize
+
                         patch = resize(
-                            patch,
-                            (target_patch_size, target_patch_size, 3),
-                            preserve_range=True
+                            patch, (target_patch_size, target_patch_size, 3), preserve_range=True
                         ).astype(np.uint8)
 
                     patches.append(patch)
 
-        return np.array(patches) if patches else np.zeros((0, target_patch_size, target_patch_size, 3))
+        return (
+            np.array(patches) if patches else np.zeros((0, target_patch_size, target_patch_size, 3))
+        )
 
-    def generate_embeddings(
-        self,
-        patches: np.ndarray,
-        batch_size: int = 32
-    ) -> np.ndarray:
+    def generate_embeddings(self, patches: np.ndarray, batch_size: int = 32) -> np.ndarray:
         """
         Generate embeddings from patches using the selected foundation model.
 
@@ -391,15 +376,19 @@ class PathologyProcessor:
             # Lazy load model
             if self.model_name == "uni":
                 from ..models.UNI.uni import UNI
+
                 self.embedding_model = UNI(model_path=self.model_path)
             elif self.model_name == "uni2":
                 from ..models.UNI2.uni2 import UNI2
+
                 self.embedding_model = UNI2(model_path=self.model_path)
             elif self.model_name == "virchow2":
                 from ..models.Virchow2.virchow2 import Virchow2
+
                 self.embedding_model = Virchow2(model_path=self.model_path)
             elif self.model_name == "remedis":
                 from ..models.REMEDIS.remedis import REMEDIS
+
                 self.embedding_model = REMEDIS(model_path=self.model_path)
 
         # Generate embeddings based on model type
@@ -407,31 +396,27 @@ class PathologyProcessor:
             # UNI and REMEDIS use load_model_and_predict
             all_embeddings = []
             for i in range(0, len(patches), batch_size):
-                batch = patches[i:i+batch_size]
+                batch = patches[i : i + batch_size]
                 embeddings = self.embedding_model.load_model_and_predict(batch)
                 all_embeddings.append(embeddings.cpu().numpy())
             return np.vstack(all_embeddings)
 
         elif self.model_name in ["uni2", "virchow2"]:
             # UNI2 and Virchow2 have generate_embeddings method
-            if hasattr(self.embedding_model, 'generate_embeddings'):
+            if hasattr(self.embedding_model, "generate_embeddings"):
                 return self.embedding_model.generate_embeddings(patches, batch_size=batch_size)
             else:
                 # Fallback to load_model_and_predict
                 all_embeddings = []
                 for i in range(0, len(patches), batch_size):
-                    batch = patches[i:i+batch_size]
+                    batch = patches[i : i + batch_size]
                     embeddings = self.embedding_model.load_model_and_predict(batch)
                     all_embeddings.append(embeddings.cpu().numpy())
                 return np.vstack(all_embeddings)
         else:
             raise ValueError(f"Unknown model: {self.model_name}")
 
-    def aggregate_embeddings(
-        self,
-        embeddings: np.ndarray,
-        method: str = "mean"
-    ) -> np.ndarray:
+    def aggregate_embeddings(self, embeddings: np.ndarray, method: str = "mean") -> np.ndarray:
         """
         Aggregate patch embeddings to slide-level representation.
 
@@ -463,8 +448,7 @@ class PathologyProcessor:
             return np.concatenate([mean_emb, std_emb])
         else:
             raise ValueError(
-                f"Unknown aggregation method: {method}. "
-                f"Supported: mean, max, median, std, concat"
+                f"Unknown aggregation method: {method}. Supported: mean, max, median, std, concat"
             )
 
     def process_slide(
@@ -475,7 +459,7 @@ class PathologyProcessor:
         patch_size: int = 256,
         min_tissue_percentage: float = 0.5,
         aggregation_method: str = "mean",
-        **kwargs
+        **kwargs,
     ) -> Dict:
         """
         Complete end-to-end processing pipeline for a single slide.
@@ -505,7 +489,7 @@ class PathologyProcessor:
         wsi = self.load_wsi(slide_path, tile_size=patch_size, **kwargs)
 
         # Detect tissue (using deep learning if slide has tissue detector)
-        if hasattr(wsi, 'tissue_detector') and wsi.tissue_detector is not None:
+        if hasattr(wsi, "tissue_detector") and wsi.tissue_detector is not None:
             tissue_mask = None  # Will use slide's internal detection
         else:
             tissue_mask = self.detect_tissue(wsi, method="otsu_hsv")
@@ -515,7 +499,7 @@ class PathologyProcessor:
             wsi,
             tissue_mask=tissue_mask,
             patch_size=patch_size,
-            min_tissue_percentage=min_tissue_percentage
+            min_tissue_percentage=min_tissue_percentage,
         )
 
         # Normalize patches if requested
@@ -524,9 +508,7 @@ class PathologyProcessor:
             for patch in patches:
                 try:
                     normalized_patch = self.normalize_stain(
-                        patch,
-                        method=normalization_method,
-                        use_target_params=True
+                        patch, method=normalization_method, use_target_params=True
                     )
                     normalized_patches.append(normalized_patch)
                 except Exception as e:
@@ -543,10 +525,10 @@ class PathologyProcessor:
             slide_embedding = np.array([])
 
         return {
-            'slide': wsi,
-            'tissue_mask': tissue_mask,
-            'patches': patches,
-            'embeddings': embeddings,
-            'slide_embedding': slide_embedding,
-            'num_patches': len(patches)
+            "slide": wsi,
+            "tissue_mask": tissue_mask,
+            "patches": patches,
+            "embeddings": embeddings,
+            "slide_embedding": slide_embedding,
+            "num_patches": len(patches),
         }

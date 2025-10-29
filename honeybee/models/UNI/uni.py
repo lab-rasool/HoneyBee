@@ -13,9 +13,7 @@ class UNI:
             dynamic_img_size=True,
         )
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model.load_state_dict(
-            torch.load(model_path, map_location=self.device), strict=True
-        )
+        model.load_state_dict(torch.load(model_path, map_location=self.device), strict=True)
         self.model = model.to(self.device)
         print(f"UNI model loaded on: {self.device}")
 

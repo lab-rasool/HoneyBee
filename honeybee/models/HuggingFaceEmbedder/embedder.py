@@ -11,15 +11,11 @@ class HuggingFaceEmbedder:
         max_length=512,
         use_fast_tokenizer=True,
     ):
-        self.device = (
-            device if device else ("cuda" if torch.cuda.is_available() else "cpu")
-        )
+        self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
         self.pooling_method = pooling_method
         self.max_length = max_length
 
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name, use_fast=use_fast_tokenizer
-        )
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=use_fast_tokenizer)
         self.model = AutoModel.from_pretrained(model_name)
         self.model.to(self.device)
         self.model.eval()
@@ -30,9 +26,7 @@ class HuggingFaceEmbedder:
     def _pool_mean(self, outputs, inputs):
         attention_mask = inputs["attention_mask"]
         token_embeddings = outputs.last_hidden_state
-        input_mask_expanded = (
-            attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        )
+        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
         sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
         sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
         return sum_embeddings / sum_mask
@@ -40,10 +34,7 @@ class HuggingFaceEmbedder:
     def _pool_max(self, outputs, inputs):
         token_embeddings = outputs.last_hidden_state
         input_mask_expanded = (
-            inputs["attention_mask"]
-            .unsqueeze(-1)
-            .expand(token_embeddings.size())
-            .float()
+            inputs["attention_mask"].unsqueeze(-1).expand(token_embeddings.size()).float()
         )
         token_embeddings[
             input_mask_expanded == 0
@@ -83,9 +74,7 @@ class HuggingFaceEmbedder:
                 embeddings = self._pool_mean(outputs, inputs)
             elif self.pooling_method == "max":
                 embeddings = self._pool_max(outputs, inputs)
-            elif self.pooling_method == "pooler_output" and hasattr(
-                outputs, "pooler_output"
-            ):
+            elif self.pooling_method == "pooler_output" and hasattr(outputs, "pooler_output"):
                 embeddings = self._pool_pooler_output(outputs)
             else:
                 # Return raw model output, extracting tensors to add to list

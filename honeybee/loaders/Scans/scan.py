@@ -15,10 +15,7 @@ class Scan:
         if vol.ndim == 3:  # If the input is a volume
             # Resize each slice and convert to RGB
             resized_and_colored = np.array(
-                [
-                    gray2rgb(resize(slice, target_size, anti_aliasing=True))
-                    for slice in vol
-                ]
+                [gray2rgb(resize(slice, target_size, anti_aliasing=True)) for slice in vol]
             )
         elif vol.ndim == 2:  # If the input is a single image
             resized = resize(vol, target_size, anti_aliasing=True)

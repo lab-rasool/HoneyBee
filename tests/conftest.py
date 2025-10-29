@@ -22,6 +22,7 @@ sys.path.insert(0, str(honeybee_path))
 # Path Fixtures
 # ============================================================================
 
+
 @pytest.fixture(scope="session")
 def project_root():
     """Path to HoneyBee project root"""
@@ -55,6 +56,7 @@ def sample_clinical_pdf_path(project_root):
 # ============================================================================
 # Sample Data Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def sample_clinical_text():
@@ -112,7 +114,7 @@ def sample_image_2d():
     image = np.random.randint(0, 255, (256, 256), dtype=np.uint8)
     # Add some structure (circle in center)
     y, x = np.ogrid[:256, :256]
-    mask = (x - 128)**2 + (y - 128)**2 <= 50**2
+    mask = (x - 128) ** 2 + (y - 128) ** 2 <= 50**2
     image[mask] = 200
     return image
 
@@ -124,7 +126,7 @@ def sample_image_3d():
     image = np.random.randint(-1000, 1000, (64, 128, 128), dtype=np.int16)
     # Add some anatomical-like structure
     z, y, x = np.ogrid[:64, :128, :128]
-    mask = (x - 64)**2 + (y - 64)**2 + (z - 32)**2 <= 30**2
+    mask = (x - 64) ** 2 + (y - 64) ** 2 + (z - 32) ** 2 <= 30**2
     image[mask] = 100  # Soft tissue density
     return image
 
@@ -157,6 +159,7 @@ def sample_embeddings():
 # Mock Model Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def mock_embedder():
     """Mock embedding model that returns random embeddings"""
@@ -177,7 +180,7 @@ def mock_tokenizer():
     tokenizer.pad_token_id = 0
     tokenizer.return_value = {
         "input_ids": [[101, 1234, 5678, 102]],
-        "attention_mask": [[1, 1, 1, 1]]
+        "attention_mask": [[1, 1, 1, 1]],
     }
     return tokenizer
 
@@ -187,9 +190,7 @@ def mock_uni_model():
     """Mock UNI model for pathology"""
     model = MagicMock()
     model.load_model_and_predict.return_value = MagicMock(
-        cpu=lambda: MagicMock(
-            numpy=lambda: np.random.randn(10, 1024).astype(np.float32)
-        )
+        cpu=lambda: MagicMock(numpy=lambda: np.random.randn(10, 1024).astype(np.float32))
     )
     return model
 
@@ -215,6 +216,7 @@ def mock_tissue_detector():
 # ============================================================================
 # Temporary File Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def temp_dir():
@@ -243,25 +245,22 @@ def temp_output_dir(temp_dir):
 # Configuration Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def clinical_config():
     """Sample clinical processor configuration"""
     return {
         "document_processor": {
             "use_ocr": False,  # Disable OCR for faster tests
-            "confidence_threshold": 60
+            "confidence_threshold": 60,
         },
-        "tokenization": {
-            "model": "gatortron",
-            "max_length": 512,
-            "segment_strategy": "sentence"
-        },
+        "tokenization": {"model": "gatortron", "max_length": 512, "segment_strategy": "sentence"},
         "entity_recognition": {
             "use_rules": True,
             "use_patterns": True,
             "cancer_specific_extraction": True,
-            "temporal_extraction": True
-        }
+            "temporal_extraction": True,
+        },
     }
 
 
@@ -271,7 +270,7 @@ def honeybee_config():
     return {
         "clinical": {
             "tokenization": {"model": "gatortron"},
-            "entity_recognition": {"use_rules": True}
+            "entity_recognition": {"use_rules": True},
         }
     }
 
@@ -280,10 +279,12 @@ def honeybee_config():
 # Metadata Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def sample_dicom_metadata():
     """Sample DICOM metadata with all required fields"""
     from honeybee.loaders.Radiology.metadata import ImageMetadata
+
     return ImageMetadata(
         modality="CT",
         patient_id="TEST001",
@@ -298,7 +299,7 @@ def sample_dicom_metadata():
         rescale_slope=1.0,
         rows=128,
         columns=128,
-        number_of_slices=64
+        number_of_slices=64,
     )
 
 
@@ -306,6 +307,7 @@ def sample_dicom_metadata():
 def sample_mri_metadata():
     """Sample MRI metadata"""
     from honeybee.loaders.Radiology.metadata import ImageMetadata
+
     return ImageMetadata(
         modality="MR",
         patient_id="TEST002",
@@ -313,7 +315,7 @@ def sample_mri_metadata():
         series_description="Brain MRI T1",
         pixel_spacing=(1.0, 1.0, 3.0),
         image_position=(0.0, 0.0, 0.0),
-        image_orientation=[1, 0, 0, 0, 1, 0]
+        image_orientation=[1, 0, 0, 0, 1, 0],
     )
 
 
@@ -321,6 +323,7 @@ def sample_mri_metadata():
 def sample_pet_metadata():
     """Sample PET metadata"""
     from honeybee.loaders.Radiology.metadata import ImageMetadata
+
     return ImageMetadata(
         modality="PT",
         patient_id="TEST003",
@@ -328,7 +331,7 @@ def sample_pet_metadata():
         series_description="PET CT Fusion",
         pixel_spacing=(2.0, 2.0, 2.0),
         image_position=(0.0, 0.0, 0.0),
-        image_orientation=[1, 0, 0, 0, 1, 0]
+        image_orientation=[1, 0, 0, 0, 1, 0],
     )
 
 
@@ -336,15 +339,12 @@ def sample_pet_metadata():
 # Pytest Configuration
 # ============================================================================
 
+
 def pytest_configure(config):
     """Pytest configuration hook"""
     # Add custom markers
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
-    config.addinivalue_line(
-        "markers", "gpu: mark test as requiring GPU"
-    )
+    config.addinivalue_line("markers", "slow: mark test as slow running")
+    config.addinivalue_line("markers", "gpu: mark test as requiring GPU")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -359,18 +359,16 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_slow)
         if "gpu" in item.keywords and not config.getoption("--rungpu", default=False):
             item.add_marker(skip_gpu)
-        if "requires_models" in item.keywords and not config.getoption("--runmodels", default=False):
+        if "requires_models" in item.keywords and not config.getoption(
+            "--runmodels", default=False
+        ):
             item.add_marker(skip_models)
 
 
 def pytest_addoption(parser):
     """Add custom command line options"""
-    parser.addoption(
-        "--runslow", action="store_true", default=False, help="run slow tests"
-    )
-    parser.addoption(
-        "--rungpu", action="store_true", default=False, help="run GPU tests"
-    )
+    parser.addoption("--runslow", action="store_true", default=False, help="run slow tests")
+    parser.addoption("--rungpu", action="store_true", default=False, help="run GPU tests")
     parser.addoption(
         "--runmodels", action="store_true", default=False, help="run tests requiring model weights"
     )

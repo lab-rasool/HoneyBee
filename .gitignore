@@ -12,6 +12,7 @@ __pycache__
 /models
 /honeybee/models/TissueDetector/weights
 /BACKUP
+/examples
 
 CLAUDE.md
 

@@ -125,10 +125,7 @@ class Slide:
         :return: The tile image, either as a PIL Image or a numpy array.
         """
         if len(tileAddress) == 2 and isinstance(tileAddress, tuple):
-            if (
-                self.numTilesInX >= tileAddress[0]
-                and self.numTilesInY >= tileAddress[1]
-            ):
+            if self.numTilesInX >= tileAddress[0] and self.numTilesInY >= tileAddress[1]:
                 tmpTile = self.slide.read_region(
                     (
                         self.tileDictionary[tileAddress]["x"],
@@ -145,12 +142,8 @@ class Slide:
                 else:
                     return tmpTile
 
-    def iterateTiles(
-        self, tileDictionary=False, includeImage=False, writeToNumpy=False
-    ):
-        tileDictionaryIterable = (
-            self.tileDictionary if not tileDictionary else tileDictionary
-        )
+    def iterateTiles(self, tileDictionary=False, includeImage=False, writeToNumpy=False):
+        tileDictionaryIterable = self.tileDictionary if not tileDictionary else tileDictionary
         for key, _ in tileDictionaryIterable.items():
             if includeImage:
                 yield key, self.getTile(key, writeToNumpy=writeToNumpy)
@@ -179,17 +172,13 @@ class Slide:
         for batch_index, inputs in enumerate(pathSlideDataloader):
             inputTile = inputs["image"].to(device)
             output = model(inputTile)
-            batch_prediction = (
-                torch.nn.functional.softmax(output, dim=1).cpu().data.numpy()
-            )
+            batch_prediction = torch.nn.functional.softmax(output, dim=1).cpu().data.numpy()
             for index in range(len(inputTile)):
                 tileAddress = (
                     inputs["tileAddress"][0][index].item(),
                     inputs["tileAddress"][1][index].item(),
                 )
-                self.tileDictionary[tileAddress][predictionKey] = batch_prediction[
-                    index, ...
-                ]
+                self.tileDictionary[tileAddress][predictionKey] = batch_prediction[index, ...]
 
         upsampleFactor = tissueDetectionUpsampleFactor
         for orphanTileAddress in self.iterateTiles():
@@ -197,19 +186,17 @@ class Slide:
                 {
                     "x": self.tileDictionary[orphanTileAddress]["x"] * upsampleFactor,
                     "y": self.tileDictionary[orphanTileAddress]["y"] * upsampleFactor,
-                    "width": self.tileDictionary[orphanTileAddress]["width"]
-                    * upsampleFactor,
-                    "height": self.tileDictionary[orphanTileAddress]["height"]
-                    * upsampleFactor,
+                    "width": self.tileDictionary[orphanTileAddress]["width"] * upsampleFactor,
+                    "height": self.tileDictionary[orphanTileAddress]["height"] * upsampleFactor,
                 }
             )
 
         self.predictionMap = np.zeros([self.numTilesInY, self.numTilesInX, 3])
         for address in self.iterateTiles():
             if "tissue_detector" in self.tileDictionary[address]:
-                self.predictionMap[address[1], address[0], :] = self.tileDictionary[
-                    address
-                ]["tissue_detector"]
+                self.predictionMap[address[1], address[0], :] = self.tileDictionary[address][
+                    "tissue_detector"
+                ]
 
         predictionMap2 = np.zeros([self.numTilesInY, self.numTilesInX])
         predictionMap1res = resize(
@@ -229,9 +216,7 @@ class Slide:
 
     def load_tile_thread(self, start_loc, patch_size, target_size):
         try:
-            tile = np.asarray(
-                self.img.read_region(start_loc, [patch_size, patch_size], 0)
-            )
+            tile = np.asarray(self.img.read_region(start_loc, [patch_size, patch_size], 0))
             if tile.ndim == 3 and tile.shape[2] == 3:  # Corrected condition
                 transform = Compose([Resize(height=target_size, width=target_size)])
                 tile = transform(image=tile)["image"]
@@ -254,15 +239,11 @@ class Slide:
                     )
                 )
         num_patches = len(tissue_coordinates)
-        patches = np.zeros(
-            (num_patches, target_patch_size, target_patch_size, 3), dtype=np.uint8
-        )
+        patches = np.zeros((num_patches, target_patch_size, target_patch_size, 3), dtype=np.uint8)
 
         def load_and_store_patch(index):
             start_loc = tissue_coordinates[index]
-            patches[index] = self.load_tile_thread(
-                start_loc, self.tileSize, target_patch_size
-            )
+            patches[index] = self.load_tile_thread(start_loc, self.tileSize, target_patch_size)
 
         with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
             executor.map(load_and_store_patch, range(num_patches))
@@ -273,9 +254,7 @@ class Slide:
         # Extract coordinates of all patches
         coords = []
         for address in self.suitableTileAddresses():
-            coords.append(
-                (self.tileDictionary[address]["x"], self.tileDictionary[address]["y"])
-            )
+            coords.append((self.tileDictionary[address]["x"], self.tileDictionary[address]["y"]))
         return np.array(coords)
 
     def visualize(self):

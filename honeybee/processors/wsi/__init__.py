@@ -15,44 +15,42 @@ from .stain_normalization import (
     normalize_macenko,
     normalize_vahadane,
     normalize_stain_tissue_aware,
-    STAIN_NORM_TARGETS
+    STAIN_NORM_TARGETS,
 )
 
 from .stain_separation import (
     StainSeparator,
     separate_stains,
     get_stain_concentrations,
-    visualize_stains
+    visualize_stains,
 )
 
 from .tissue_detection import (
     ClassicalTissueDetector,
     detect_tissue,
     get_tissue_bounding_boxes,
-    tissue_mask_to_contours
+    tissue_mask_to_contours,
 )
 
 __all__ = [
     # Stain normalization
-    'ReinhardNormalizer',
-    'MacenkoNormalizer',
-    'VahadaneNormalizer',
-    'ColorAugmenter',
-    'normalize_reinhard',
-    'normalize_macenko',
-    'normalize_vahadane',
-    'normalize_stain_tissue_aware',
-    'STAIN_NORM_TARGETS',
-    
+    "ReinhardNormalizer",
+    "MacenkoNormalizer",
+    "VahadaneNormalizer",
+    "ColorAugmenter",
+    "normalize_reinhard",
+    "normalize_macenko",
+    "normalize_vahadane",
+    "normalize_stain_tissue_aware",
+    "STAIN_NORM_TARGETS",
     # Stain separation
-    'StainSeparator',
-    'separate_stains',
-    'get_stain_concentrations',
-    'visualize_stains',
-    
+    "StainSeparator",
+    "separate_stains",
+    "get_stain_concentrations",
+    "visualize_stains",
     # Tissue detection
-    'ClassicalTissueDetector',
-    'detect_tissue',
-    'get_tissue_bounding_boxes',
-    'tissue_mask_to_contours'
+    "ClassicalTissueDetector",
+    "detect_tissue",
+    "get_tissue_bounding_boxes",
+    "tissue_mask_to_contours",
 ]

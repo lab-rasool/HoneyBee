@@ -53,8 +53,8 @@ class TestWSILoading:
         wsi = processor.load_wsi(sample_wsi_path)
 
         assert wsi is not None
-        assert hasattr(wsi, 'slide')
-        assert hasattr(wsi, 'slide_image_path')
+        assert hasattr(wsi, "slide")
+        assert hasattr(wsi, "slide_image_path")
 
     def test_load_wsi_with_params(self, sample_wsi_path):
         """Test WSI loading with custom parameters"""
@@ -62,12 +62,7 @@ class TestWSILoading:
             pytest.skip("Sample WSI not available")
 
         processor = PathologyProcessor()
-        wsi = processor.load_wsi(
-            sample_wsi_path,
-            tile_size=256,
-            max_patches=50,
-            verbose=False
-        )
+        wsi = processor.load_wsi(sample_wsi_path, tile_size=256, max_patches=50, verbose=False)
 
         assert wsi is not None
         assert wsi.tileSize == 256
@@ -125,9 +120,7 @@ class TestStainNormalization:
         """Test Reinhard stain normalization"""
         processor = PathologyProcessor()
         normalized = processor.normalize_stain(
-            sample_wsi_patch,
-            method="reinhard",
-            use_target_params=True
+            sample_wsi_patch, method="reinhard", use_target_params=True
         )
 
         assert normalized is not None
@@ -138,9 +131,7 @@ class TestStainNormalization:
         """Test Macenko stain normalization"""
         processor = PathologyProcessor()
         normalized = processor.normalize_stain(
-            sample_wsi_patch,
-            method="macenko",
-            use_target_params=True
+            sample_wsi_patch, method="macenko", use_target_params=True
         )
 
         assert normalized is not None
@@ -150,9 +141,7 @@ class TestStainNormalization:
         """Test Vahadane stain normalization"""
         processor = PathologyProcessor()
         normalized = processor.normalize_stain(
-            sample_wsi_patch,
-            method="vahadane",
-            use_target_params=True
+            sample_wsi_patch, method="vahadane", use_target_params=True
         )
 
         assert normalized is not None
@@ -163,9 +152,7 @@ class TestStainNormalization:
         """Test all normalization methods"""
         processor = PathologyProcessor()
         normalized = processor.normalize_stain(
-            sample_wsi_patch,
-            method=method,
-            use_target_params=True
+            sample_wsi_patch, method=method, use_target_params=True
         )
 
         assert normalized is not None
@@ -177,10 +164,7 @@ class TestStainNormalization:
         target = np.random.randint(0, 255, (224, 224, 3), dtype=np.uint8)
 
         normalized = processor.normalize_stain(
-            sample_wsi_patch,
-            method="reinhard",
-            target=target,
-            use_target_params=False
+            sample_wsi_patch, method="reinhard", target=target, use_target_params=False
         )
 
         assert normalized is not None
@@ -247,10 +231,7 @@ class TestPatchExtraction:
         wsi = processor.load_wsi(sample_wsi_path, tile_size=256, max_patches=10)
 
         patches = processor.extract_patches(
-            wsi,
-            patch_size=256,
-            min_tissue_percentage=0.3,
-            target_patch_size=224
+            wsi, patch_size=256, min_tissue_percentage=0.3, target_patch_size=224
         )
 
         assert patches is not None
@@ -270,10 +251,7 @@ class TestPatchExtraction:
         tissue_mask = np.random.rand(10, 10) > 0.5
 
         patches = processor.extract_patches(
-            wsi,
-            tissue_mask=tissue_mask,
-            patch_size=256,
-            min_tissue_percentage=0.5
+            wsi, tissue_mask=tissue_mask, patch_size=256, min_tissue_percentage=0.5
         )
 
         assert patches is not None
@@ -283,7 +261,7 @@ class TestPatchExtraction:
 class TestEmbeddingGeneration:
     """Test embedding generation (requires model weights)"""
 
-    @patch('honeybee.models.UNI.uni.UNI')
+    @patch("honeybee.models.UNI.uni.UNI")
     def test_generate_embeddings_mock(self, mock_uni, sample_wsi_patches):
         """Test embedding generation with mocked model"""
         # Setup mock
@@ -301,7 +279,7 @@ class TestEmbeddingGeneration:
         assert embeddings is not None
         assert embeddings.shape == (10, 1024)
 
-    @patch('honeybee.models.UNI.uni.UNI')
+    @patch("honeybee.models.UNI.uni.UNI")
     def test_generate_embeddings_batch_processing(self, mock_uni, sample_wsi_patches):
         """Test batch processing of patches"""
         mock_model_instance = MagicMock()
@@ -392,7 +370,7 @@ class TestEmbeddingAggregation:
 class TestProcessSlide:
     """Test complete slide processing pipeline"""
 
-    @patch('honeybee.models.UNI.uni.UNI')
+    @patch("honeybee.models.UNI.uni.UNI")
     def test_process_slide_complete(self, mock_uni, sample_wsi_path):
         """Test complete slide processing pipeline"""
         if sample_wsi_path is None:
@@ -414,7 +392,7 @@ class TestProcessSlide:
             normalization_method="macenko",
             patch_size=256,
             min_tissue_percentage=0.3,
-            max_patches=10
+            max_patches=10,
         )
 
         assert result is not None
@@ -428,11 +406,7 @@ class TestProcessSlide:
             pytest.skip("Sample WSI not available")
 
         processor = PathologyProcessor()
-        result = processor.process_slide(
-            sample_wsi_path,
-            normalize_stain=False,
-            max_patches=5
-        )
+        result = processor.process_slide(sample_wsi_path, normalize_stain=False, max_patches=5)
 
         assert result is not None
         assert "slide" in result

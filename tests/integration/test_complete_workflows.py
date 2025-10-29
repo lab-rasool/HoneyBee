@@ -18,7 +18,7 @@ from honeybee.processors.radiology import RadiologyProcessor
 class TestClinicalWorkflow:
     """Integration tests for clinical processing workflow"""
 
-    @patch('honeybee.models.HuggingFaceEmbedder')
+    @patch("honeybee.models.HuggingFaceEmbedder")
     def test_clinical_pdf_to_embeddings(self, mock_embedder, sample_clinical_pdf_path):
         """Test complete workflow: PDF → processing → embeddings"""
         if sample_clinical_pdf_path is None:
@@ -46,17 +46,17 @@ class TestClinicalWorkflow:
         embeddings = processor.generate_embeddings(result["text"])
         assert embeddings is not None
 
-    @patch('honeybee.processors.ClinicalProcessor.process_text')
-    @patch('honeybee.processors.ClinicalProcessor.generate_embeddings')
+    @patch("honeybee.processors.ClinicalProcessor.process_text")
+    @patch("honeybee.processors.ClinicalProcessor.generate_embeddings")
     def test_clinical_text_pipeline(self, mock_generate, mock_process, sample_clinical_text):
         """Test text processing pipeline"""
         mock_process.return_value = {
             "text": sample_clinical_text,
             "entities": [
                 {"type": "tumor", "text": "invasive ductal carcinoma"},
-                {"type": "biomarker", "text": "ER: Positive"}
+                {"type": "biomarker", "text": "ER: Positive"},
             ],
-            "temporal_timeline": []
+            "temporal_timeline": [],
         }
         mock_generate.return_value = np.random.randn(1, 768)
 
@@ -71,7 +71,7 @@ class TestClinicalWorkflow:
         embeddings = honeybee.generate_embeddings(sample_clinical_text, modality="clinical")
         assert embeddings.shape == (1, 768)
 
-    @patch('honeybee.processors.ClinicalProcessor.process')
+    @patch("honeybee.processors.ClinicalProcessor.process")
     def test_clinical_batch_workflow(self, mock_process, temp_dir):
         """Test batch processing workflow"""
         # Create test files
@@ -81,10 +81,7 @@ class TestClinicalWorkflow:
         mock_process.return_value = {"text": "test", "entities": []}
 
         honeybee = HoneyBee()
-        results = honeybee.process_clinical_batch(
-            input_dir=temp_dir,
-            file_pattern="*.txt"
-        )
+        results = honeybee.process_clinical_batch(input_dir=temp_dir, file_pattern="*.txt")
 
         assert len(results) == 3
         for result in results:
@@ -96,7 +93,7 @@ class TestClinicalWorkflow:
 class TestPathologyWorkflow:
     """Integration tests for pathology processing workflow"""
 
-    @patch('honeybee.models.UNI.uni.UNI')
+    @patch("honeybee.models.UNI.uni.UNI")
     def test_wsi_to_slide_embedding(self, mock_uni, sample_wsi_path):
         """Test complete workflow: WSI → patches → embeddings → aggregation"""
         if sample_wsi_path is None:
@@ -120,7 +117,7 @@ class TestPathologyWorkflow:
             patch_size=256,
             min_tissue_percentage=0.3,
             aggregation_method="mean",
-            max_patches=5
+            max_patches=5,
         )
 
         assert result is not None
@@ -150,8 +147,8 @@ class TestPathologyWorkflow:
 class TestRadiologyWorkflow:
     """Integration tests for radiology processing workflow"""
 
-    @patch('honeybee.processors.radiology.processor.load_medical_image')
-    @patch('honeybee.models.RadImageNet.radimagenet.RadImageNet')
+    @patch("honeybee.processors.radiology.processor.load_medical_image")
+    @patch("honeybee.models.RadImageNet.radimagenet.RadImageNet")
     def test_dicom_to_embeddings(self, mock_model, mock_load, sample_dicom_metadata):
         """Test complete workflow: DICOM → preprocessing → embeddings"""
         # Setup mocks
@@ -172,11 +169,7 @@ class TestRadiologyWorkflow:
 
         # Step 2: Preprocess
         processed = processor.preprocess(
-            image,
-            metadata,
-            denoise=True,
-            normalize=True,
-            window="lung"
+            image, metadata, denoise=True, normalize=True, window="lung"
         )
         assert processed is not None
 
@@ -209,9 +202,9 @@ class TestRadiologyWorkflow:
 class TestMultimodalIntegration:
     """Integration tests for multimodal data integration"""
 
-    @patch('honeybee.processors.ClinicalProcessor.generate_embeddings')
-    @patch('honeybee.models.UNI.uni.UNI')
-    @patch('honeybee.models.RadImageNet.radimagenet.RadImageNet')
+    @patch("honeybee.processors.ClinicalProcessor.generate_embeddings")
+    @patch("honeybee.models.UNI.uni.UNI")
+    @patch("honeybee.models.RadImageNet.radimagenet.RadImageNet")
     def test_complete_multimodal_workflow(self, mock_rad, mock_uni, mock_clinical):
         """Test complete multimodal integration workflow"""
         # Setup mocks
@@ -231,29 +224,18 @@ class TestMultimodalIntegration:
 
         # Generate embeddings for each modality
         clinical_emb = honeybee.generate_embeddings(
-            "Patient with stage III lung cancer",
-            modality="clinical"
+            "Patient with stage III lung cancer", modality="clinical"
         )
         assert clinical_emb.shape == (1, 768)
 
-        pathology_emb = honeybee.generate_embeddings(
-            np.ones((224, 224, 3)),
-            modality="pathology"
-        )
+        pathology_emb = honeybee.generate_embeddings(np.ones((224, 224, 3)), modality="pathology")
         assert pathology_emb.shape == (1, 768)  # Placeholder
 
-        radiology_emb = honeybee.generate_embeddings(
-            np.ones((64, 128, 128)),
-            modality="radiology"
-        )
+        radiology_emb = honeybee.generate_embeddings(np.ones((64, 128, 128)), modality="radiology")
         assert radiology_emb.shape == (1, 768)  # Placeholder
 
         # Integrate multimodal embeddings
-        integrated = honeybee.integrate_embeddings([
-            clinical_emb,
-            pathology_emb,
-            radiology_emb
-        ])
+        integrated = honeybee.integrate_embeddings([clinical_emb, pathology_emb, radiology_emb])
 
         assert integrated is not None
         assert integrated.shape == (1, 768 * 3)
@@ -263,7 +245,7 @@ class TestMultimodalIntegration:
         assert survival is not None
         assert "survival_probability" in survival
 
-    @patch('honeybee.processors.ClinicalProcessor.generate_embeddings')
+    @patch("honeybee.processors.ClinicalProcessor.generate_embeddings")
     def test_multimodal_fusion_strategies(self, mock_generate):
         """Test different multimodal fusion strategies"""
         mock_generate.return_value = np.random.randn(1, 768)
@@ -271,7 +253,7 @@ class TestMultimodalIntegration:
         honeybee = HoneyBee()
 
         # Generate embeddings with different dimensions
-        emb1 = np.random.randn(5, 768)   # Clinical
+        emb1 = np.random.randn(5, 768)  # Clinical
         emb2 = np.random.randn(5, 1024)  # Pathology
         emb3 = np.random.randn(5, 2048)  # Radiology
 
@@ -286,8 +268,8 @@ class TestMultimodalIntegration:
 class TestEndToEndScenarios:
     """Integration tests for realistic end-to-end scenarios"""
 
-    @patch('honeybee.processors.ClinicalProcessor.process_text')
-    @patch('honeybee.processors.ClinicalProcessor.generate_embeddings')
+    @patch("honeybee.processors.ClinicalProcessor.process_text")
+    @patch("honeybee.processors.ClinicalProcessor.generate_embeddings")
     def test_cancer_patient_analysis(self, mock_generate, mock_process):
         """Test complete patient analysis workflow"""
         # Simulate patient report
@@ -305,8 +287,8 @@ class TestEndToEndScenarios:
                 {"type": "tumor", "text": "invasive ductal carcinoma"},
                 {"type": "staging", "text": "Grade 2"},
                 {"type": "biomarker", "text": "ER+"},
-                {"type": "biomarker", "text": "HER2-"}
-            ]
+                {"type": "biomarker", "text": "HER2-"},
+            ],
         }
         mock_generate.return_value = np.random.randn(1, 768)
 
@@ -325,14 +307,14 @@ class TestEndToEndScenarios:
         survival = honeybee.predict_survival(clinical_emb)
         assert "survival_probability" in survival
 
-    @patch('honeybee.processors.ClinicalProcessor.process')
+    @patch("honeybee.processors.ClinicalProcessor.process")
     def test_cohort_analysis(self, mock_process, temp_dir):
         """Test cohort/batch analysis workflow"""
         # Create cohort data
         patients = [
             "Patient 1: Breast cancer, Stage I, ER+",
             "Patient 2: Lung cancer, Stage III, EGFR+",
-            "Patient 3: Colon cancer, Stage II, KRAS wild-type"
+            "Patient 3: Colon cancer, Stage II, KRAS wild-type",
         ]
 
         for i, text in enumerate(patients):
@@ -340,7 +322,7 @@ class TestEndToEndScenarios:
 
         mock_process.return_value = {
             "text": "test",
-            "entities": [{"type": "tumor", "text": "cancer"}]
+            "entities": [{"type": "tumor", "text": "cancer"}],
         }
 
         honeybee = HoneyBee()
@@ -353,7 +335,7 @@ class TestEndToEndScenarios:
             assert "text" in result
             assert "entities" in result
 
-    @patch('honeybee.processors.ClinicalProcessor.generate_embeddings')
+    @patch("honeybee.processors.ClinicalProcessor.generate_embeddings")
     def test_similarity_search(self, mock_generate):
         """Test patient similarity search using embeddings"""
         # Simulate patient embeddings
@@ -380,7 +362,7 @@ class TestErrorRecoveryAndRobustness:
         """Test handling of partial pipeline failures"""
         config = {
             "processing_pipeline": ["document", "entity_recognition"],
-            "tokenization": {"model": "invalid_model"}  # Will fail
+            "tokenization": {"model": "invalid_model"},  # Will fail
         }
 
         processor = ClinicalProcessor(config=config)
@@ -401,7 +383,7 @@ class TestErrorRecoveryAndRobustness:
         integrated = honeybee.integrate_embeddings([clinical_emb])
         assert integrated is not None
 
-    @patch('honeybee.processors.ClinicalProcessor.process')
+    @patch("honeybee.processors.ClinicalProcessor.process")
     def test_batch_with_errors(self, mock_process, temp_dir):
         """Test batch processing with some files failing"""
         # Create test files
@@ -411,7 +393,7 @@ class TestErrorRecoveryAndRobustness:
         # Mock to return success for some, error for others
         mock_process.side_effect = [
             {"text": "Report 1", "entities": []},
-            {"error": "Failed to process"}
+            {"error": "Failed to process"},
         ]
 
         honeybee = HoneyBee()

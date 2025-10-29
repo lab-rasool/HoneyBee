@@ -8,11 +8,11 @@ from huggingface_hub import hf_hub_download
 class TissueDetector:
     def __init__(self, model_path=None, device="cuda"):
         self.device = torch.device(device)
-        
+
         # If no model path provided, download the weights automatically
         if model_path is None:
             model_path = self._download_weights()
-        
+
         self.model = self._load_model(model_path)
         self.transforms = transforms.Compose(
             [
@@ -40,7 +40,7 @@ class TissueDetector:
                 model_path = hf_hub_download(
                     repo_id="Lab-Rasool/tissue-detector",
                     filename="model.safetensors",
-                    cache_dir=local_weights_dir.parent / ".cache"
+                    cache_dir=local_weights_dir.parent / ".cache",
                 )
                 print(f"✓ Downloaded SafeTensors weights from HuggingFace Hub")
                 return model_path
@@ -51,7 +51,7 @@ class TissueDetector:
             model_path = hf_hub_download(
                 repo_id="Lab-Rasool/tissue-detector",
                 filename="deep-tissue-detector_densenet_state-dict.pt",
-                cache_dir=local_weights_dir.parent / ".cache"
+                cache_dir=local_weights_dir.parent / ".cache",
             )
             print(f"✓ Downloaded PyTorch weights from HuggingFace Hub")
             return model_path
@@ -70,10 +70,11 @@ class TissueDetector:
 
         # Load weights based on file format
         model_path_str = str(model_path)
-        if model_path_str.endswith('.safetensors'):
+        if model_path_str.endswith(".safetensors"):
             # Load SafeTensors format
             try:
                 from safetensors.torch import load_file
+
                 state_dict = load_file(model_path)
                 model.load_state_dict(state_dict)
                 print("✓ Loaded model from SafeTensors format")

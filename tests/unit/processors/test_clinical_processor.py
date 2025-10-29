@@ -31,11 +31,7 @@ class TestClinicalProcessorInitialization:
 
     def test_default_config_merge(self):
         """Test that custom config merges with defaults"""
-        custom_config = {
-            "tokenization": {
-                "model": "pubmedbert"
-            }
-        }
+        custom_config = {"tokenization": {"model": "pubmedbert"}}
         processor = ClinicalProcessor(config=custom_config)
 
         # Custom value should be used
@@ -80,9 +76,7 @@ class TestTextProcessing:
 
     def test_process_text_without_entity_recognition(self, sample_clinical_text):
         """Test processing with entity recognition disabled"""
-        config = {
-            "processing_pipeline": ["document", "tokenization"]
-        }
+        config = {"processing_pipeline": ["document", "tokenization"]}
         processor = ClinicalProcessor(config=config)
         result = processor.process_text(sample_clinical_text)
 
@@ -196,7 +190,7 @@ class TestTemporalTimeline:
 class TestTokenization:
     """Test tokenization functionality"""
 
-    @patch('honeybee.processors.clinical_processor.AutoTokenizer')
+    @patch("honeybee.processors.clinical_processor.AutoTokenizer")
     def test_sentence_tokenization(self, mock_tokenizer, sample_clinical_text):
         """Test sentence-based tokenization"""
         # Setup mock
@@ -205,18 +199,14 @@ class TestTokenization:
 
         # Mock the __call__ method to return proper numpy arrays
         import numpy as np
+
         mock_tok_instance.return_value = {
             "input_ids": np.array([[101, 1, 2, 3, 102]]),
-            "attention_mask": np.array([[1, 1, 1, 1, 1]])
+            "attention_mask": np.array([[1, 1, 1, 1, 1]]),
         }
         mock_tokenizer.from_pretrained.return_value = mock_tok_instance
 
-        config = {
-            "tokenization": {
-                "model": "gatortron",
-                "segment_strategy": "sentence"
-            }
-        }
+        config = {"tokenization": {"model": "gatortron", "segment_strategy": "sentence"}}
         processor = ClinicalProcessor(config=config)
 
         # Reset mock to clear initialization calls
@@ -230,11 +220,7 @@ class TestTokenization:
 
     def test_paragraph_tokenization(self, sample_clinical_text):
         """Test paragraph-based tokenization"""
-        config = {
-            "tokenization": {
-                "segment_strategy": "paragraph"
-            }
-        }
+        config = {"tokenization": {"segment_strategy": "paragraph"}}
         processor = ClinicalProcessor(config=config)
         result = processor.process_text(sample_clinical_text)
 
@@ -246,7 +232,7 @@ class TestTokenization:
 class TestEmbeddingGeneration:
     """Test embedding generation functionality"""
 
-    @patch('honeybee.models.HuggingFaceEmbedder')
+    @patch("honeybee.models.HuggingFaceEmbedder")
     def test_generate_single_embedding(self, mock_embedder_class):
         """Test generating embeddings for single text"""
         # Setup mock
@@ -262,7 +248,7 @@ class TestEmbeddingGeneration:
         assert embeddings is not None
         assert embeddings.shape == (1, 768)
 
-    @patch('honeybee.models.HuggingFaceEmbedder')
+    @patch("honeybee.models.HuggingFaceEmbedder")
     def test_generate_batch_embeddings(self, mock_embedder_class):
         """Test generating embeddings for multiple texts"""
         # Setup mock
@@ -274,7 +260,7 @@ class TestEmbeddingGeneration:
         texts = [
             "Patient 1 with breast cancer",
             "Patient 2 with lung cancer",
-            "Patient 3 with colon cancer"
+            "Patient 3 with colon cancer",
         ]
 
         embeddings = processor.generate_embeddings(texts)
@@ -282,7 +268,7 @@ class TestEmbeddingGeneration:
         assert embeddings is not None
         assert embeddings.shape == (3, 768)
 
-    @patch('honeybee.models.HuggingFaceEmbedder')
+    @patch("honeybee.models.HuggingFaceEmbedder")
     def test_generate_embeddings_with_model_selection(self, mock_embedder_class):
         """Test embedding generation with different models"""
         mock_embedder_instance = MagicMock()
@@ -301,7 +287,7 @@ class TestEmbeddingGeneration:
 class TestBatchProcessing:
     """Test batch document processing"""
 
-    @patch('honeybee.processors.ClinicalProcessor.process')
+    @patch("honeybee.processors.ClinicalProcessor.process")
     def test_batch_process_multiple_files(self, mock_process, temp_dir):
         """Test processing multiple files in batch"""
         # Create temporary test files
@@ -316,7 +302,7 @@ class TestBatchProcessing:
         assert len(results) == 3
         assert mock_process.call_count == 3
 
-    @patch('honeybee.processors.ClinicalProcessor.process')
+    @patch("honeybee.processors.ClinicalProcessor.process")
     def test_batch_with_output_dir(self, mock_process, temp_dir, temp_output_dir):
         """Test batch processing with custom output directory"""
         (temp_dir / "test.txt").write_text("Clinical text")
@@ -324,10 +310,7 @@ class TestBatchProcessing:
 
         processor = ClinicalProcessor()
         results = processor.process_batch(
-            temp_dir,
-            file_pattern="*.txt",
-            save_output=True,
-            output_dir=temp_output_dir
+            temp_dir, file_pattern="*.txt", save_output=True, output_dir=temp_output_dir
         )
 
         assert len(results) == 1
@@ -388,22 +371,13 @@ class TestConfigurationOptions:
 
     def test_disable_ocr(self):
         """Test disabling OCR"""
-        config = {
-            "document_processor": {
-                "use_ocr": False
-            }
-        }
+        config = {"document_processor": {"use_ocr": False}}
         processor = ClinicalProcessor(config=config)
         assert processor.config["document_processor"]["use_ocr"] is False
 
     def test_custom_tokenization_settings(self):
         """Test custom tokenization settings"""
-        config = {
-            "tokenization": {
-                "max_length": 1024,
-                "segment_strategy": "fixed"
-            }
-        }
+        config = {"tokenization": {"max_length": 1024, "segment_strategy": "fixed"}}
         processor = ClinicalProcessor(config=config)
         assert processor.config["tokenization"]["max_length"] == 1024
         assert processor.config["tokenization"]["segment_strategy"] == "fixed"
@@ -414,7 +388,7 @@ class TestConfigurationOptions:
             "entity_recognition": {
                 "use_rules": True,
                 "use_patterns": False,
-                "cancer_specific_extraction": True
+                "cancer_specific_extraction": True,
             }
         }
         processor = ClinicalProcessor(config=config)

@@ -47,7 +47,7 @@ class TestRadiologyProcessorInitialization:
 class TestImageLoading:
     """Test image loading functionality"""
 
-    @patch('honeybee.processors.radiology.processor.load_medical_image')
+    @patch("honeybee.processors.radiology.processor.load_medical_image")
     def test_load_image_basic(self, mock_load, sample_dicom_metadata):
         """Test basic image loading"""
         mock_image = np.random.randint(-1000, 1000, (64, 128, 128), dtype=np.int16)
@@ -68,10 +68,7 @@ class TestPreprocessing:
         """Test basic CT preprocessing"""
         processor = RadiologyProcessor()
         processed = processor.preprocess(
-            sample_image_3d,
-            sample_dicom_metadata,
-            denoise=True,
-            normalize=True
+            sample_image_3d, sample_dicom_metadata, denoise=True, normalize=True
         )
 
         assert processed is not None
@@ -80,33 +77,21 @@ class TestPreprocessing:
     def test_preprocess_ct_with_windowing(self, sample_image_3d, sample_dicom_metadata):
         """Test CT preprocessing with window/level"""
         processor = RadiologyProcessor()
-        processed = processor.preprocess(
-            sample_image_3d,
-            sample_dicom_metadata,
-            window="lung"
-        )
+        processed = processor.preprocess(sample_image_3d, sample_dicom_metadata, window="lung")
 
         assert processed is not None
 
     def test_preprocess_without_denoise(self, sample_image_3d, sample_dicom_metadata):
         """Test preprocessing without denoising"""
         processor = RadiologyProcessor()
-        processed = processor.preprocess(
-            sample_image_3d,
-            sample_dicom_metadata,
-            denoise=False
-        )
+        processed = processor.preprocess(sample_image_3d, sample_dicom_metadata, denoise=False)
 
         assert processed is not None
 
     def test_preprocess_without_normalize(self, sample_image_3d, sample_dicom_metadata):
         """Test preprocessing without normalization"""
         processor = RadiologyProcessor()
-        processed = processor.preprocess(
-            sample_image_3d,
-            sample_dicom_metadata,
-            normalize=False
-        )
+        processed = processor.preprocess(sample_image_3d, sample_dicom_metadata, normalize=False)
 
         assert processed is not None
 
@@ -166,10 +151,7 @@ class TestIntensityNormalization:
         """Test percentile normalization"""
         processor = RadiologyProcessor()
         normalized = processor.normalize_intensity(
-            sample_image_3d,
-            method="percentile",
-            lower=1.0,
-            upper=99.0
+            sample_image_3d, method="percentile", lower=1.0, upper=99.0
         )
 
         assert normalized is not None
@@ -190,11 +172,7 @@ class TestWindowLevelAdjustment:
     def test_window_custom(self, sample_image_3d):
         """Test custom window/level"""
         processor = RadiologyProcessor()
-        windowed = processor.apply_window(
-            sample_image_3d,
-            window=400,
-            level=40
-        )
+        windowed = processor.apply_window(sample_image_3d, window=400, level=40)
 
         assert windowed is not None
 
@@ -237,11 +215,7 @@ class TestResampling:
         processor = RadiologyProcessor()
         new_spacing = (1.0, 1.0, 1.0)
 
-        resampled = processor.resample(
-            sample_image_3d,
-            sample_dicom_metadata,
-            new_spacing
-        )
+        resampled = processor.resample(sample_image_3d, sample_dicom_metadata, new_spacing)
 
         assert resampled is not None
         # Shape should change based on spacing
@@ -253,10 +227,7 @@ class TestResampling:
 
         for method in ["linear", "nearest"]:
             resampled = processor.resample(
-                sample_image_3d,
-                sample_dicom_metadata,
-                new_spacing,
-                interpolation=method
+                sample_image_3d, sample_dicom_metadata, new_spacing, interpolation=method
             )
             assert resampled is not None
 
@@ -304,10 +275,11 @@ class TestSegmentation:
 
         # Mock the ct_segmenter's segment_organs method
         from unittest.mock import MagicMock
+
         processor.ct_segmenter = MagicMock()
         processor.ct_segmenter.segment_organs.return_value = {
             "liver": np.random.rand(64, 128, 128) > 0.8,
-            "spleen": np.random.rand(64, 128, 128) > 0.9
+            "spleen": np.random.rand(64, 128, 128) > 0.9,
         }
 
         masks = processor.segment_organs(sample_image_3d)
@@ -336,7 +308,7 @@ class TestMetalArtifactReduction:
 class TestEmbeddingGeneration:
     """Test embedding generation"""
 
-    @patch('honeybee.models.RadImageNet.radimagenet.RadImageNet')
+    @patch("honeybee.models.RadImageNet.radimagenet.RadImageNet")
     def test_generate_embeddings_2d(self, mock_model, sample_image_2d):
         """Test 2D embedding generation"""
         mock_model_instance = MagicMock()
@@ -351,7 +323,7 @@ class TestEmbeddingGeneration:
         assert embeddings is not None
         assert len(embeddings.shape) == 1
 
-    @patch('honeybee.models.RadImageNet.radimagenet.RadImageNet')
+    @patch("honeybee.models.RadImageNet.radimagenet.RadImageNet")
     def test_generate_embeddings_3d(self, mock_model, sample_image_3d):
         """Test 3D embedding generation"""
         mock_model_instance = MagicMock()
@@ -361,16 +333,14 @@ class TestEmbeddingGeneration:
         processor = RadiologyProcessor()
         processor.model = mock_model_instance
 
-        embeddings = processor.generate_embeddings(
-            sample_image_3d,
-            mode="3d",
-            aggregation="mean"
-        )
+        embeddings = processor.generate_embeddings(sample_image_3d, mode="3d", aggregation="mean")
 
         assert embeddings is not None
 
-    @patch('honeybee.models.RadImageNet.radimagenet.RadImageNet')
-    def test_generate_embeddings_with_preprocessing(self, mock_model, sample_image_3d, sample_dicom_metadata):
+    @patch("honeybee.models.RadImageNet.radimagenet.RadImageNet")
+    def test_generate_embeddings_with_preprocessing(
+        self, mock_model, sample_image_3d, sample_dicom_metadata
+    ):
         """Test embedding generation with preprocessing"""
         mock_model_instance = MagicMock()
         mock_model_instance.generate_embeddings.return_value = np.random.randn(2048)
@@ -380,9 +350,7 @@ class TestEmbeddingGeneration:
         processor.model = mock_model_instance
 
         embeddings = processor.generate_embeddings(
-            sample_image_3d,
-            preprocess=True,
-            metadata=sample_dicom_metadata
+            sample_image_3d, preprocess=True, metadata=sample_dicom_metadata
         )
 
         assert embeddings is not None
@@ -391,7 +359,7 @@ class TestEmbeddingGeneration:
 class TestBatchProcessing:
     """Test batch processing"""
 
-    @patch('honeybee.models.RadImageNet.radimagenet.RadImageNet')
+    @patch("honeybee.models.RadImageNet.radimagenet.RadImageNet")
     def test_process_batch(self, mock_model):
         """Test batch image processing"""
         mock_model_instance = MagicMock()
@@ -429,16 +397,13 @@ class TestImageRegistration:
 class TestFeatureExtraction:
     """Test feature extraction from multiple layers"""
 
-    @patch('honeybee.models.RadImageNet.radimagenet.RadImageNet')
+    @patch("honeybee.models.RadImageNet.radimagenet.RadImageNet")
     def test_extract_features(self, mock_model, sample_image_2d):
         """Test feature extraction"""
         mock_model_instance = MagicMock()
         mock_model_instance.extract_features = True
         mock_model_instance.generate_embeddings.return_value = {
-            "features": {
-                "layer1": np.random.randn(256),
-                "layer2": np.random.randn(512)
-            }
+            "features": {"layer1": np.random.randn(256), "layer2": np.random.randn(512)}
         }
         mock_model.return_value = mock_model_instance
 
@@ -463,6 +428,7 @@ class TestErrorHandling:
     def test_preprocess_without_metadata(self, sample_image_3d):
         """Test preprocessing without metadata"""
         from honeybee.loaders.Radiology.metadata import ImageMetadata
+
         processor = RadiologyProcessor()
         # Should use generic preprocessing
         generic_metadata = ImageMetadata(
@@ -472,13 +438,9 @@ class TestErrorHandling:
             series_description="Test",
             pixel_spacing=(1.0, 1.0, 1.0),
             image_position=(0.0, 0.0, 0.0),
-            image_orientation=[1, 0, 0, 0, 1, 0]
+            image_orientation=[1, 0, 0, 0, 1, 0],
         )
-        processed = processor.preprocess(
-            sample_image_3d,
-            generic_metadata,
-            denoise=True
-        )
+        processed = processor.preprocess(sample_image_3d, generic_metadata, denoise=True)
         assert processed is not None
 
 
@@ -489,11 +451,7 @@ class TestModalitySpecificProcessing:
         """Test CT-specific preprocessing"""
         processor = RadiologyProcessor()
 
-        processed = processor.preprocess(
-            sample_image_3d,
-            sample_dicom_metadata,
-            window="lung"
-        )
+        processed = processor.preprocess(sample_image_3d, sample_dicom_metadata, window="lung")
 
         assert processed is not None
 
@@ -501,11 +459,7 @@ class TestModalitySpecificProcessing:
         """Test MRI-specific preprocessing"""
         processor = RadiologyProcessor()
 
-        processed = processor.preprocess(
-            sample_image_3d,
-            sample_mri_metadata,
-            denoise=True
-        )
+        processed = processor.preprocess(sample_image_3d, sample_mri_metadata, denoise=True)
 
         assert processed is not None
 
@@ -518,10 +472,7 @@ class TestModalitySpecificProcessing:
         processor = RadiologyProcessor()
 
         processed = processor.preprocess(
-            pet_image,
-            sample_pet_metadata,
-            denoise=True,
-            normalize=True
+            pet_image, sample_pet_metadata, denoise=True, normalize=True
         )
 
         assert processed is not None
