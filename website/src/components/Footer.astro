@@ -1,0 +1,118 @@
+---
+import { Icon } from "astro-icon/components";
+import { getPath } from "../utils/path";
+---
+
+<footer class="bg-dark text-white pt-12 pb-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Main footer content -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
+      <!-- Branding section -->
+      <div class="space-y-4">
+        <div class="flex items-center">
+          <img
+            src={getPath("/images/logo.png")}
+            alt="HoneyBee Logo"
+            class="h-8 mr-2"
+          />
+          <h3 class="text-xl font-bold">HoneyBee</h3>
+        </div>
+        <p class="text-gray-300 leading-relaxed">
+          An open-source framework for multimodal oncology data processing and
+          analysis.
+        </p>
+      </div>
+
+      <!-- Links section -->
+      <div class="space-y-4">
+        <h3 class="text-xl font-bold">Resources</h3>
+        <ul class="space-y-3">
+          <li>
+            <a
+              href="https://github.com/lab-rasool/HoneyBee"
+              class="group flex items-center text-gray-300 hover:text-primary transition-colors duration-200"
+            >
+              <Icon
+                name="mdi:github"
+                class="w-5 h-5 mr-2 text-gray-400 group-hover:text-primary"
+              />
+              <span>GitHub Repository</span>
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://huggingface.co/collections/Lab-Rasool/honeybee-66b9f15e8b908c4eeeec9cb4"
+              class="group flex items-center text-gray-300 hover:text-primary transition-colors duration-200"
+            >
+              <Icon
+                name="simple-icons:huggingface"
+                class="w-5 h-5 mr-2 text-gray-400 group-hover:text-primary"
+              />
+              <span>HuggingFace Collection</span>
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://huggingface.co/datasets/Lab-Rasool/TCGA"
+              class="group flex items-center text-gray-300 hover:text-primary transition-colors duration-200"
+            >
+              <Icon
+                name="mdi:database"
+                class="w-5 h-5 mr-2 text-gray-400 group-hover:text-primary"
+              />
+              <span>TCGA Dataset</span>
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://arxiv.org/abs/2405.07460"
+              class="group flex items-center text-gray-300 hover:text-primary transition-colors duration-200"
+            >
+              <Icon
+                name="mdi:file-document"
+                class="w-5 h-5 mr-2 text-gray-400 group-hover:text-primary"
+              />
+              <span>Research Paper</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Contact section -->
+      <div class="space-y-4">
+        <h3 class="text-xl font-bold">Contact</h3>
+        <address class="not-italic text-gray-300 leading-relaxed">
+          <div class="flex items-start mb-2">
+            <Icon
+              name="mdi:map-marker"
+              class="w-5 h-5 mr-2 text-primary flex-shrink-0 mt-1"
+            />
+            <span>
+              Moffitt Cancer Center & Research Institute<br />
+              12902 USF Magnolia Drive<br />
+              Tampa, Florida, 33620, USA
+            </span>
+          </div>
+        </address>
+      </div>
+    </div>
+
+    <!-- Divider -->
+    <div
+      class="border-t border-gray-700/50 mt-10 pt-8 flex flex-col md:flex-row justify-between items-center text-gray-400"
+    >
+      <p>&copy; {new Date().getFullYear()} Lab Rasool. All rights reserved.</p>
+
+      <!-- Social links -->
+      <div class="flex space-x-4 mt-4 md:mt-0">
+        <a
+          href="https://github.com/lab-rasool/HoneyBee"
+          class="text-gray-400 hover:text-primary transition-colors duration-200"
+        >
+          <span class="sr-only">GitHub</span>
+          <Icon name="mdi:github" class="w-6 h-6" />
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>

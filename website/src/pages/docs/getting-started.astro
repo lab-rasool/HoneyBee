@@ -1,0 +1,21 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+---
+
+<DocsLayout title="Getting Started">
+  <h2 class="text-2xl font-bold mb-4">Installation</h2>
+  <p class="mb-4">You can install HoneyBee using pip:</p>
+
+  <CodeBlock code={`pip install honeybee-ml`} lang="bash" />
+
+  <p class="mt-4 mb-4">Alternatively, you can install from source:</p>
+
+  <CodeBlock
+    code={`git clone https://github.com/lab-rasool/HoneyBee.git
+cd HoneyBee
+pip install -e .`}
+    lang="bash"
+  />
+  
+</DocsLayout>

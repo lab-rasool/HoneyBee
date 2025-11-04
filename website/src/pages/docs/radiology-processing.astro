@@ -1,0 +1,286 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+---
+
+<DocsLayout title="Radiology Processing">
+  <h2 class="text-2xl font-bold mb-4">Overview</h2>
+  <p class="mb-6">
+    The radiology processing pipeline in HoneyBee handles various medical
+    imaging modalities, including Computed Tomography (CT), Magnetic Resonance
+    Imaging (MRI), and Positron Emission Tomography (PET). Each modality
+    presents unique characteristics that require specialized preprocessing
+    techniques.
+  </p>
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/radiology-processing.png"
+      alt="Radiology Processing Pipeline"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h2 class="text-2xl font-bold mb-4">Key Features</h2>
+  <ul class="list-disc pl-5 space-y-2 mb-6">
+    <li>Support for DICOM and NIfTI formats</li>
+    <li>
+      Metadata preservation (acquisition parameters, patient information, etc.)
+    </li>
+    <li>Anatomical segmentation and region-of-interest (ROI) analysis</li>
+    <li>Denoising and artifact reduction</li>
+    <li>Spatial standardization and resampling</li>
+    <li>Intensity normalization</li>
+    <li>Embedding generation using specialized models</li>
+  </ul>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Radiological Data Management</h2>
+  <p class="mb-4">
+    HoneyBee supports standard medical imaging formats with metadata
+    preservation:
+  </p>
+  <CodeBlock
+    code={`
+from honeybee.processors import RadiologyProcessor
+
+# Initialize the radiology processor
+processor = RadiologyProcessor()
+
+# Load DICOM series
+dicom_series = processor.load_dicom("path/to/dicom_folder/")
+
+# Or load NIfTI file
+nifti_image = processor.load_nifti("path/to/image.nii.gz")
+
+# Access metadata
+metadata = dicom_series.metadata`}
+    lang="python"
+    filename="optional_filename.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">
+    Anatomical Segmentation and Masking
+  </h2>
+  <p class="mb-4">
+    Isolate relevant anatomical structures for targeted analysis:
+  </p>
+  <CodeBlock
+    code={`
+from honeybee.processors import RadiologyProcessor
+
+processor = RadiologyProcessor()
+ct_scan = processor.load_dicom("path/to/ct_scan/")
+
+# Lung segmentation for CT
+lung_mask = processor.segment_lungs(ct_scan)
+
+# Multi-organ segmentation
+organs = processor.segment_organs(ct_scan)
+liver_mask = organs['liver']
+spleen_mask = organs['spleen']
+
+# Tumor segmentation in MRI
+mri_scan = processor.load_dicom("path/to/mri_scan/")
+tumor_mask = processor.segment_tumor(mri_scan)
+
+# PET metabolic volume delineation
+pet_scan = processor.load_dicom("path/to/pet_scan/")
+suv_threshold = 2.5  # Standardized Uptake Value threshold
+metabolic_mask = processor.segment_metabolic_volume(pet_scan, threshold=suv_threshold)`}
+    lang="python"
+    filename="optional_filename.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Denoising and Artifact Reduction</h2>
+  <p class="mb-4">
+    Improve image quality through denoising and artifact reduction:
+  </p>
+  <CodeBlock
+    code={`
+from honeybee.processors import RadiologyProcessor
+
+processor = RadiologyProcessor()
+ct_scan = processor.load_dicom("path/to/ct_scan/")
+
+# Non-local means denoising for CT
+denoised_ct = processor.denoise(ct_scan, method="nlm")
+
+# Deep learning-based denoising
+denoised_ct_dl = processor.denoise(ct_scan, method="deep")
+
+# Metal artifact reduction
+mar_ct = processor.reduce_metal_artifacts(ct_scan)
+
+# MRI-specific denoising
+mri_scan = processor.load_dicom("path/to/mri_scan/")
+denoised_mri = processor.denoise(mri_scan, method="rician")  # Rician noise model for MRI
+
+# PET denoising
+pet_scan = processor.load_dicom("path/to/pet_scan/")
+denoised_pet = processor.denoise(pet_scan, method="pet_specific")`}
+    lang="python"
+    filename="optional_filename.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">
+    Spatial Standardization and Resampling
+  </h2>
+  <p class="mb-4">Standardize spatial resolution and orientation:</p>
+  <CodeBlock
+    code={`
+from honeybee.processors import RadiologyProcessor
+
+processor = RadiologyProcessor()
+ct_scan = processor.load_dicom("path/to/ct_scan/")
+
+# Isotropic resampling
+resampled_ct = processor.resample(ct_scan, spacing=(1.0, 1.0, 1.0))  # 1mm isotropic
+
+# Reorient to standard orientation (RAS: Right-Anterior-Superior)
+standardized_ct = processor.reorient(resampled_ct, orientation="RAS")
+
+# Registration to atlas
+atlas = processor.load_atlas("path/to/atlas.nii.gz")
+registered_ct = processor.register(standardized_ct, atlas)
+
+# Crop to region of interest
+cropped_ct = processor.crop_to_roi(registered_ct, roi_mask)`}
+    lang="python"
+    filename="optional_filename.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Intensity Normalization</h2>
+  <p class="mb-4">
+    Standardize signal intensities across different scanners and protocols:
+  </p>
+  <CodeBlock
+    code={`
+from honeybee.processors import RadiologyProcessor
+
+processor = RadiologyProcessor()
+
+# CT Hounsfield unit verification
+ct_scan = processor.load_dicom("path/to/ct_scan/")
+verified_ct = processor.verify_hounsfield_units(ct_scan)
+
+# CT window/level adjustment
+window_ct = processor.apply_window(verified_ct, window=400, level=50)  # Soft tissue window
+
+# MRI intensity normalization
+mri_scan = processor.load_dicom("path/to/mri_scan/")
+normalized_mri = processor.normalize_intensity(mri_scan, method="z_score")
+
+# Bias field correction for MRI
+bias_corrected_mri = processor.correct_bias_field(mri_scan)
+
+# PET SUV calculation
+pet_scan = processor.load_dicom("path/to/pet_scan/")
+suv_pet = processor.calculate_suv(
+    pet_scan,
+    patient_weight=70,  # in kg
+    injected_dose=10,   # in mCi
+    injection_time="20220101T120000"  # ISO format
+)`}
+    lang="python"
+    filename="optional_filename.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Embedding Generation</h2>
+  <p class="mb-4">
+    Generate embeddings from medical images using specialized models:
+  </p>
+  <CodeBlock
+    code={`
+from honeybee.processors import RadiologyProcessor
+
+# Initialize processor with specific model
+processor = RadiologyProcessor(model="remedis")  # Options: remedis, radimagenet
+
+# Load and preprocess image
+ct_scan = processor.load_dicom("path/to/ct_scan/")
+preprocessed_ct = processor.preprocess(ct_scan)
+
+# Generate embeddings
+embeddings = processor.generate_embeddings(preprocessed_ct)
+
+# Shape: (1, embedding_dim)  # embedding_dim depends on the model
+
+# For 3D volumes, you might get embeddings per slice
+ct_volume = processor.load_dicom("path/to/ct_volume/")
+preprocessed_volume = processor.preprocess(ct_volume)
+volume_embeddings = processor.generate_embeddings(preprocessed_volume, mode="3d")
+
+# Shape: (num_slices, embedding_dim)
+
+# Aggregate slice embeddings to volume-level
+volume_embedding = processor.aggregate_embeddings(volume_embeddings, method="mean")`}
+    lang="python"
+    filename="optional_filename.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Complete Example</h2>
+  <p class="mb-4">Full pipeline from image loading to embedding generation:</p>
+  <CodeBlock
+    code={`
+from honeybee.processors import RadiologyProcessor
+
+# Initialize processor with specific model
+processor = RadiologyProcessor(model="remedis")
+
+# Load CT scan
+ct_scan = processor.load_dicom("path/to/ct_scan/")
+
+# Preprocess
+preprocessed_ct = processor.preprocess(
+    ct_scan,
+    denoise=True,
+    correct_artifacts=True,
+    resample_spacing=(1.0, 1.0, 1.0),
+    normalize=True
+)
+
+# Segment lungs (if chest CT)
+lung_mask = processor.segment_lungs(preprocessed_ct)
+
+# Apply mask
+masked_ct = processor.apply_mask(preprocessed_ct, lung_mask)
+
+# Generate embeddings
+embeddings = processor.generate_embeddings(masked_ct)
+
+# Use for downstream tasks
+# ...`}
+    lang="python"
+    filename="optional_filename.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Performance Considerations</h2>
+  <p class="mb-4">
+    When processing large volumetric data, consider the following:
+  </p>
+  <ul class="list-disc pl-5 space-y-2 mb-6">
+    <li>Use memory-efficient loading strategies through lazy evaluation</li>
+    <li>Process volumes slice by slice when memory is limited</li>
+    <li>Downsample high-resolution volumes for initial analysis</li>
+    <li>Leverage GPU acceleration for computationally intensive operations</li>
+    <li>Cache intermediate results for repeated processing</li>
+  </ul>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">References</h2>
+  <ul class="list-disc pl-5 space-y-2">
+    <li>
+      REMEDIS: <a
+        href="https://arxiv.org/abs/2308.16184"
+        class="text-primary hover:underline"
+        target="_blank">https://arxiv.org/abs/2308.16184</a
+      >
+    </li>
+    <li>
+      RadImageNet: <a
+        href="https://arxiv.org/abs/2201.12520"
+        class="text-primary hover:underline"
+        target="_blank">https://arxiv.org/abs/2201.12520</a
+      >
+    </li>
+  </ul>
+</DocsLayout>

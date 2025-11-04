@@ -1,0 +1,65 @@
+---
+import { SEO } from "astro-seo";
+
+export interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  canonicalURL?: URL | string;
+}
+
+const {
+  title = "HoneyBee - Multimodal Oncology Data Processing Framework",
+  description = "HoneyBee is a modular, open-source toolkit for multimodal oncology data processing and analysis.",
+  image = "/HoneyBee/images/banner.png", // Adjust this path if needed
+  canonicalURL = new URL(Astro.url.pathname, Astro.site),
+} = Astro.props;
+
+// Construct full image URL
+const imageUrl = new URL(image, Astro.site).href;
+---
+
+<!-- Global Metadata -->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="icon" href="/HoneyBee/images/logo.png" />
+
+<SEO
+  title={title}
+  description={description}
+  canonical={canonicalURL.toString()}
+  openGraph={{
+    basic: {
+      title: title,
+      type: "website",
+      image: imageUrl,
+      url: canonicalURL.toString(),
+    },
+    optional: {
+      siteName: "HoneyBee Framework",
+      description: description,
+      locale: "en_US",
+    },
+    image: {
+      alt: "HoneyBee Framework Banner",
+    },
+  }}
+  twitter={{
+    card: "summary_large_image",
+    site: "@honeybee_framework",
+    title: title,
+    description: description,
+    image: imageUrl,
+    imageAlt: "HoneyBee Framework Banner",
+  }}
+  extend={{
+    meta: [
+      {
+        name: "keywords",
+        content:
+          "oncology,data processing,multimodal data,medical imaging,open source",
+      },
+      { name: "author", content: "HoneyBee Framework Team" },
+    ],
+  }}
+/>

@@ -1,0 +1,150 @@
+/* Base styling for code blocks */
+pre {
+  position: relative;
+  background: #1e2127;
+  border-radius: 0.3em;
+  margin: 1em 0;
+  padding: 1em;
+  overflow: auto;
+}
+
+code {
+  font-family: "Fira Code", Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace;
+  font-size: 0.9em;
+  tab-size: 2;
+}
+
+/* Syntax highlighting for code blocks */
+code[class*="language-"],
+pre[class*="language-"] {
+  color: #f8f8f2;
+  text-shadow: 0 1px rgba(0, 0, 0, 0.3);
+  font-family: 'Fira Code', 'JetBrains Mono', monospace;
+  direction: ltr;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  line-height: 1.5;
+  tab-size: 4;
+  hyphens: none;
+}
+
+/* Token styling - using darker, more saturated colors */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #a0a0a0; /* Darker gray for comments */
+}
+
+.token.punctuation {
+  color: #f8f8f2;
+}
+
+.token.keyword {
+  color: #ff79c6; /* Vibrant pink for keywords */
+}
+
+.token.function {
+  color: #50b7ff; /* Brighter blue for functions */
+}
+
+.token.string {
+  color: #a5e075; /* Darker green for strings */
+}
+
+.token.number {
+  color: #ff9142; /* Darker orange for numbers */
+}
+
+.token.class-name {
+  color: #ffdf5d; /* Darker yellow for class names */
+}
+
+.token.operator {
+  color: #00c6c6; /* Darker cyan for operators */
+}
+
+/* Python syntax specifically */
+.language-python .token.keyword {
+  color: #ff79c6;
+}
+
+.language-python .token.string {
+  color: #f1fa8c;
+}
+
+.language-python .token.number {
+  color: #bd93f9;
+}
+
+.language-python .token.comment {
+  color: #a0a0a0; /* Darker comment color */
+}
+
+.language-python .token.function {
+  color: #50fa7b;
+}
+
+.language-python .token.class-name {
+  color: #8be9fd;
+}
+
+.language-python .token.builtin {
+  color: #8be9fd;
+}
+
+/* Light theme overrides - making all colors darker for better contrast */
+code[class*="language-"],
+pre[class*="language-"] {
+  background: #1e2127;
+  color: #f8f8f2 !important;
+}
+
+/* Common highlight.js colors for dark theme */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+  color: #ff79c6; /* Darker pink */
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute,
+.hljs-meta .hljs-string {
+  color: #a5e075; /* Darker green */
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #a0a0a0; /* Darker gray */
+}
+
+.hljs-number,
+.hljs-literal {
+  color: #bd93f9; /* Darker purple */
+}
+
+.hljs-name,
+.hljs-section,
+.hljs-title {
+  color: #8be9fd; /* Darker cyan */
+}
+
+/* Make sure the code blocks use dark theme consistently */
+pre[class*="language-"] {
+  background-color: #1e2127 !important;
+  margin: 0;
+}
+
+/* Custom style for the code block container */
+.code-block-container pre[class*="language-"] {
+  margin: 0 !important;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+  background-color: #1e2127 !important;
+}

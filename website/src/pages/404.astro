@@ -1,0 +1,21 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Page Not Found">
+  <div
+    class="flex flex-col items-center justify-center min-h-[60vh] px-4 py-16 text-center"
+  >
+    <div class="text-6xl text-primary mb-4">🐝</div>
+    <h1 class="text-4xl font-bold mb-4">404: Page Not Found</h1>
+    <p class="text-xl text-gray-600 mb-8 max-w-lg">
+      Looks like the HoneyBee couldn't find the flower you were looking for.
+    </p>
+    <a
+      href="/"
+      class="bg-primary hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+    >
+      Return to Home
+    </a>
+  </div>
+</BaseLayout>

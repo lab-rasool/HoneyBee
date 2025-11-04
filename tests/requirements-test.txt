@@ -1,0 +1,22 @@
+# Testing dependencies for HoneyBee
+
+# Core testing framework
+pytest>=7.4.0
+pytest-cov>=4.1.0                # Coverage reporting
+pytest-mock>=3.11.1              # Mocking utilities
+pytest-timeout>=2.1.0            # Test timeouts
+pytest-xdist>=3.3.1              # Parallel test execution
+
+# Assertions and utilities
+pytest-sugar>=0.9.7              # Better test output
+pytest-clarity>=1.0.1            # Better assertion diffs
+
+# For testing async code (if needed in future)
+pytest-asyncio>=0.21.0
+
+# For testing CLI tools
+pytest-console-scripts>=1.4.0
+
+# Mock and fake data generation
+faker>=19.0.0                    # Generate fake data
+factory-boy>=3.3.0               # Test fixtures

@@ -1,0 +1,28 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+---
+
+<DocsLayout title="Molecular Processing">
+  <h2 class="text-2xl font-bold mb-4">Overview</h2>
+  <p class="mb-6">
+    The molecular processing pipeline in HoneyBee handles various types of
+    molecular data, including DNA methylation, gene expression, protein
+    expression, DNA mutation, and miRNA expression. The pipeline preprocesses,
+    integrates, and generates embeddings from these diverse molecular profiles
+    for downstream machine learning applications.
+  </p>
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/molecular-processing.png"
+      alt="Molecular Processing Pipeline"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+    <p class="text-blue-800">
+      <strong>Note:</strong> The molecular processing capabilities described below are currently implemented through the SeNMo framework and operate as an independent component. We are actively working to integrate these functionalities directly into the HoneyBee ecosystem in upcoming releases to provide a more unified and streamlined experience.
+    </p>
+  </div>

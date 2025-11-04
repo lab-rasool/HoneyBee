@@ -1,0 +1,27 @@
+.env
+.ruff_cache
+.vscode
+.aim
+
+__pycache__
+*.pyc
+
+*.pkl
+/paper
+/to_delete
+/models
+/honeybee/models/TissueDetector/weights
+/BACKUP
+/examples
+
+CLAUDE.md
+
+# Build and distribution artifacts
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+
+# PyPI publishing
+.pypirc

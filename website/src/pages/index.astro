@@ -1,0 +1,181 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import FeatureCard from "../components/FeatureCard.astro";
+
+const features = [
+  {
+    title: "Multimodal Data Integration",
+    description:
+      "Process diverse oncology datasets: clinical notes, pathology slides, radiology scans, and molecular profiles.",
+    icon: "🔄",
+  },
+  {
+    title: "Advanced Embeddings",
+    description:
+      "Generate high-quality embeddings using domain-specific foundation models.",
+    icon: "🧬",
+  },
+  {
+    title: "Clinical Data Processing",
+    description:
+      "Extract structured information from clinical narratives and medical records.",
+    icon: "📝",
+  },
+  {
+    title: "Pathology Processing",
+    description:
+      "Analyze whole slide images with stain normalization and tissue detection.",
+    icon: "🔬",
+  },
+  {
+    title: "Radiology Processing",
+    description:
+      "Process CT, MRI, and PET scans with specialized preprocessing techniques.",
+    icon: "📊",
+  },
+  {
+    title: "Molecular Analysis",
+    description:
+      "Analyze DNA methylation, gene expression, protein expression, and more.",
+    icon: "🧪",
+  },
+];
+
+function getPath(path: string): string {
+  return import.meta.env.BASE_URL + path;
+}
+---
+
+<BaseLayout
+  title="HoneyBee - Multimodal Oncology Data Processing Framework"
+  description="HoneyBee is an open-source toolkit for processing and analyzing multimodal oncology data with modules for radiology, pathology, and clinical data."
+  image="/HoneyBee/images/banner.png"
+>
+  <!-- Hero Section -->
+  <section class="py-16 bg-gray-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col lg:flex-row items-center lg:space-x-12">
+        <div class="lg:w-1/2 mb-10 lg:mb-0">
+          <h1 class="text-5xl font-extrabold text-gray-900 mb-6">
+            <span class="text-primary">HoneyBee</span> Framework
+          </h1>
+          <p class="text-xl text-gray-600 mb-10">
+            A modular, open-source framework for multimodal oncology data
+            processing and analysis
+          </p>
+          <div class="flex flex-wrap gap-4">
+            <a
+              href={getPath("/docs")}
+              class="bg-primary hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+            >
+              Get Started
+            </a>
+            <a
+              href="https://github.com/lab-rasool/HoneyBee"
+              class="bg-white hover:bg-gray-100 text-dark font-bold py-3 px-6 rounded-lg border border-gray-300 transition-colors flex items-center"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <svg
+                class="h-5 w-5 mr-2"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                  clip-rule="evenodd"></path>
+              </svg>
+              GitHub
+            </a>
+          </div>
+        </div>
+        <div class="lg:w-1/2">
+          <img
+            src="/HoneyBee/images/banner.png"
+            alt="HoneyBee Framework Banner"
+            class="rounded-lg shadow-lg w-full h-auto"
+          />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="py-16 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <h2 class="text-3xl font-bold text-center mb-12">Key Features</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {
+          features.map((feature) => (
+            <FeatureCard
+              title={feature.title}
+              description={feature.description}
+              icon={feature.icon}
+            />
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Overview Section -->
+  <section class="py-16 bg-gray-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="lg:flex lg:items-center lg:space-x-8">
+        <div class="lg:w-1/2 mb-8 lg:mb-0">
+          <h2 class="text-3xl font-bold mb-6">Framework Overview</h2>
+          <p class="text-gray-600 mb-4">
+            HoneyBee is a modular, open-source framework that preprocesses
+            diverse oncology datasets to generate consistent, high-quality
+            embeddings using domain-specific foundation models.
+          </p>
+          <p class="text-gray-600 mb-4">
+            The framework simplifies downstream applications such as prognosis
+            estimation, cancer subtype classification, and retrieval-based tasks
+            via a unified API.
+          </p>
+          <p class="text-gray-600">
+            HoneyBee enables reproducible and scalable machine learning
+            workflows for precision oncology.
+          </p>
+        </div>
+        <div class="lg:w-1/2">
+          <img
+            src="/HoneyBee/images/honeybee-overview.png"
+            alt="HoneyBee Framework Overview"
+            class="rounded-lg shadow-md w-full"
+          />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="py-16 bg-primary">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <h2 class="text-3xl font-bold text-white mb-6">Ready to get started?</h2>
+      <p class="text-white text-lg mb-8 max-w-3xl mx-auto">
+        Explore the HoneyBee framework and start processing your multimodal
+        oncology data today.
+      </p>
+      <div class="flex justify-center space-x-4">
+        <a
+          href={getPath("/docs")}
+          class="bg-white hover:bg-gray-100 text-primary font-bold py-3 px-6 rounded-lg transition-colors"
+        >
+          Documentation
+        </a>
+        <a
+          href="https://huggingface.co/datasets/Lab-Rasool/TCGA"
+          class="bg-transparent hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-lg border border-white transition-colors"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Access Datasets
+        </a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

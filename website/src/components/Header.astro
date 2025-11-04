@@ -1,0 +1,22 @@
+---
+import Navigation from "./Navigation.astro";
+import { getPath } from "../utils/path";
+---
+
+<header class="bg-white shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div class="flex justify-between items-center">
+      <div class="flex items-center">
+        <a href={getPath("/")} class="flex items-center">
+          <img
+            src={getPath("/images/logo.png")}
+            alt="HoneyBee Logo"
+            class="h-8 mr-2"
+          />
+          <span class="text-dark text-2xl font-bold">HoneyBee</span>
+        </a>
+      </div>
+      <Navigation />
+    </div>
+  </div>
+</header>

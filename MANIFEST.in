@@ -1,0 +1,31 @@
+# Include documentation and license files
+include README.md
+include LICENSE
+include CONTRIBUTING.md
+
+# Include requirements file for reference
+include requirements.txt
+
+# Exclude unnecessary files
+exclude .env
+exclude .gitignore
+exclude .gitattributes
+
+# Exclude test and development directories
+recursive-exclude tests *
+recursive-exclude docs *
+recursive-exclude website *
+recursive-exclude results *
+recursive-exclude BACKUP *
+recursive-exclude to_delete *
+recursive-exclude paper *
+
+# Exclude compiled Python files
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude *.so
+
+# Exclude git and IDE files
+global-exclude .git*
+global-exclude .vscode
+global-exclude .DS_Store
