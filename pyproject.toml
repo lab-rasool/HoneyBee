@@ -57,6 +57,7 @@ dependencies = [
     "scipy>=1.7.0",
     "matplotlib>=3.3.0",
     "imageio>=2.9.0",
+    "tqdm>=4.60.0",
 ]
 
 [project.optional-dependencies]
@@ -75,6 +76,18 @@ radiology = [
     "SimpleITK>=2.2.0",
     "nibabel>=4.0.0",
     "opencv-python>=4.5.0",
+    "nnunetv2>=2.5.0",
+]
+
+# Extended radiology (state-of-the-art segmentation, denoising, registration)
+radiology-extended = [
+    "honeybee-ml[radiology]",
+    "torchio>=0.19.0",
+    "antspyx>=0.4.0",
+    "dipy>=1.7.0",
+    "monai>=1.3.0",
+    "torchxrayvision>=1.2.0",
+    "open_clip_torch>=2.20.0",
 ]
 
 # Pathology processing dependencies
@@ -83,6 +96,8 @@ pathology = [
     "colour-science>=0.4.0",
     "albumentations>=1.3.0",
     "cucim>=23.0.0",
+    "umap-learn>=0.5.0",
+    "scikit-learn>=1.0.0",
 ]
 
 # Molecular data processing
@@ -118,9 +133,21 @@ models = [
     "peft>=0.5.0",
 ]
 
+# NLP dependencies for advanced entity recognition
+nlp = [
+    "spacy>=3.4.0",
+    "scispacy>=0.5.0",
+]
+
+# FHIR/HL7 interoperability
+clinical-interop = [
+    "fhir.resources>=7.0.0",
+    "hl7apy>=1.3.4",
+]
+
 # Complete installation with all features
 all = [
-    "honeybee-ml[clinical,radiology,pathology,molecular,database,visualization,models]",
+    "honeybee-ml[clinical,radiology,radiology-extended,pathology,molecular,database,visualization,models,nlp,clinical-interop]",
 ]
 
 [project.urls]

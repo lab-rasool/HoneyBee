@@ -5,12 +5,21 @@ Tests all functionality of the clinical text processing module including
 document processing, entity extraction, tokenization, and embedding generation.
 """
 
+import json
+import warnings
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
 from honeybee.processors import ClinicalProcessor
+from honeybee.processors.clinical_processor import (
+    CANCER_PATTERNS,
+    MEDICAL_ABBREVIATIONS,
+    ONTOLOGY_MAPPINGS,
+    SUPPORTED_EHR_FORMATS,
+)
 
 
 class TestClinicalProcessorInitialization:
@@ -191,7 +200,7 @@ class TestTemporalTimeline:
 class TestTokenization:
     """Test tokenization functionality"""
 
-    @patch("honeybee.processors.clinical_processor.AutoTokenizer")
+    @patch("honeybee.processors.clinical.processor.AutoTokenizer")
     def test_sentence_tokenization(self, mock_tokenizer, sample_clinical_text):
         """Test sentence-based tokenization"""
         # Setup mock
@@ -476,3 +485,948 @@ class TestWithRealData:
         assert result is not None
         assert "text" in result
         assert len(result["text"]) > 0
+
+
+# ===========================================================================
+# Bug fix regression tests
+# ===========================================================================
+
+
+class TestBug1EhrDocumentElseClause:
+    """Bug 1: _process_ehr_document should raise ValueError for unsupported formats"""
+
+    def test_unsupported_ehr_format_raises(self):
+        """Calling _process_ehr_document with an unsupported suffix raises ValueError"""
+        processor = ClinicalProcessor()
+        fake_path = Path("/tmp/record.yaml")  # .yaml is not supported
+        with pytest.raises(ValueError, match="Unsupported EHR format"):
+            processor._process_ehr_document(fake_path)
+
+    def test_supported_ehr_formats_still_dispatch(self, temp_dir):
+        """Supported formats still work correctly"""
+        processor = ClinicalProcessor()
+
+        # JSON
+        json_path = temp_dir / "record.json"
+        json_path.write_text(json.dumps({"diagnosis": "lung cancer"}))
+        result = processor._process_ehr_document(json_path)
+        assert result is not None
+        assert "text" in result
+
+        # CSV
+        csv_path = temp_dir / "record.csv"
+        csv_path.write_text("name,diagnosis\nJohn,lung cancer\n")
+        result = processor._process_ehr_document(csv_path)
+        assert result is not None
+        assert "text" in result
+
+
+class TestBug2TnmRegexFalsePositives:
+    """Bug 2: TNM staging regex should not match substrings in normal words"""
+
+    def test_tnm_no_false_positive_in_words(self):
+        """Words like 'Table', 'Total', 'Note' should NOT produce TNM entities"""
+        processor = ClinicalProcessor()
+        text = "Table1 shows the Total count. Note: N0te the value."
+        result = processor.process_text(text)
+
+        staging = [e for e in result["entities"] if e["type"] == "staging"]
+        staging_texts = [e["text"] for e in staging]
+        # None of these normal words should be extracted as staging
+        for word_fragment in ["T1", "N0"]:
+            # If it appears, verify it's not from inside a word
+            for st in staging:
+                context_start = max(0, st["start"] - 1)
+                context_end = min(len(text), st["end"] + 1)
+                before = text[context_start : st["start"]]
+                after = text[st["end"] : context_end]
+                # Should not be preceded/followed by word characters
+                assert not (before.isalpha() or after.isalpha()), (
+                    f"TNM match '{st['text']}' appears inside a word"
+                )
+
+    def test_tnm_still_matches_real_staging(self):
+        """Real TNM staging should still be captured"""
+        processor = ClinicalProcessor()
+        text = "The staging is T2 N1 M0."
+        result = processor.process_text(text)
+
+        staging = [e for e in result["entities"] if e["type"] == "staging"]
+        staging_texts = [e["text"] for e in staging]
+        assert "T2" in staging_texts
+        assert "N1" in staging_texts
+        assert "M0" in staging_texts
+
+    def test_tnm_word_boundary(self):
+        """Verify the TNM pattern has word boundary anchors"""
+        pattern = CANCER_PATTERNS["tnm_stage"]
+        assert r"\b" in pattern, "TNM pattern should contain word boundary anchors"
+
+
+class TestBug3LabValueRegex:
+    """Bug 3: Lab value regex should not match document headings/metadata"""
+
+    def test_lab_pattern_no_false_positive_headings(self):
+        """Document headings like 'Section: 5 pages' should not match"""
+        processor = ClinicalProcessor()
+        text = "Section: 5 pages. Page: 2 of 10. Date: 15 Jan."
+        result = processor.process_text(text)
+
+        measurements = [e for e in result["entities"] if e["type"] == "measurement"]
+        # These should not be captured as lab values
+        measurement_texts = [e["properties"].get("test_name", "") for e in measurements]
+        assert "Section" not in measurement_texts
+        assert "Page" not in measurement_texts
+        assert "Date" not in measurement_texts
+
+    def test_lab_pattern_matches_real_values(self):
+        """Real lab values with clinical units should still be matched"""
+        processor = ClinicalProcessor()
+        text = "Hemoglobin: 12.5 g/dL. Creatinine: 1.2 mg/dL. WBC: 5.0 K/uL."
+        result = processor.process_text(text)
+
+        measurements = [e for e in result["entities"] if e["type"] == "measurement"]
+        assert len(measurements) > 0
+
+
+class TestBug4DuplicateAbbreviationExpansion:
+    """Bug 4: Abbreviation expansion should use MEDICAL_ABBREVIATIONS consistently"""
+
+    def test_abbreviation_at_text_start(self):
+        """Abbreviations at start of text should be expanded"""
+        processor = ClinicalProcessor()
+        cleaned = processor._clean_text("dx of lung cancer")
+        assert "diagnosis" in cleaned
+
+    def test_abbreviation_at_text_end(self):
+        """Abbreviations at end of text should be expanded"""
+        processor = ClinicalProcessor()
+        cleaned = processor._clean_text("patient needs tx")
+        assert "treatment" in cleaned
+
+    def test_abbreviation_before_punctuation(self):
+        """Abbreviations before punctuation should be expanded"""
+        processor = ClinicalProcessor()
+        cleaned = processor._clean_text("the dx. was confirmed")
+        # 'dx' before period should still be expanded
+        assert "diagnosis" in cleaned
+
+    def test_no_double_expansion(self):
+        """Text should not be expanded twice to produce wrong results"""
+        processor = ClinicalProcessor()
+        # After expansion, 'dx' becomes 'diagnosis' — running again shouldn't change it
+        text = "dx of cancer"
+        first_pass = processor._clean_text(text)
+        second_pass = processor._clean_text(first_pass)
+        assert first_pass == second_pass
+
+    def test_clean_text_uses_medical_abbreviations_dict(self):
+        """_clean_text should expand the same abbreviations as MEDICAL_ABBREVIATIONS"""
+        processor = ClinicalProcessor()
+        for abbr, expansion in MEDICAL_ABBREVIATIONS.items():
+            cleaned = processor._clean_text(f"the {abbr} was noted")
+            assert expansion in cleaned, f"'{abbr}' should expand to '{expansion}'"
+
+
+class TestBug5SlidingWindowSpecialTokens:
+    """Bug 5: Sliding window should handle models without CLS/SEP tokens"""
+
+    def _make_mock_tokenizer(self, cls_id=101, sep_id=102, eos_id=None, pad_id=0, num_tokens=100):
+        """Helper to create a mock tokenizer for sliding window tests."""
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.cls_token_id = cls_id
+        mock_tokenizer.sep_token_id = sep_id
+        mock_tokenizer.eos_token_id = eos_id
+        mock_tokenizer.pad_token_id = pad_id
+
+        # The tokenizer is called as tokenizer(text, ...) and must return a dict
+        # with "input_ids" as a plain list (not nested).
+        token_ids = list(range(num_tokens))
+        mock_tokenizer.return_value = {
+            "input_ids": token_ids,
+        }
+        return mock_tokenizer
+
+    def test_sliding_window_without_cls_sep(self):
+        """Models like T5 that lack CLS/SEP should not crash"""
+        processor = ClinicalProcessor()
+        # Override stride to be smaller than max_length for test
+        processor.config["tokenization"]["stride"] = 10
+
+        processor.tokenizer = self._make_mock_tokenizer(
+            cls_id=None, sep_id=None, eos_id=1, pad_id=0, num_tokens=100
+        )
+        processor.model_max_length = 50
+
+        segments = ["word " * 200]
+        result = processor._sliding_window_tokenization(segments)
+
+        assert "num_windows" in result
+        assert result["num_windows"] > 0
+        # Verify no None values in token ids
+        for window_ids in result["input_ids"]:
+            assert None not in window_ids, "None token IDs should not appear in windows"
+        # With eos_id=1 and no cls, first token should be from content (not None)
+        first_window = result["input_ids"][0]
+        # Last real token before padding should be eos_id=1
+        assert 1 in first_window
+
+    def test_sliding_window_with_cls_sep(self):
+        """Models with CLS/SEP should still work as before"""
+        processor = ClinicalProcessor()
+        processor.config["tokenization"]["stride"] = 10
+
+        processor.tokenizer = self._make_mock_tokenizer(
+            cls_id=101, sep_id=102, pad_id=0, num_tokens=100
+        )
+        processor.model_max_length = 50
+
+        segments = ["word " * 200]
+        result = processor._sliding_window_tokenization(segments)
+
+        assert result["num_windows"] > 0
+        # First window should start with CLS
+        first_window = result["input_ids"][0]
+        assert first_window[0] == 101  # CLS
+        # SEP should appear somewhere in the window
+        assert 102 in first_window
+
+    def test_sliding_window_no_pad_token(self):
+        """Models without explicit pad_token_id should fall back to 0"""
+        processor = ClinicalProcessor()
+        processor.config["tokenization"]["stride"] = 10
+
+        processor.tokenizer = self._make_mock_tokenizer(
+            cls_id=None, sep_id=None, eos_id=None, pad_id=None, num_tokens=30
+        )
+        processor.model_max_length = 50
+
+        segments = ["word " * 50]
+        result = processor._sliding_window_tokenization(segments)
+
+        # Should not crash and padding should use 0
+        for window_ids in result["input_ids"]:
+            assert None not in window_ids
+
+
+class TestBug6EntityMergeOverlap:
+    """Bug 6: Overlapping entities of different types should both be preserved"""
+
+    def test_overlapping_different_types_preserved(self):
+        """Two overlapping entities of different types should both survive merge"""
+        processor = ClinicalProcessor()
+
+        entities = [
+            {"text": "lung cancer", "type": "tumor", "start": 10, "end": 21, "properties": {}},
+            {
+                "text": "lung",
+                "type": "measurement",
+                "start": 10,
+                "end": 14,
+                "properties": {},
+            },
+        ]
+
+        merged = processor._merge_entities(entities)
+        types = {e["type"] for e in merged}
+        assert "tumor" in types
+        assert "measurement" in types
+        assert len(merged) == 2
+
+    def test_overlapping_same_type_still_merged(self):
+        """Two overlapping entities of the same type should still be merged"""
+        processor = ClinicalProcessor()
+
+        entities = [
+            {
+                "text": "ductal carcinoma",
+                "type": "tumor",
+                "start": 5,
+                "end": 22,
+                "properties": {},
+            },
+            {"text": "carcinoma", "type": "tumor", "start": 12, "end": 22, "properties": {}},
+        ]
+
+        merged = processor._merge_entities(entities)
+        assert len(merged) == 1
+
+    def test_non_overlapping_entities_unchanged(self):
+        """Non-overlapping entities should all be preserved"""
+        processor = ClinicalProcessor()
+
+        entities = [
+            {"text": "carcinoma", "type": "tumor", "start": 0, "end": 9, "properties": {}},
+            {"text": "Grade 2", "type": "staging", "start": 20, "end": 27, "properties": {}},
+            {"text": "2.5 cm", "type": "measurement", "start": 40, "end": 46, "properties": {}},
+        ]
+
+        merged = processor._merge_entities(entities)
+        assert len(merged) == 3
+
+    def test_empty_entity_list(self):
+        """Empty entity list should return empty"""
+        processor = ClinicalProcessor()
+        assert processor._merge_entities([]) == []
+
+
+# ===========================================================================
+# Not-implemented feature warning tests
+# ===========================================================================
+
+
+class TestWarnings:
+    """Feature warning tests (updated: features now implemented)"""
+
+    def test_use_spacy_warns_when_not_installed(self):
+        """use_spacy should warn only if spaCy is not installed"""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            ClinicalProcessor(config={"entity_recognition": {"use_spacy": True}})
+            spacy_warnings = [x for x in w if "spacy" in str(x.message).lower()]
+            # Warns only if spaCy is not installed
+            from honeybee.processors.clinical.processor import _SPACY_AVAILABLE
+            if not _SPACY_AVAILABLE:
+                assert len(spacy_warnings) >= 1
+            else:
+                assert len(spacy_warnings) == 0
+
+    def test_term_disambiguation_no_warning(self):
+        """term_disambiguation should NOT warn anymore (now implemented)"""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            ClinicalProcessor(config={"entity_recognition": {"term_disambiguation": True}})
+            td_warnings = [x for x in w if "term_disambiguation" in str(x.message)]
+            assert len(td_warnings) == 0
+
+    def test_unsupported_ontology_warns(self):
+        """Unsupported ontology names should emit a warning"""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            ClinicalProcessor(
+                config={"entity_recognition": {"ontologies": ["snomed_ct", "icd10"]}}
+            )
+            ont_warnings = [x for x in w if "not yet supported" in str(x.message)]
+            assert len(ont_warnings) == 1
+            assert "icd10" in str(ont_warnings[0].message)
+
+    def test_no_warning_for_supported_ontologies(self):
+        """Supported ontologies should not produce warnings"""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            ClinicalProcessor(
+                config={"entity_recognition": {"ontologies": ["snomed_ct", "rxnorm", "loinc"]}}
+            )
+            ont_warnings = [x for x in w if "not yet supported" in str(x.message)]
+            assert len(ont_warnings) == 0
+
+    @patch("honeybee.processors.clinical.processor.AutoTokenizer")
+    def test_summarize_strategy_no_warning(self, mock_tokenizer):
+        """long_document_strategy='summarize' should NOT warn (now implemented)"""
+        mock_tok = MagicMock()
+        mock_tok.tokenize.return_value = ["tok"] * 600
+        mock_tok.cls_token_id = 101
+        mock_tok.sep_token_id = 102
+        mock_tok.pad_token_id = 0
+        mock_tok.return_value = {
+            "input_ids": np.array([[101, 1, 2, 102]]),
+            "attention_mask": np.array([[1, 1, 1, 1]]),
+        }
+        mock_tokenizer.from_pretrained.return_value = mock_tok
+
+        processor = ClinicalProcessor(
+            config={"tokenization": {"long_document_strategy": "summarize"}}
+        )
+        processor.model_max_length = 10
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            processor._handle_long_document(["segment " * 100])
+            summarize_warnings = [x for x in w if "summarize" in str(x.message)]
+            assert len(summarize_warnings) == 0
+
+
+# ===========================================================================
+# LOINC ontology tests
+# ===========================================================================
+
+
+class TestLOINCOntology:
+    """Test LOINC ontology mappings"""
+
+    def test_loinc_in_ontology_mappings(self):
+        """LOINC should be present in ONTOLOGY_MAPPINGS"""
+        assert "loinc" in ONTOLOGY_MAPPINGS
+
+    def test_loinc_has_common_lab_tests(self):
+        """LOINC mappings should include common lab tests"""
+        loinc = ONTOLOGY_MAPPINGS["loinc"]
+        assert "hemoglobin" in loinc
+        assert "creatinine" in loinc
+        assert "glucose" in loinc
+
+    def test_loinc_entries_have_id_and_name(self):
+        """Each LOINC entry should have 'id' and 'name' keys"""
+        for term, mapping in ONTOLOGY_MAPPINGS["loinc"].items():
+            assert "id" in mapping, f"LOINC entry '{term}' missing 'id'"
+            assert "name" in mapping, f"LOINC entry '{term}' missing 'name'"
+
+    def test_loinc_normalization_works(self):
+        """Entity normalization should find LOINC matches"""
+        processor = ClinicalProcessor(
+            config={"entity_recognition": {"ontologies": ["loinc"]}}
+        )
+        entities = [
+            {
+                "text": "hemoglobin",
+                "type": "measurement",
+                "start": 0,
+                "end": 10,
+                "properties": {},
+            },
+        ]
+        processor._normalize_entities(entities)
+        assert "ontology_links" in entities[0]["properties"]
+        link = entities[0]["properties"]["ontology_links"][0]
+        assert link["ontology"] == "loinc"
+        assert link["concept_id"] == "718-7"
+
+
+# ===========================================================================
+# Condition pattern end-of-text fix
+# ===========================================================================
+
+
+class TestConditionPatternEndOfText:
+    """Condition pattern should match at end of text"""
+
+    def test_condition_at_end_of_text(self):
+        """Condition at end of text (no trailing punctuation) should be captured"""
+        processor = ClinicalProcessor()
+        text = "Patient diagnosed with breast cancer"
+        result = processor.process_text(text)
+
+        conditions = [e for e in result["entities"] if e["type"] == "condition"]
+        # Should find the condition
+        assert len(conditions) > 0
+        assert any("breast cancer" in e["text"] for e in conditions)
+
+    def test_condition_with_trailing_period(self):
+        """Condition before period should still be captured"""
+        processor = ClinicalProcessor()
+        text = "Patient diagnosed with breast cancer."
+        result = processor.process_text(text)
+
+        conditions = [e for e in result["entities"] if e["type"] == "condition"]
+        assert len(conditions) > 0
+
+
+# ===========================================================================
+# EHR format tests
+# ===========================================================================
+
+
+class TestEHRProcessing:
+    """Test EHR document processing"""
+
+    def test_json_ehr(self, temp_dir):
+        """Test JSON EHR processing"""
+        json_path = temp_dir / "record.json"
+        json_path.write_text(json.dumps({
+            "patient": {"name": "John Doe", "diagnosis": "lung cancer"},
+            "treatment": "chemotherapy",
+        }))
+        processor = ClinicalProcessor()
+        result = processor._process_ehr_document(json_path)
+        assert "text" in result
+        assert "lung cancer" in result["text"]
+
+    def test_xml_ehr(self, temp_dir):
+        """Test XML EHR processing"""
+        xml_path = temp_dir / "record.xml"
+        xml_path.write_text(
+            "<record><patient><diagnosis>breast cancer</diagnosis></patient></record>"
+        )
+        processor = ClinicalProcessor()
+        result = processor._process_ehr_document(xml_path)
+        assert "text" in result
+        assert "breast cancer" in result["text"]
+
+    def test_csv_ehr(self, temp_dir):
+        """Test CSV EHR processing"""
+        csv_path = temp_dir / "record.csv"
+        csv_path.write_text("name,diagnosis\nJohn,colon cancer\n")
+        processor = ClinicalProcessor()
+        result = processor._process_ehr_document(csv_path)
+        assert "text" in result
+        assert "colon cancer" in result["text"]
+
+
+# ===========================================================================
+# New feature tests
+# ===========================================================================
+
+
+class TestSpacyNER:
+    """Test spaCy-based NER (Feature #1)."""
+
+    @patch("honeybee.processors.clinical.processor._SPACY_AVAILABLE", True)
+    def test_spacy_extraction_with_mock(self):
+        """spaCy extraction with mocked model."""
+        processor = ClinicalProcessor(
+            config={"entity_recognition": {"use_spacy": True}}
+        )
+
+        # Mock spaCy nlp
+        mock_doc = MagicMock()
+        mock_ent = MagicMock()
+        mock_ent.text = "breast cancer"
+        mock_ent.label_ = "DISEASE"
+        mock_ent.start_char = 25
+        mock_ent.end_char = 38
+        mock_doc.ents = [mock_ent]
+
+        mock_nlp = MagicMock()
+        mock_nlp.max_length = 1000000
+        mock_nlp.return_value = mock_doc
+        processor._spacy_nlp = mock_nlp
+
+        entities = processor._extract_spacy_entities("Patient diagnosed with breast cancer")
+        assert len(entities) >= 1
+        assert entities[0]["type"] == "condition"
+        assert entities[0]["properties"]["source"] == "spacy"
+
+    @patch("honeybee.processors.clinical.processor._SPACY_AVAILABLE", False)
+    def test_spacy_unavailable_graceful(self):
+        """Should return empty list when spaCy unavailable."""
+        processor = ClinicalProcessor()
+        entities = processor._extract_spacy_entities("some text")
+        assert entities == []
+
+    def test_spacy_entity_type_mapping(self):
+        """SPACY_ENTITY_TYPE_MAP should map known labels."""
+        from honeybee.processors.clinical.processor import SPACY_ENTITY_TYPE_MAP
+        assert SPACY_ENTITY_TYPE_MAP["DISEASE"] == "condition"
+        assert SPACY_ENTITY_TYPE_MAP["CHEMICAL"] == "medication"
+        assert SPACY_ENTITY_TYPE_MAP["PERSON"] is None
+
+
+class TestDeepLearningNER:
+    """Test deep learning NER (Feature #2)."""
+
+    def test_dl_extraction_with_mock(self):
+        """DL NER extraction with mocked pipeline."""
+        processor = ClinicalProcessor(
+            config={"entity_recognition": {"use_deep_learning": True}}
+        )
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.return_value = [
+            {
+                "entity_group": "Disease_disorder",
+                "word": "breast cancer",
+                "start": 25,
+                "end": 38,
+                "score": 0.95,
+            },
+        ]
+        processor._ner_pipeline = mock_pipeline
+
+        entities = processor._extract_dl_entities("Patient diagnosed with breast cancer")
+        assert len(entities) >= 1
+        assert entities[0]["type"] == "condition"
+        assert entities[0]["properties"]["source"] == "deep_learning"
+        assert "dl_confidence" in entities[0]["properties"]
+
+    def test_dl_bio_prefix_stripping(self):
+        """BIO prefixes should be stripped from entity labels."""
+        processor = ClinicalProcessor()
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.return_value = [
+            {
+                "entity_group": "B-Disease_disorder",
+                "word": "cancer",
+                "start": 0,
+                "end": 6,
+                "score": 0.9,
+            },
+        ]
+        processor._ner_pipeline = mock_pipeline
+
+        entities = processor._extract_dl_entities("cancer")
+        assert len(entities) >= 1
+        assert entities[0]["properties"]["dl_label"] == "Disease_disorder"
+
+    def test_dl_unavailable_graceful(self):
+        """Should return empty list when pipeline can't load."""
+        processor = ClinicalProcessor()
+        processor._ner_pipeline = None
+        entities = processor._extract_dl_entities("some text")
+        assert entities == []
+
+
+class TestTermDisambiguation:
+    """Test term disambiguation (Feature #4)."""
+
+    def test_ca_cancer_context(self):
+        """CA should disambiguate to cancer in oncology context."""
+        processor = ClinicalProcessor(
+            config={"entity_recognition": {"term_disambiguation": True}}
+        )
+        entities = [
+            {
+                "text": "CA",
+                "type": "condition",
+                "start": 50,
+                "end": 52,
+                "properties": {},
+            }
+        ]
+        text = "The patient was diagnosed with stage IV CA with tumor metastasis."
+        result = processor._disambiguate_entities(entities, text)
+
+        assert result[0]["properties"].get("disambiguated") is True
+        assert result[0]["properties"]["disambiguated_to"] == "cancer"
+
+    def test_ca_calcium_context(self):
+        """CA should disambiguate to calcium in lab context."""
+        processor = ClinicalProcessor(
+            config={"entity_recognition": {"term_disambiguation": True}}
+        )
+        entities = [
+            {
+                "text": "CA",
+                "type": "measurement",
+                "start": 10,
+                "end": 12,
+                "properties": {},
+            }
+        ]
+        text = "Serum CA level was 10.5 mg/dL, within normal range."
+        result = processor._disambiguate_entities(entities, text)
+
+        assert result[0]["properties"].get("disambiguated") is True
+        assert result[0]["properties"]["disambiguated_to"] == "calcium"
+
+    def test_no_context_marked_ambiguous(self):
+        """Terms with no context clues should be marked ambiguous."""
+        processor = ClinicalProcessor()
+        entities = [
+            {
+                "text": "CA",
+                "type": "condition",
+                "start": 0,
+                "end": 2,
+                "properties": {},
+            }
+        ]
+        text = "CA noted."
+        result = processor._disambiguate_entities(entities, text)
+        assert result[0]["properties"].get("ambiguous") is True
+
+    def test_disambiguation_skips_unknown_terms(self):
+        """Non-ambiguous terms should be unchanged."""
+        processor = ClinicalProcessor()
+        entities = [
+            {
+                "text": "breast cancer",
+                "type": "condition",
+                "start": 0,
+                "end": 13,
+                "properties": {"source": "pattern"},
+            }
+        ]
+        result = processor._disambiguate_entities(entities, "breast cancer")
+        assert "disambiguated" not in result[0]["properties"]
+        assert "ambiguous" not in result[0]["properties"]
+
+
+class TestRicherRelationships:
+    """Test richer entity relationships (Feature #8)."""
+
+    def test_has_location_relationship(self):
+        """Should detect has_location between tumor and anatomy."""
+        processor = ClinicalProcessor()
+        entities = [
+            {"text": "carcinoma", "type": "tumor", "start": 0, "end": 9, "properties": {}},
+            {"text": "breast", "type": "anatomy", "start": 13, "end": 19, "properties": {}},
+        ]
+        rels = processor._extract_entity_relationships(
+            entities, "carcinoma of breast"
+        )
+        rel_types = [r["type"] for r in rels]
+        assert "has_location" in rel_types
+
+    def test_has_stage_relationship(self):
+        """Should detect has_stage between tumor and staging."""
+        processor = ClinicalProcessor()
+        entities = [
+            {"text": "carcinoma", "type": "tumor", "start": 0, "end": 9, "properties": {}},
+            {"text": "Grade 2", "type": "staging", "start": 11, "end": 18, "properties": {}},
+        ]
+        rels = processor._extract_entity_relationships(
+            entities, "carcinoma Grade 2"
+        )
+        rel_types = [r["type"] for r in rels]
+        assert "has_stage" in rel_types
+
+    def test_temporal_relation(self):
+        """Should detect temporal_relation."""
+        processor = ClinicalProcessor()
+        entities = [
+            {"text": "chemotherapy", "type": "medication", "start": 0, "end": 12, "properties": {}},
+            {"text": "01/15/2024", "type": "temporal", "start": 16, "end": 26, "properties": {}},
+        ]
+        rels = processor._extract_entity_relationships(
+            entities, "chemotherapy on 01/15/2024"
+        )
+        rel_types = [r["type"] for r in rels]
+        assert "temporal_relation" in rel_types
+
+    def test_relationship_has_confidence(self):
+        """Relationships should have confidence scores."""
+        processor = ClinicalProcessor()
+        entities = [
+            {"text": "carcinoma", "type": "tumor", "start": 0, "end": 9, "properties": {}},
+            {"text": "Grade 2", "type": "staging", "start": 11, "end": 18, "properties": {}},
+        ]
+        rels = processor._extract_entity_relationships(
+            entities, "carcinoma Grade 2"
+        )
+        for rel in rels:
+            assert "confidence" in rel
+            assert 0.0 <= rel["confidence"] <= 1.0
+
+    def test_relationship_has_evidence(self):
+        """Relationships should have evidence field."""
+        processor = ClinicalProcessor()
+        entities = [
+            {"text": "carcinoma", "type": "tumor", "start": 0, "end": 9, "properties": {}},
+            {"text": "Grade 2", "type": "staging", "start": 11, "end": 18, "properties": {}},
+        ]
+        rels = processor._extract_entity_relationships(
+            entities, "carcinoma Grade 2"
+        )
+        for rel in rels:
+            assert "evidence" in rel
+
+    def test_backward_compat_source_target(self):
+        """Relationships should still have source/target/type."""
+        processor = ClinicalProcessor()
+        entities = [
+            {"text": "carcinoma", "type": "tumor", "start": 0, "end": 9, "properties": {}},
+            {"text": "Stage II", "type": "staging", "start": 11, "end": 19, "properties": {}},
+        ]
+        rels = processor._extract_entity_relationships(
+            entities, "carcinoma Stage II"
+        )
+        for rel in rels:
+            assert "source" in rel
+            assert "target" in rel
+            assert "type" in rel
+
+    def test_deduplication(self):
+        """Duplicate relationships should be deduplicated."""
+        processor = ClinicalProcessor()
+        entities = [
+            {"text": "carcinoma", "type": "tumor", "start": 0, "end": 9, "properties": {}},
+            {"text": "Grade 2", "type": "staging", "start": 11, "end": 18, "properties": {}},
+        ]
+        rels = processor._extract_entity_relationships(
+            entities, "carcinoma Grade 2"
+        )
+        # Same (source, target) pair should only appear once
+        pairs = [(r["source"], r["target"]) for r in rels]
+        assert len(pairs) == len(set(pairs))
+
+
+class TestSummarizeStrategy:
+    """Test summarize long document strategy (Feature #5)."""
+
+    @patch("honeybee.processors.clinical.processor.AutoTokenizer")
+    def test_summarize_produces_tokenization(self, mock_tokenizer):
+        """Summarize should produce valid tokenization output."""
+        mock_tok = MagicMock()
+        mock_tok.tokenize.side_effect = lambda s: s.split()
+        mock_tok.cls_token_id = 101
+        mock_tok.sep_token_id = 102
+        mock_tok.pad_token_id = 0
+        mock_tok.return_value = {
+            "input_ids": np.array([[101, 1, 2, 102]]),
+            "attention_mask": np.array([[1, 1, 1, 1]]),
+        }
+        mock_tokenizer.from_pretrained.return_value = mock_tok
+
+        processor = ClinicalProcessor(
+            config={"tokenization": {"long_document_strategy": "summarize"}}
+        )
+        processor.model_max_length = 50
+
+        result = processor._summarize_tokenization(
+            ["The patient has cancer. " * 50]
+        )
+
+        assert result["tokenization_strategy"] == "summarize"
+        assert "num_sentences_selected" in result
+        assert "num_sentences_total" in result
+        assert "summary_text" in result
+        assert "input_ids" in result
+
+    @patch("honeybee.processors.clinical.processor.AutoTokenizer")
+    def test_summarize_respects_budget(self, mock_tokenizer):
+        """Summarize should not exceed token budget."""
+        mock_tok = MagicMock()
+        mock_tok.tokenize.side_effect = lambda s: s.split()
+        mock_tok.cls_token_id = 101
+        mock_tok.sep_token_id = 102
+        mock_tok.pad_token_id = 0
+        mock_tok.return_value = {
+            "input_ids": np.array([[101, 1, 2, 102]]),
+            "attention_mask": np.array([[1, 1, 1, 1]]),
+        }
+        mock_tokenizer.from_pretrained.return_value = mock_tok
+
+        processor = ClinicalProcessor(
+            config={"tokenization": {"long_document_strategy": "summarize"}}
+        )
+        processor.model_max_length = 20
+
+        result = processor._summarize_tokenization(
+            ["The patient has cancer. Treatment includes chemotherapy. " * 20]
+        )
+
+        assert result["num_sentences_selected"] <= result["num_sentences_total"]
+
+    def test_textrank_scoring(self):
+        """TextRank scoring should produce scores for all sentences."""
+        processor = ClinicalProcessor()
+        sentences = [
+            "Patient has breast cancer.",
+            "Treatment includes chemotherapy.",
+            "Follow-up in 3 months.",
+        ]
+        scores = processor._score_sentences_textrank(sentences)
+        assert len(scores) == 3
+        for idx in range(3):
+            assert idx in scores
+
+    def test_clinical_relevance_scoring(self):
+        """Clinical relevance should score clinical terms higher."""
+        processor = ClinicalProcessor()
+        sentences = [
+            "The patient has cancer with metastasis.",
+            "The weather is sunny today.",
+        ]
+        scores = processor._compute_clinical_relevance_scores(sentences)
+        # First sentence should score higher (has clinical terms)
+        assert scores[0] > scores[1]
+
+
+class TestEntityExpansionTracking:
+    """Test entity expansion tracking (Feature #6)."""
+
+    def test_expansion_tracked(self):
+        """Abbreviation expansions should be tracked."""
+        processor = ClinicalProcessor()
+        expanded, expansion_map = processor._expand_with_tracking("dx of lung cancer")
+        assert "diagnosis" in expanded
+        assert len(expansion_map) >= 1
+        assert expansion_map[0]["original"].lower() == "dx"
+        assert expansion_map[0]["expansion"] == "diagnosis"
+
+    def test_no_expansion_when_disabled(self):
+        """No tracking when abbreviation_expansion is disabled."""
+        processor = ClinicalProcessor(
+            config={"entity_recognition": {"abbreviation_expansion": False}}
+        )
+        expanded, expansion_map = processor._expand_with_tracking("dx of cancer")
+        assert expansion_map == []
+        assert expanded == "dx of cancer"
+
+    def test_expanded_property_on_entity(self):
+        """Entities overlapping expansions should have 'expanded' property."""
+        processor = ClinicalProcessor()
+        entities = [
+            {
+                "text": "diagnosis",
+                "type": "condition",
+                "start": 0,
+                "end": 9,
+                "properties": {},
+            }
+        ]
+        expansion_map = [
+            {"start": 0, "end": 9, "original": "dx", "expansion": "diagnosis"}
+        ]
+        result = processor._annotate_expanded_entities(entities, expansion_map)
+        assert "expanded" in result[0]["properties"]
+        assert result[0]["properties"]["expanded"]["original"] == "dx"
+
+    def test_no_expanded_property_when_no_overlap(self):
+        """Entities not overlapping expansions should not have 'expanded'."""
+        processor = ClinicalProcessor()
+        entities = [
+            {
+                "text": "cancer",
+                "type": "condition",
+                "start": 20,
+                "end": 26,
+                "properties": {},
+            }
+        ]
+        expansion_map = [
+            {"start": 0, "end": 9, "original": "dx", "expansion": "diagnosis"}
+        ]
+        result = processor._annotate_expanded_entities(entities, expansion_map)
+        assert "expanded" not in result[0]["properties"]
+
+    def test_multiple_expansions(self):
+        """Multiple abbreviations should all be tracked."""
+        processor = ClinicalProcessor()
+        expanded, expansion_map = processor._expand_with_tracking("dx and tx")
+        assert "diagnosis" in expanded
+        assert "treatment" in expanded
+        assert len(expansion_map) >= 2
+
+
+class TestImportCompatibility:
+    """Test backward-compatible imports."""
+
+    def test_import_from_processors(self):
+        """Should import from honeybee.processors."""
+        from honeybee.processors import ClinicalProcessor as CP
+        assert CP is not None
+
+    def test_import_from_clinical_processor_shim(self):
+        """Should import from honeybee.processors.clinical_processor."""
+        from honeybee.processors.clinical_processor import ClinicalProcessor as CP
+        assert CP is not None
+
+    def test_import_from_clinical_subpackage(self):
+        """Should import from honeybee.processors.clinical."""
+        from honeybee.processors.clinical import ClinicalProcessor as CP
+        assert CP is not None
+
+    def test_ontology_mappings_from_shim(self):
+        """ONTOLOGY_MAPPINGS should be importable from shim."""
+        from honeybee.processors.clinical_processor import ONTOLOGY_MAPPINGS
+        assert "snomed_ct" in ONTOLOGY_MAPPINGS
+        assert "rxnorm" in ONTOLOGY_MAPPINGS
+        assert "loinc" in ONTOLOGY_MAPPINGS
+
+    def test_constants_from_shim(self):
+        """Constants should be importable from shim."""
+        from honeybee.processors.clinical_processor import (
+            CANCER_PATTERNS,
+            MEDICAL_ABBREVIATIONS,
+            SUPPORTED_EHR_FORMATS,
+        )
+        assert isinstance(CANCER_PATTERNS, dict)
+        assert isinstance(MEDICAL_ABBREVIATIONS, dict)
+        assert isinstance(SUPPORTED_EHR_FORMATS, list)
+
+    def test_tumor_location_now_anatomy(self):
+        """tumor_location pattern should map to 'anatomy' type."""
+        processor = ClinicalProcessor()
+        assert processor._get_entity_type_from_pattern("tumor_location") == "anatomy"
