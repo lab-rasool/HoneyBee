@@ -1,4 +1,5 @@
 import os
+import warnings
 
 import numpy as np
 import torch
@@ -14,6 +15,13 @@ class Virchow2:
     """
 
     def __init__(self, model_path=None):
+        warnings.warn(
+            "Virchow2 is deprecated. Use PathologyProcessor(model='virchow2') with the "
+            "registry system or honeybee.models.registry.load_model('virchow2'). "
+            "This class will be removed in a future version.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # Use the HuggingFace model directly
         self.model_name = "paige-ai/Virchow2"
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

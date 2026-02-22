@@ -40,7 +40,10 @@ class Denoiser:
             method: Denoising method to use
         """
         self.method = method.lower()
-        self.supported_methods = ["nlm", "tv", "bilateral", "median", "gaussian", "pet_specific"]
+        self.supported_methods = [
+            "nlm", "tv", "bilateral", "median", "gaussian", "pet_specific", "rician", "deep",
+            "dipy_nlm", "dipy_mppca",
+        ]
 
         if self.method not in self.supported_methods:
             raise ValueError(f"Method {method} not supported. Choose from {self.supported_methods}")
@@ -67,6 +70,14 @@ class Denoiser:
             return self._gaussian_denoise(image, **kwargs)
         elif self.method == "pet_specific":
             return self._pet_specific_denoise(image, **kwargs)
+        elif self.method == "rician":
+            return self._rician_denoise(image, **kwargs)
+        elif self.method == "deep":
+            return self._deep_denoise(image, **kwargs)
+        elif self.method == "dipy_nlm":
+            return self._dipy_nlm_denoise(image, **kwargs)
+        elif self.method == "dipy_mppca":
+            return self._dipy_mppca_denoise(image, **kwargs)
 
     def _nlm_denoise(
         self, image: np.ndarray, patch_size: int = 5, patch_distance: int = 6, h: float = 0.1
@@ -174,6 +185,168 @@ class Denoiser:
 
         return img
 
+    def _rician_denoise(self, image: np.ndarray, **kwargs) -> np.ndarray:
+        """Rician noise correction and denoising for MRI.
+
+        Estimates noise sigma from background, applies Rician bias correction,
+        then NLM denoising on the corrected image.
+        """
+        # Estimate noise sigma from lowest 25th percentile region
+        background = image[image <= np.percentile(image, 25)]
+        if len(background) == 0 or background.std() == 0:
+            sigma = max(image.std() * 0.05, 1e-8)
+        else:
+            # For Rician noise, sigma ≈ mode of background / 0.655
+            sigma = float(np.median(np.abs(background - np.median(background)))) / 0.655
+            sigma = max(sigma, 1e-8)
+
+        # Apply Rician bias correction: corrected = sqrt(max(0, image^2 - 2*sigma^2))
+        image_float = image.astype(np.float64)
+        corrected = np.sqrt(np.maximum(0, image_float**2 - 2 * sigma**2))
+
+        # Apply NLM denoising on the bias-corrected image
+        img_min, img_max = corrected.min(), corrected.max()
+        img_range = img_max - img_min
+        if img_range == 0:
+            return corrected.astype(image.dtype)
+
+        img_norm = (corrected - img_min) / img_range
+
+        if len(image.shape) == 2:
+            denoised = denoise_nl_means(img_norm, patch_size=5, patch_distance=6, h=0.08)
+        else:
+            denoised = np.zeros_like(img_norm)
+            for i in range(image.shape[0]):
+                denoised[i] = denoise_nl_means(img_norm[i], patch_size=5, patch_distance=6, h=0.08)
+
+        return (denoised * img_range + img_min).astype(image.dtype)
+
+    def _deep_denoise(
+        self, image: np.ndarray, weights_path: Optional[str] = None, **kwargs
+    ) -> np.ndarray:
+        """Deep learning denoising using a DnCNN-style residual CNN.
+
+        Falls back to NLM if torch is not available.
+        """
+        try:
+            import torch
+            import torch.nn as nn
+        except ImportError:
+            logger.warning("PyTorch not available for deep denoising, falling back to NLM")
+            return self._nlm_denoise(image)
+
+        class DnCNN(nn.Module):
+            """DnCNN-style residual denoising network."""
+
+            def __init__(self, channels: int = 1, num_layers: int = 7, features: int = 64):
+                super().__init__()
+                layers = [nn.Conv2d(channels, features, 3, padding=1), nn.ReLU(inplace=True)]
+                for _ in range(num_layers - 2):
+                    layers += [
+                        nn.Conv2d(features, features, 3, padding=1),
+                        nn.BatchNorm2d(features),
+                        nn.ReLU(inplace=True),
+                    ]
+                layers.append(nn.Conv2d(features, channels, 3, padding=1))
+                self.net = nn.Sequential(*layers)
+
+            def forward(self, x):
+                noise = self.net(x)
+                return x - noise  # residual learning
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = DnCNN().to(device)
+
+        if weights_path:
+            state_dict = torch.load(weights_path, map_location=device)
+            model.load_state_dict(state_dict)
+            model.eval()
+        else:
+            # Self-supervised Noise2Self approach using blind-spot masking
+            model.train()
+            optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+            # Prepare training data from the input image itself
+            if len(image.shape) == 2:
+                slices = [image]
+            else:
+                # Use a subset of slices for efficiency
+                step = max(1, image.shape[0] // 16)
+                slices = [image[i] for i in range(0, image.shape[0], step)]
+
+            img_min, img_max = image.min(), image.max()
+            img_range = img_max - img_min if img_max != img_min else 1.0
+
+            for epoch in range(30):
+                for sl in slices:
+                    sl_norm = (sl.astype(np.float32) - img_min) / img_range
+                    tensor = torch.from_numpy(sl_norm).unsqueeze(0).unsqueeze(0).to(device)
+
+                    # Blind-spot masking: mask random pixels
+                    mask = (torch.rand_like(tensor) > 0.3).float()
+                    masked_input = tensor * mask
+
+                    output = model(masked_input)
+                    # Loss only on masked-out pixels
+                    loss = ((output - tensor) ** 2 * (1 - mask)).sum() / (
+                        (1 - mask).sum() + 1e-8
+                    )
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+            model.eval()
+
+        # Apply denoising
+        img_min, img_max = image.min(), image.max()
+        img_range = img_max - img_min if img_max != img_min else 1.0
+
+        def _denoise_slice(sl):
+            sl_norm = (sl.astype(np.float32) - img_min) / img_range
+            tensor = torch.from_numpy(sl_norm).unsqueeze(0).unsqueeze(0).to(device)
+            with torch.inference_mode():
+                output = model(tensor)
+            return output.squeeze().cpu().numpy() * img_range + img_min
+
+        if len(image.shape) == 2:
+            return _denoise_slice(image).astype(image.dtype)
+        else:
+            result = np.zeros_like(image, dtype=np.float64)
+            for i in range(image.shape[0]):
+                result[i] = _denoise_slice(image[i])
+            return result.astype(image.dtype)
+
+    def _dipy_nlm_denoise(self, image: np.ndarray, **kwargs) -> np.ndarray:
+        """Non-local means denoising using DIPY with automatic sigma estimation.
+
+        Falls back to scikit-image NLM if DIPY is not installed.
+        """
+        try:
+            from dipy.denoise.nlmeans import nlmeans
+            from dipy.denoise.noise_estimate import estimate_sigma
+
+            sigma = estimate_sigma(image)
+            denoised = nlmeans(image, sigma=sigma, **kwargs)
+            return denoised
+        except ImportError:
+            logger.warning("DIPY not available, falling back to scikit-image NLM")
+            return self._nlm_denoise(image)
+
+    def _dipy_mppca_denoise(self, image: np.ndarray, **kwargs) -> np.ndarray:
+        """Marchenko-Pastur PCA denoising using DIPY.
+
+        Best suited for diffusion MRI data. Falls back to NLM if DIPY not installed.
+        """
+        try:
+            from dipy.denoise.localpca import mppca
+
+            denoised, _ = mppca(image, **kwargs)
+            return denoised
+        except ImportError:
+            logger.warning("DIPY not available, falling back to scikit-image NLM")
+            return self._nlm_denoise(image)
+
 
 class IntensityNormalizer:
     """Intensity normalization methods for medical images
@@ -192,7 +365,10 @@ class IntensityNormalizer:
             method: Normalization method to use
         """
         self.method = method.lower()
-        self.supported_methods = ["zscore", "minmax", "percentile", "histogram"]
+        self.supported_methods = [
+            "zscore", "minmax", "percentile", "histogram", "ct_normalize", "whitestripe",
+            "torchio_znorm", "torchio_histogram", "monai_znorm",
+        ]
 
         if self.method not in self.supported_methods:
             raise ValueError(f"Method {method} not supported. Choose from {self.supported_methods}")
@@ -215,6 +391,16 @@ class IntensityNormalizer:
             return self._percentile_normalize(image, **kwargs)
         elif self.method == "histogram":
             return self._histogram_normalize(image, **kwargs)
+        elif self.method == "ct_normalize":
+            return self._ct_normalize(image, **kwargs)
+        elif self.method == "whitestripe":
+            return self._whitestripe_normalize(image, **kwargs)
+        elif self.method == "torchio_znorm":
+            return self._torchio_znorm(image, **kwargs)
+        elif self.method == "torchio_histogram":
+            return self._torchio_histogram(image, **kwargs)
+        elif self.method == "monai_znorm":
+            return self._monai_znorm(image, **kwargs)
 
     def _zscore_normalize(self, image: np.ndarray, mask: Optional[np.ndarray] = None) -> np.ndarray:
         """Z-score normalization"""
@@ -257,6 +443,128 @@ class IntensityNormalizer:
             for i in range(image.shape[0]):
                 normalized[i] = exposure.equalize_hist(image[i], nbins=nbins)
             return normalized
+
+    def _ct_normalize(
+        self, image: np.ndarray, hu_min: float = -1024.0, hu_max: float = 3071.0
+    ) -> np.ndarray:
+        """CT normalization: clip to HU range then scale to [0, 1]."""
+        clipped = np.clip(image, hu_min, hu_max)
+        return (clipped - hu_min) / (hu_max - hu_min)
+
+    def _whitestripe_normalize(self, image: np.ndarray, width: float = 0.05) -> np.ndarray:
+        """White stripe normalization for MRI.
+
+        Estimates the white matter peak from the intensity histogram
+        and normalizes relative to it.
+        """
+        # Compute histogram
+        nonzero = image[image > 0].flatten()
+        if len(nonzero) == 0:
+            return image.copy()
+
+        hist, bin_edges = np.histogram(nonzero, bins=200)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+        # Smooth histogram
+        from scipy.ndimage import gaussian_filter1d
+
+        smoothed = gaussian_filter1d(hist.astype(float), sigma=3)
+
+        # Find the largest peak (likely WM for T1)
+        peak_idx = np.argmax(smoothed)
+        wm_peak = bin_centers[peak_idx]
+
+        # Define white stripe as region around peak
+        stripe_lower = wm_peak * (1 - width)
+        stripe_upper = wm_peak * (1 + width)
+
+        # Get voxels in the white stripe
+        stripe_mask = (image >= stripe_lower) & (image <= stripe_upper) & (image > 0)
+        if stripe_mask.sum() == 0:
+            return image.copy()
+
+        stripe_mean = image[stripe_mask].mean()
+        stripe_std = image[stripe_mask].std()
+
+        if stripe_std == 0:
+            return image.copy()
+
+        return (image - stripe_mean) / stripe_std
+
+    def _torchio_znorm(self, image: np.ndarray, masking_method: str = "mean", **kwargs) -> np.ndarray:
+        """Z-normalization using TorchIO with optional masking.
+
+        Falls back to built-in z-score normalization if TorchIO not installed.
+        """
+        try:
+            import torch
+            import torchio as tio
+
+            # Wrap as TorchIO ScalarImage (expects 4D: C, D, H, W)
+            if image.ndim == 2:
+                tensor = torch.from_numpy(image[np.newaxis, np.newaxis].astype(np.float32))
+            elif image.ndim == 3:
+                tensor = torch.from_numpy(image[np.newaxis].astype(np.float32))
+            else:
+                tensor = torch.from_numpy(image.astype(np.float32))
+
+            subject = tio.Subject(image=tio.ScalarImage(tensor=tensor))
+            transform = tio.ZNormalization(masking_method=masking_method)
+            transformed = transform(subject)
+            result = transformed.image.numpy().squeeze()
+
+            # Restore original shape
+            if result.shape != image.shape:
+                result = result.reshape(image.shape)
+            return result
+        except ImportError:
+            logger.warning("TorchIO not available, falling back to built-in z-score")
+            return self._zscore_normalize(image)
+
+    def _torchio_histogram(self, image: np.ndarray, **kwargs) -> np.ndarray:
+        """Histogram standardization using TorchIO.
+
+        Falls back to built-in histogram equalization if TorchIO not installed.
+        """
+        try:
+            import torch
+            import torchio as tio
+
+            if image.ndim == 2:
+                tensor = torch.from_numpy(image[np.newaxis, np.newaxis].astype(np.float32))
+            elif image.ndim == 3:
+                tensor = torch.from_numpy(image[np.newaxis].astype(np.float32))
+            else:
+                tensor = torch.from_numpy(image.astype(np.float32))
+
+            subject = tio.Subject(image=tio.ScalarImage(tensor=tensor))
+            transform = tio.HistogramStandardization({"image": np.linspace(0, 1, 100)})
+            transformed = transform(subject)
+            result = transformed.image.numpy().squeeze()
+
+            if result.shape != image.shape:
+                result = result.reshape(image.shape)
+            return result
+        except ImportError:
+            logger.warning("TorchIO not available, falling back to built-in histogram equalization")
+            return self._histogram_normalize(image)
+
+    def _monai_znorm(self, image: np.ndarray, nonzero: bool = True, **kwargs) -> np.ndarray:
+        """Z-normalization using MONAI with nonzero masking.
+
+        Falls back to built-in z-score normalization if MONAI not installed.
+        """
+        try:
+            from monai.transforms import NormalizeIntensity
+
+            transform = NormalizeIntensity(nonzero=nonzero)
+            result = transform(image.astype(np.float32))
+            if hasattr(result, "numpy"):
+                result = result.numpy()
+            return np.asarray(result)
+        except ImportError:
+            logger.warning("MONAI not available, falling back to built-in z-score")
+            return self._zscore_normalize(image)
 
 
 class WindowLevelAdjuster:
@@ -431,33 +739,41 @@ class ArtifactReducer:
             return image
 
     def _reduce_ring_artifacts(self, image: np.ndarray) -> np.ndarray:
-        """Ring artifact reduction (common in CT)"""
-        # For 2D images, apply polar transform
-        if len(image.shape) == 2:
-            # Convert to polar coordinates
-            center = (image.shape[0] // 2, image.shape[1] // 2)
+        """Ring artifact reduction using polar-domain radial profile subtraction.
 
-            # Create polar image
-            max_radius = min(center)
-            polar_image = cv2.warpPolar(
-                image, (max_radius, 360), center, max_radius, cv2.WARP_FILL_OUTLIERS
-            )
-
-            # Apply median filter along angular direction
-            filtered_polar = median_filter(polar_image, size=(1, 5))
-
-            # Convert back to Cartesian
-            result = cv2.warpPolar(
-                filtered_polar, image.shape, center, max_radius, cv2.WARP_INVERSE_MAP
-            )
-
-            return result
-        else:
-            # Process slice by slice
+        Converts to polar coordinates, estimates the ring pattern as the
+        median radial profile across all angles, subtracts only that bias
+        from the original image, and converts back to Cartesian.
+        """
+        if len(image.shape) != 2:
             result = np.zeros_like(image)
             for i in range(image.shape[0]):
                 result[i] = self._reduce_ring_artifacts(image[i])
             return result
+
+        h, w = image.shape
+        center = (w / 2.0, h / 2.0)  # cv2 uses (x, y)
+        max_radius = int(np.sqrt(center[0] ** 2 + center[1] ** 2))
+
+        img32 = image.astype(np.float32)
+
+        # Forward polar transform (output rows=angle, cols=radius)
+        polar = cv2.warpPolar(
+            img32, (360, max_radius), center, max_radius,
+            cv2.WARP_FILL_OUTLIERS + cv2.INTER_LINEAR,
+        )
+
+        # Ring pattern = radial profile (median across all angles for each radius)
+        ring_profile = np.median(polar, axis=0, keepdims=True)  # shape (1, max_radius)
+
+        # Build a full polar image of the ring pattern and warp it back
+        ring_polar = np.broadcast_to(ring_profile, polar.shape).astype(np.float32).copy()
+        cart_correction = cv2.warpPolar(
+            ring_polar, (h, w), center, max_radius,
+            cv2.WARP_INVERSE_MAP + cv2.WARP_FILL_OUTLIERS + cv2.INTER_LINEAR,
+        )
+
+        return image - cart_correction
 
     def _reduce_beam_hardening(
         self, image: np.ndarray, correction_factor: float = 0.1
@@ -588,3 +904,86 @@ def preprocess_pet(
         result = normalizer.normalize(result, lower=5, upper=95)
 
     return result
+
+
+class HUClipper:
+    """Clip Hounsfield Unit values to clinically relevant ranges.
+
+    Useful for removing scanner-specific outliers before windowing.
+    """
+
+    # Common anatomical presets
+    PRESETS = {
+        "default": (-1024, 3071),
+        "soft_tissue": (-200, 400),
+        "lung": (-1100, -200),
+        "bone": (200, 3071),
+        "brain": (-100, 200),
+    }
+
+    def clip(
+        self,
+        image: np.ndarray,
+        hu_min: float = -1024,
+        hu_max: float = 3071,
+        preset: Optional[str] = None,
+    ) -> np.ndarray:
+        """Clip HU values to specified range.
+
+        Args:
+            image: CT image in HU
+            hu_min: Minimum HU value
+            hu_max: Maximum HU value
+            preset: Optional anatomy preset name
+
+        Returns:
+            Clipped image
+        """
+        if preset:
+            if preset not in self.PRESETS:
+                raise ValueError(
+                    f"Unknown preset: {preset}. Choose from {list(self.PRESETS.keys())}"
+                )
+            hu_min, hu_max = self.PRESETS[preset]
+
+        return np.clip(image, hu_min, hu_max)
+
+
+class VoxelResampler:
+    """Standalone voxel resampling utility using scipy (no SimpleITK required).
+
+    Resamples 3D volumes to target spacing using scipy.ndimage.zoom.
+    """
+
+    def resample(
+        self,
+        image: np.ndarray,
+        current_spacing: Tuple[float, ...],
+        target_spacing: Tuple[float, ...],
+        order: int = 1,
+    ) -> np.ndarray:
+        """Resample volume to target spacing.
+
+        Args:
+            image: Input volume (2D or 3D)
+            current_spacing: Current voxel spacing
+            target_spacing: Target voxel spacing
+            order: Interpolation order (0=nearest, 1=linear, 3=cubic)
+
+        Returns:
+            Resampled volume
+        """
+        from scipy.ndimage import zoom
+
+        # Calculate zoom factors
+        zoom_factors = tuple(cs / ts for cs, ts in zip(current_spacing, target_spacing))
+
+        # Ensure zoom factors match image dimensions
+        if len(zoom_factors) != len(image.shape):
+            # Pad or truncate zoom factors to match
+            if len(image.shape) > len(zoom_factors):
+                zoom_factors = zoom_factors + (1.0,) * (len(image.shape) - len(zoom_factors))
+            else:
+                zoom_factors = zoom_factors[: len(image.shape)]
+
+        return zoom(image, zoom_factors, order=order)

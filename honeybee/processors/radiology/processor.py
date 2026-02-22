@@ -26,7 +26,7 @@ from .preprocessing import (
     preprocess_mri,
     preprocess_pet,
 )
-from .segmentation import CTSegmenter, MRISegmenter, PETSegmenter
+from .segmentation import NNUNetSegmenter, PETSegmenter
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -51,6 +51,7 @@ class RadiologyProcessor:
         device: Optional[str] = None,
         use_hub: bool = True,
         extract_features: bool = False,
+        segmentation_model_paths: Optional[Dict[str, str]] = None,
     ):
         """Initialize the RadiologyProcessor.
 
@@ -60,6 +61,8 @@ class RadiologyProcessor:
             device: Device for computation ('cuda' or 'cpu')
             use_hub: Whether to use HuggingFace Hub for models
             extract_features: Enable intermediate feature extraction
+            segmentation_model_paths: Mapping of task names to nnU-Net model folder
+                paths (e.g. ``{"lung": "/path/to/lung_model/"}``)
         """
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.model_type = model.lower()
@@ -75,8 +78,9 @@ class RadiologyProcessor:
         self.artifact_reducer = ArtifactReducer()
 
         # Initialize segmentation components
-        self.ct_segmenter = CTSegmenter()
-        self.mri_segmenter = MRISegmenter()
+        self.segmenter = NNUNetSegmenter(
+            model_paths=segmentation_model_paths, device=self.device
+        )
         self.pet_segmenter = PETSegmenter()
 
         # Initialize embedding model
@@ -86,6 +90,8 @@ class RadiologyProcessor:
 
     def _initialize_model(self, model: str, model_name: str, use_hub: bool, extract_features: bool):
         """Initialize the embedding model."""
+        self._registry_model = False
+
         if self.model_type == "remedis":
             self.model = REMEDIS()
         elif self.model_type == "radimagenet":
@@ -93,7 +99,18 @@ class RadiologyProcessor:
                 model_name=model_name, use_hub=use_hub, extract_features=extract_features
             )
         else:
-            raise ValueError(f"Unknown model: {model}")
+            # Try loading from model registry
+            try:
+                from ...models.registry import _PRESET_REGISTRY, load_model
+
+                if model.lower() in _PRESET_REGISTRY:
+                    self.model = load_model(model.lower(), device=self.device)
+                    self._registry_model = True
+                    logger.info(f"Loaded '{model}' from model registry")
+                else:
+                    raise ValueError(f"Unknown model: {model}")
+            except ImportError:
+                raise ValueError(f"Unknown model: {model}")
 
     def load_image(self, path: Union[str, Path]) -> Tuple[np.ndarray, ImageMetadata]:
         """Load medical image from file.
@@ -217,89 +234,111 @@ class RadiologyProcessor:
 
         return sitk.GetArrayFromImage(resampled)
 
-    def segment_lungs(self, ct_image: np.ndarray) -> np.ndarray:
-        """Segment lungs from CT scan.
+    def segment_lungs(
+        self, ct_image: np.ndarray, spacing: Tuple[float, ...] = (1.0, 1.0, 1.0)
+    ) -> np.ndarray:
+        """Segment lungs from CT scan using nnU-Net.
 
         Args:
             ct_image: CT scan in HU values
+            spacing: Voxel spacing (z, y, x) in mm
 
         Returns:
-            Binary mask of lung regions
+            Binary mask of lung regions (uint8)
         """
-        # Threshold for air
-        binary_image = ct_image < -400
+        return self.segmenter.segment_lungs(ct_image, spacing=spacing)
 
-        # Remove artifacts outside body
-        labels = measure.label(binary_image)
-
-        # Assume largest connected component is background
-        props = measure.regionprops(labels)
-        if props:
-            background_label = max(props, key=lambda x: x.area).label
-            binary_image[labels == background_label] = 0
-
-        # Fill holes
-        for i in range(binary_image.shape[0]):
-            binary_image[i] = binary_fill_holes(binary_image[i])
-
-        # Get two largest components (left and right lung)
-        labels = measure.label(binary_image)
-        props = measure.regionprops(labels)
-
-        if len(props) >= 2:
-            # Sort by area and get two largest
-            props_sorted = sorted(props, key=lambda x: x.area, reverse=True)
-            lung_labels = [props_sorted[0].label, props_sorted[1].label]
-
-            # Create lung mask
-            lung_mask = np.zeros_like(binary_image)
-            for label in lung_labels:
-                lung_mask[labels == label] = 1
-        else:
-            lung_mask = binary_image
-
-        # Morphological operations to smooth
-        lung_mask = morphology.binary_closing(lung_mask, morphology.ball(2))
-
-        return lung_mask.astype(np.uint8)
-
-    def segment_brain(self, mri_image: np.ndarray) -> np.ndarray:
-        """Segment brain from MRI scan.
+    def segment_brain(
+        self, mri_image: np.ndarray, spacing: Tuple[float, ...] = (1.0, 1.0, 1.0)
+    ) -> np.ndarray:
+        """Segment brain from MRI scan using nnU-Net.
 
         Args:
             mri_image: MRI scan
+            spacing: Voxel spacing (z, y, x) in mm
 
         Returns:
-            Binary mask of brain region
+            Binary mask of brain region (uint8)
         """
-        # Simple threshold-based approach
-        # More sophisticated methods would use atlas-based or ML approaches
+        return self.segmenter.extract_brain(mri_image, spacing=spacing)
 
-        # Otsu thresholding
-        from skimage.filters import threshold_otsu
+    def prepare_for_model(
+        self,
+        image: np.ndarray,
+        metadata: Optional[ImageMetadata] = None,
+        window: Optional[str] = None,
+        n_slices: Optional[int] = None,
+    ) -> List[np.ndarray]:
+        """Prepare medical image for embedding model input.
 
-        thresh = threshold_otsu(mri_image)
-        binary = mri_image > thresh
+        Auto-detects optimal window from metadata, applies windowing to [0, 255],
+        and converts to 3-channel RGB. Handles both 2D and 3D inputs.
 
-        # Remove small components
-        min_size = np.prod(mri_image.shape) // 100
-        binary = morphology.remove_small_objects(binary, min_size=min_size)
+        Args:
+            image: Input image (2D or 3D volume)
+            metadata: Image metadata for auto-detecting window preset
+            window: Override window preset ('lung', 'abdomen', 'brain', 'bone',
+                    'soft_tissue'). If None, auto-detected from metadata.
+            n_slices: Number of evenly-spaced slices to extract from 3D volume.
+                     If None, uses middle slice for 3D input.
 
-        # Fill holes
-        for i in range(binary.shape[0]):
-            binary[i] = binary_fill_holes(binary[i])
+        Returns:
+            List of RGB uint8 images (H, W, 3), ready for any model
+        """
+        # Auto-detect window from metadata if not specified
+        if window is None and metadata is not None:
+            window = self._detect_window_preset(metadata)
 
-        # Get largest component
-        labels = measure.label(binary)
-        props = measure.regionprops(labels)
-
-        if props:
-            largest = max(props, key=lambda x: x.area)
-            brain_mask = labels == largest.label
+        # Apply windowing to [0, 255]
+        if window is not None:
+            windowed = self.windower.adjust(image, window=window, output_range=(0, 255))
         else:
-            brain_mask = binary
+            img_min, img_max = float(image.min()), float(image.max())
+            if img_max - img_min > 0:
+                windowed = (image - img_min) / (img_max - img_min) * 255
+            else:
+                windowed = np.zeros_like(image, dtype=np.float64)
 
-        return brain_mask.astype(np.uint8)
+        windowed = np.clip(windowed, 0, 255).astype(np.uint8)
+
+        # Extract slices from 3D volume
+        if windowed.ndim == 3:
+            if n_slices is not None:
+                indices = np.linspace(0, windowed.shape[0] - 1, n_slices, dtype=int)
+                slices = [windowed[i] for i in indices]
+            else:
+                slices = [windowed[windowed.shape[0] // 2]]
+        else:
+            slices = [windowed]
+
+        # Convert each slice to 3-channel RGB
+        rgb_images = []
+        for sl in slices:
+            if sl.ndim == 2:
+                rgb = np.stack([sl, sl, sl], axis=-1)
+            else:
+                rgb = sl
+            rgb_images.append(rgb)
+
+        return rgb_images
+
+    @staticmethod
+    def _detect_window_preset(metadata: ImageMetadata) -> str:
+        """Auto-detect optimal window preset from metadata series description."""
+        desc = (metadata.series_description or "").upper()
+
+        if any(kw in desc for kw in ("LUNG", "CHEST", "THORAX", "PULM")):
+            return "lung"
+        if any(kw in desc for kw in ("ABD", "PELVIS", "LIVER", "ABDOMEN")):
+            return "abdomen"
+        if any(kw in desc for kw in ("BRAIN", "HEAD", "NEURO", "CRANIAL")):
+            return "brain"
+        if any(kw in desc for kw in ("BONE", "SPINE", "SKELETAL", "MSK")):
+            return "bone"
+        if "CTA" in desc or "ANGIO" in desc:
+            return "cta"
+
+        return "soft_tissue"
 
     def generate_embeddings(
         self,
@@ -308,6 +347,8 @@ class RadiologyProcessor:
         aggregation: str = "mean",
         preprocess: bool = True,
         metadata: Optional[ImageMetadata] = None,
+        window: Optional[str] = None,
+        n_slices: Optional[int] = None,
     ) -> np.ndarray:
         """Generate embeddings from medical image.
 
@@ -317,42 +358,49 @@ class RadiologyProcessor:
             aggregation: How to aggregate 3D embeddings
             preprocess: Whether to apply preprocessing
             metadata: Image metadata for preprocessing
+            window: Window preset for prepare_for_model (used with registry models)
+            n_slices: Number of slices for 3D (used with registry models)
 
         Returns:
             Embedding vector
         """
+        # Registry models use prepare_for_model for image preparation
+        if self._registry_model:
+            rgb_images = self.prepare_for_model(
+                image, metadata=metadata, window=window, n_slices=n_slices
+            )
+            embeddings = self.model.generate_embeddings(rgb_images)
+            if len(embeddings.shape) > 1 and embeddings.shape[0] > 1:
+                embeddings = self.aggregate_embeddings(embeddings, method=aggregation)
+            elif len(embeddings.shape) > 1:
+                embeddings = embeddings[0]
+            return embeddings
+
         # Preprocess if requested
         if preprocess and metadata:
             image = self.preprocess(image, metadata)
 
         # Generate embeddings based on model
         if self.model_type == "remedis":
-            # REMEDIS expects specific preprocessing
             if len(image.shape) == 3:
-                # Process middle slice for 3D
                 middle = image.shape[0] // 2
                 slice_2d = image[middle]
             else:
                 slice_2d = image
 
-            # Normalize to 0-255
             slice_norm = (
                 (slice_2d - slice_2d.min()) / (slice_2d.max() - slice_2d.min() + 1e-8) * 255
             ).astype(np.uint8)
 
-            # REMEDIS expects RGB
             slice_rgb = np.stack([slice_norm] * 3, axis=-1)
             embeddings = self.model.predict(slice_rgb[np.newaxis, ...])[0]
 
         elif self.model_type == "radimagenet":
-            # Use enhanced RadImageNet features
             embeddings = self.model.generate_embeddings(image, mode=mode, aggregation=aggregation)
 
-            # Convert tensor to numpy
             if isinstance(embeddings, torch.Tensor):
                 embeddings = embeddings.cpu().numpy()
 
-            # Flatten if needed
             if len(embeddings.shape) > 1:
                 embeddings = embeddings.flatten()
 
@@ -447,16 +495,13 @@ class RadiologyProcessor:
 
         Args:
             image: Input image
-            method: Denoising method ('nlm', 'tv', 'bilateral', 'median', 'gaussian', 'deep')
+            method: Denoising method ('nlm', 'tv', 'bilateral', 'median', 'gaussian', 'rician', 'deep')
             **kwargs: Method-specific parameters
 
         Returns:
             Denoised image
         """
-        if method == "deep":
-            logger.warning("Deep learning denoising not yet implemented, using NLM instead")
-            method = "nlm"
-
+        # All methods including 'deep' and 'rician' are now supported by Denoiser
         denoiser = Denoiser(method=method)
         return denoiser.denoise(image, **kwargs)
 
@@ -535,28 +580,31 @@ class RadiologyProcessor:
         min_val = ct_image.min()
         max_val = ct_image.max()
 
-        # Air is around -1000 HU, bone is > 200 HU
-        if min_val < -900 and min_val > -1100:
-            results["likely_air_present"] = True
+        # Air is around -1000 HU — check if a meaningful fraction of voxels are in the air range
+        air_voxels = np.sum((ct_image >= -1050) & (ct_image <= -950))
+        results["likely_air_present"] = bool(air_voxels > (ct_image.size * 0.001))  # >0.1%
 
-        if max_val > 200 and max_val < 4000:
+        if max_val > 200 and max_val <= 4096:
             results["likely_bone_present"] = True
 
-        # Check if image appears to be in HU
-        if min_val >= -1100 and max_val <= 4000:
+        # Check if image appears to be in HU (wide range for GE padding and dense bone)
+        if min_val >= -2048 and max_val <= 4096:
             results["is_hu"] = True
         else:
             results["warnings"].append(
                 f"Values outside typical HU range: [{min_val:.1f}, {max_val:.1f}]"
             )
 
-        # Check metadata if available
+        # Check metadata if available — only warn when data looks like raw pixel data
         if metadata and hasattr(metadata, "rescale_slope"):
             if metadata.rescale_slope != 1.0 or metadata.rescale_intercept != 0.0:
-                results["warnings"].append(
-                    f"Rescale parameters suggest raw pixel values: "
-                    f"slope={metadata.rescale_slope}, intercept={metadata.rescale_intercept}"
-                )
+                # Only warn if data looks like it hasn't been rescaled yet
+                if min_val >= 0 and max_val > 4096:
+                    results["warnings"].append(
+                        f"Values may be raw pixel data (all positive, max={max_val:.1f}). "
+                        f"Rescale params: slope={metadata.rescale_slope}, "
+                        f"intercept={metadata.rescale_intercept}"
+                    )
 
         return results
 
@@ -685,6 +733,8 @@ class RadiologyProcessor:
                 sitk.AffineTransform(3 if len(fixed_image.shape) == 3 else 2),
                 sitk.CenteredTransformInitializerFilter.GEOMETRY,
             )
+        elif method in ("syn", "antspy_rigid", "antspy_affine"):
+            return self._register_antspy(moving_image, fixed_image, method)
         else:
             logger.warning(f"Method {method} not implemented, using rigid registration")
             initial_transform = sitk.CenteredTransformInitializer(
@@ -717,51 +767,89 @@ class RadiologyProcessor:
             logger.warning("Returning original moving image")
             return moving_image
 
+    def _register_antspy(
+        self, moving_image: np.ndarray, fixed_image: np.ndarray, method: str
+    ) -> np.ndarray:
+        """Register using ANTsPy.
+
+        Falls back to SimpleITK registration if ANTsPy is not installed.
+        """
+        try:
+            import ants
+
+            fixed_ants = ants.from_numpy(fixed_image.astype(np.float32))
+            moving_ants = ants.from_numpy(moving_image.astype(np.float32))
+
+            type_map = {
+                "antspy_rigid": "Rigid",
+                "antspy_affine": "Affine",
+                "syn": "SyN",
+            }
+            reg_type = type_map.get(method, "SyN")
+
+            result = ants.registration(
+                fixed=fixed_ants,
+                moving=moving_ants,
+                type_of_transform=reg_type,
+            )
+
+            return result["warpedmovout"].numpy()
+        except ImportError:
+            logger.warning(f"ANTsPy not available for '{method}', falling back to SimpleITK rigid")
+            return self.register(moving_image, fixed_image, method="rigid")
+
     # ========== Segmentation Methods ==========
 
     def segment_organs(
-        self, ct_image: np.ndarray, organs: Optional[List[str]] = None
+        self,
+        ct_image: np.ndarray,
+        organs: Optional[List[str]] = None,
+        spacing: Tuple[float, ...] = (1.0, 1.0, 1.0),
     ) -> Dict[str, np.ndarray]:
-        """Segment multiple organs from CT image.
+        """Segment multiple organs from CT image using nnU-Net.
 
         Args:
             ct_image: CT image in HU values
-            organs: List of organs to segment (default: ['liver', 'spleen', 'kidney'])
+            organs: List of organs to segment (None returns all)
+            spacing: Voxel spacing (z, y, x) in mm
 
         Returns:
             Dictionary mapping organ names to binary masks
         """
-        return self.ct_segmenter.segment_organs(ct_image, organs=organs)
+        return self.segmenter.segment_organs(ct_image, spacing=spacing, organs=organs)
 
     def segment_tumor(
         self,
         image: np.ndarray,
         metadata: ImageMetadata,
         seed_point: Optional[Tuple[int, ...]] = None,
+        spacing: Tuple[float, ...] = (1.0, 1.0, 1.0),
+        task: str = "brain_tumor",
         **kwargs,
     ) -> np.ndarray:
-        """Segment tumor using region growing.
+        """Segment tumor using nnU-Net.
 
         Args:
-            image: Medical image (CT/MRI/PET)
-            metadata: Image metadata to determine modality
-            seed_point: Starting point for region growing (required)
-            **kwargs: Additional parameters for segmentation
+            image: Medical image (CT/MRI)
+            metadata: Image metadata
+            seed_point: Deprecated. Ignored if provided.
+            spacing: Voxel spacing (z, y, x) in mm
+            task: nnU-Net task name (default "brain_tumor")
+            **kwargs: Reserved for future use
 
         Returns:
             Binary tumor mask
         """
-        if seed_point is None:
-            raise ValueError("seed_point is required for tumor segmentation")
+        import warnings
 
-        if metadata.is_ct():
-            return self.ct_segmenter.segment_tumor(image, seed_point, **kwargs)
-        elif metadata.is_mri():
-            return self.mri_segmenter.segment_tumor(image, seed_point, **kwargs)
-        else:
-            logger.warning(f"Tumor segmentation not optimized for modality {metadata.modality}")
-            # Fallback to CT segmenter
-            return self.ct_segmenter.segment_tumor(image, seed_point, **kwargs)
+        if seed_point is not None:
+            warnings.warn(
+                "seed_point is deprecated and ignored. NNUNetSegmenter does not "
+                "require a seed point. This parameter will be removed in a future version.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return self.segmenter.segment_tumor(image, spacing=spacing, task=task)
 
     def segment_metabolic_volume(
         self, pet_image: np.ndarray, threshold: float = 2.5, method: str = "fixed"
@@ -779,3 +867,125 @@ class RadiologyProcessor:
         return self.pet_segmenter.segment_metabolic_volume(
             pet_image, method=method, threshold=threshold
         )
+
+    # ========== Additional Public API Methods ==========
+
+    def crop_to_roi(self, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        """Crop image to the bounding box of a binary mask.
+
+        Args:
+            image: Input image (2D or 3D)
+            mask: Binary mask defining the ROI
+
+        Returns:
+            Cropped image containing only the ROI region
+        """
+        # Apply mask first
+        masked = image * mask
+
+        # Find bounding box of the mask
+        coords = np.where(mask > 0)
+        if len(coords[0]) == 0:
+            logger.warning("Empty mask provided, returning original image")
+            return image
+
+        slices = tuple(slice(c.min(), c.max() + 1) for c in coords)
+        return masked[slices]
+
+    def apply_mask(self, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        """Apply binary mask to image (zero outside mask).
+
+        Args:
+            image: Input image
+            mask: Binary mask (same shape as image)
+
+        Returns:
+            Masked image with zeros outside the mask region
+        """
+        return image * mask
+
+    def correct_bias_field(self, image: np.ndarray, backend: str = "sitk") -> np.ndarray:
+        """Apply N4 bias field correction to MRI image.
+
+        Args:
+            image: Input MRI image
+            backend: Backend to use ('sitk' or 'ants')
+
+        Returns:
+            Bias-corrected image
+        """
+        if backend == "ants":
+            try:
+                import ants
+
+                ants_img = ants.from_numpy(image.astype(np.float32))
+                corrected = ants.n4_bias_field_correction(ants_img)
+                return corrected.numpy()
+            except ImportError:
+                logger.warning("ANTsPy not available, falling back to SimpleITK")
+
+        sitk_image = sitk.GetImageFromArray(image.astype(np.float32))
+        corrector = sitk.N4BiasFieldCorrectionImageFilter()
+        corrected = corrector.Execute(sitk_image)
+        return sitk.GetArrayFromImage(corrected)
+
+    def calculate_suv(
+        self,
+        image: np.ndarray,
+        patient_weight: float,
+        injected_dose: float,
+        injection_time: Optional[str] = None,
+    ) -> np.ndarray:
+        """Calculate Standardized Uptake Value (SUV) from PET image.
+
+        Args:
+            image: PET image pixel values
+            patient_weight: Patient weight in kg
+            injected_dose: Injected dose in mCi
+            injection_time: Injection time in ISO format (reserved for decay correction)
+
+        Returns:
+            SUV image
+        """
+        # Convert injected dose from mCi to Bq (1 mCi = 3.7e7 Bq)
+        dose_bq = injected_dose * 3.7e7
+
+        # SUV = pixel_value * body_weight(g) / injected_dose(Bq)
+        suv = image.astype(np.float64) * (patient_weight * 1000) / dose_bq
+
+        return suv
+
+    def aggregate_embeddings(
+        self, embeddings: np.ndarray, method: str = "mean"
+    ) -> np.ndarray:
+        """Aggregate slice-level embeddings to volume-level.
+
+        Args:
+            embeddings: Array of shape (num_slices, embedding_dim)
+            method: Aggregation method ('mean', 'max', 'concat')
+
+        Returns:
+            Aggregated embedding vector
+        """
+        if method == "mean":
+            return embeddings.mean(axis=0)
+        elif method == "max":
+            result = embeddings.max(axis=0)
+            # torch.Tensor.max returns a named tuple (values, indices);
+            # numpy ndarray.max returns the array directly.
+            return result.values if hasattr(result, "values") else result
+        elif method == "concat":
+            return embeddings.flatten()
+        else:
+            raise ValueError(f"Unknown aggregation method: {method}. Choose from: mean, max, concat")
+
+    def load_atlas(self, path: Union[str, Path]) -> Tuple[np.ndarray, 'ImageMetadata']:
+        """Load atlas image (alias for load_nifti).
+
+        Args:
+            path: Path to atlas NIfTI file
+
+        Returns:
+            Tuple of (atlas array, metadata)
+        """
+        return self.nifti_loader.load_file(path)

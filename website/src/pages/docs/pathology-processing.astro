@@ -10,7 +10,10 @@ import CodeBlock from "../../components/CodeBlock.astro";
     (WSIs), which are high-resolution scans of tissue samples. These images
     present unique computational challenges due to their extreme size (often
     several gigabytes), multi-resolution pyramid structure, and vendor-specific
-    file formats.
+    file formats. HoneyBee uses a four-class modular design &mdash;
+    <strong>Slide</strong> &rarr; <strong>PatchExtractor</strong> &rarr;
+    <strong>Patches</strong> &rarr; <strong>PathologyProcessor</strong> &mdash;
+    so each stage can be used independently or composed into end-to-end pipelines.
   </p>
 
   <div class="mb-8">
@@ -23,211 +26,622 @@ import CodeBlock from "../../components/CodeBlock.astro";
 
   <h2 class="text-2xl font-bold mb-4">Key Features</h2>
   <ul class="list-disc pl-5 space-y-2 mb-6">
-    <li>Support for multiple WSI formats (Aperio SVS, Philips TIFF, etc.)</li>
-    <li>GPU-accelerated image processing</li>
-    <li>Tissue detection and segmentation</li>
-    <li>Stain normalization and separation</li>
-    <li>Efficient patch extraction</li>
-    <li>Multiple embedding models for feature extraction</li>
+    <li>Support for multiple WSI formats (Aperio SVS, Philips TIFF, and more)</li>
+    <li>Auto-detecting backend: CuCIM (GPU-accelerated) with OpenSlide fallback</li>
+    <li>Deep-learning and classical tissue detection (Otsu, HSV, gradient)</li>
+    <li>Stain normalization (Reinhard, Macenko, Vahadane) and H&E stain separation</li>
+    <li>Grid-based patch extraction with tissue filtering and quality scoring</li>
+    <li>8 foundation model presets (UNI, UNI2, Virchow2, H-optimus, GigaPath, Phikon-v2, MedSigLIP, REMEDIS)</li>
+    <li>Slide-level aggregation (mean, max, median, std, concat)</li>
+    <li>Built-in visualizations: tissue masks, patch galleries, quality distributions, UMAP feature maps</li>
   </ul>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">WSI Loading and Data Management</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Quick Start</h2>
   <p class="mb-4">
-    HoneyBee utilizes CuImage for efficient loading and handling of WSIs:
+    Install HoneyBee with pathology dependencies and download a sample slide from HuggingFace:
   </p>
   <CodeBlock
-    code={`from honeybee.processors import PathologyProcessor
+    code={`import torch
+from huggingface_hub import hf_hub_download
 
-# Initialize the pathology processor
-processor = PathologyProcessor()
+from honeybee.loaders.Slide.slide import Slide
+from honeybee.processors import PathologyProcessor
+from honeybee.processors.wsi import PatchExtractor
 
-# Load a whole slide image
-wsi = processor.load_wsi("path/to/slide.svs")`}
+# Download a sample WSI from HuggingFace
+SLIDE_PATH = hf_hub_download(
+    repo_id="Lab-Rasool/honeybee-samples",
+    filename="sample.svs",
+    repo_type="dataset",
+)
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"`}
     lang="python"
+    filename="quickstart.py"
   />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">
-    Tissue Detection and Segmentation
-  </h2>
-  <p class="mb-4">HoneyBee implements two approaches for tissue detection:</p>
-  <h3 class="text-xl font-bold mt-4 mb-2">1. Otsu-based method</h3>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Slide Loading</h2>
+  <p class="mb-4">
+    The <code>Slide</code> class auto-detects the best available backend
+    (CuCIM for GPU acceleration, OpenSlide as fallback) and provides a
+    unified API for reading WSI files. Use <code>slide.info</code> to
+    inspect metadata and <code>slide.dimensions</code> for the full-resolution size.
+  </p>
   <CodeBlock
-    code={`from honeybee.processors import PathologyProcessor
+    code={`slide = Slide(SLIDE_PATH)
 
-processor = PathologyProcessor()
-wsi = processor.load_wsi("path/to/slide.svs")
+# Slide metadata (backend, dimensions, level count, magnification, etc.)
+print(slide.info)
 
-# Detect tissue using Otsu thresholding
-tissue_mask = processor.detect_tissue(wsi, method="otsu")`}
+# Full-resolution dimensions (width, height)
+print(slide.dimensions)  # e.g. (27965, 25146)`}
     lang="python"
+    filename="slide_loading.py"
   />
-
-  <h3 class="text-xl font-bold mt-4 mb-2">2. Deep learning-based approach</h3>
   <CodeBlock
-    code={`from honeybee.processors import PathologyProcessor
+    code={`{
+  "path": "sample.svs",
+  "backend": "cucim",
+  "dimensions": [27965, 25146],
+  "level_count": 3,
+  "level_dimensions": [[27965, 25146], [6991, 6286], [1747, 1571]],
+  "level_downsamples": [1.0, 4.0, 16.0],
+  "magnification": null,
+  "mpp": 1.0,
+  "vendor": null
+}`}
+    lang="text"
+    filename="Output"
+  />
 
-processor = PathologyProcessor()
-wsi = processor.load_wsi("path/to/slide.svs")
+  <h2 class="text-2xl font-bold mt-8 mb-4">Thumbnails and Region Reading</h2>
+  <p class="mb-4">
+    <code>get_thumbnail()</code> returns a downsampled overview of the entire slide.
+    <code>read_region()</code> reads pixels at a specific level-0 location and size,
+    returning an RGB NumPy array.
+  </p>
+  <CodeBlock
+    code={`# Downsampled overview
+thumbnail = slide.get_thumbnail(size=(512, 512))
 
-# Detect tissue using pretrained model
-tissue_mask = processor.detect_tissue(wsi, method="deeplearning")`}
+# Read a 1024x1024 region from the center of the slide
+cx, cy = slide.dimensions[0] // 2, slide.dimensions[1] // 2
+region = slide.read_region(
+    location=(cx - 512, cy - 512),
+    size=(1024, 1024),
+    level=0,
+)`}
+    lang="python"
+    filename="thumbnails_regions.py"
+  />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/pathology/thumbnail-and-region.png"
+      alt="Slide thumbnail and center region side-by-side"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Tissue Detection</h2>
+  <p class="mb-4">
+    HoneyBee provides both deep-learning and classical approaches for
+    tissue detection. Results are stored on the slide object as
+    <code>slide.tissue_mask</code> and <code>slide.prediction_map</code>.
+  </p>
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Deep Learning Detection</h3>
+  <p class="mb-4">
+    Uses a pretrained DenseNet121 model for fine-grained tissue segmentation.
+    The <code>patch_size</code> parameter controls tile resolution &mdash;
+    smaller patches yield finer masks at the cost of more inference passes.
+  </p>
+  <CodeBlock
+    code={`slide.detect_tissue(
+    method="dl",
+    device=DEVICE,
+    patch_size=64,
+    thumbnail_size=(4096, 4096),
+)
+
+print(f"Tissue mask: {slide.tissue_mask.shape}")
+print(f"Tissue ratio: {slide.tissue_mask.mean():.2%}")
+print(f"Prediction map: {slide.prediction_map.shape}")
+
+# Visualize the detection result
+slide.plot_tissue_detection()`}
+    lang="python"
+    filename="tissue_dl.py"
+  />
+  <CodeBlock
+    code={`Tissue mask: (3683, 4095), ratio: 29.48%
+Prediction map: (24, 27, 3)`}
+    lang="text"
+    filename="Output"
+  />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/pathology/tissue-detection-dl.png"
+      alt="Deep learning tissue detection visualization"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Classical Methods</h3>
+  <p class="mb-4">
+    Three classical approaches are available: Otsu thresholding
+    (<code>"otsu"</code>), HSV color filtering (<code>"hsv"</code>),
+    and their combination (<code>"otsu_hsv"</code>).
+  </p>
+  <CodeBlock
+    code={`# Otsu thresholding
+slide.detect_tissue(method="otsu")
+
+# HSV color filtering
+slide.detect_tissue(method="hsv")
+
+# Combined Otsu + HSV
+slide.detect_tissue(method="otsu_hsv")`}
+    lang="python"
+    filename="tissue_classical.py"
+  />
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Method Comparison</h3>
+  <p class="mb-4">
+    Compare detection methods side-by-side to choose the best fit for your data:
+  </p>
+  <CodeBlock
+    code={`slide.compare_tissue_methods(["dl", "otsu", "hsv", "otsu_hsv"])`}
     lang="python"
   />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/pathology/tissue-method-comparison.png"
+      alt="Comparison of dl, otsu, hsv, and otsu_hsv tissue detection methods"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Patch Extraction</h2>
+  <p class="mb-4">
+    <code>PatchExtractor</code> performs grid-based extraction using the slide's
+    tissue mask to filter out background tiles. Configure patch size, stride,
+    and minimum tissue ratio to control density.
+  </p>
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Grid Preview</h3>
+  <p class="mb-4">
+    Visualize the extraction grid over the tissue mask before committing to pixel reads:
+  </p>
+  <CodeBlock
+    code={`extractor = PatchExtractor(
+    patch_size=256,
+    stride=256,
+    min_tissue_ratio=0.5,
+)
+
+# Preview the grid overlay on the tissue mask
+extractor.plot_grid_preview(slide)`}
+    lang="python"
+    filename="grid_preview.py"
+  />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/pathology/grid-preview.png"
+      alt="Extraction grid overlaid on tissue mask"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Extract and Inspect</h3>
+  <p class="mb-4">
+    <code>extract()</code> returns a <code>Patches</code> container holding
+    image arrays and coordinates. Use built-in visualizations to inspect results.
+  </p>
+  <CodeBlock
+    code={`patches = extractor.extract(slide)
+
+print(f"Extracted {len(patches)} patches")
+print(f"Images shape: {patches.images.shape}")
+print(f"Coordinates shape: {patches.coordinates.shape}")
+
+# Gallery of extracted patches
+patches.plot_gallery(cols=8, max_patches=64)
+
+# Patch locations overlaid on the slide thumbnail
+patches.plot_on_slide(slide)`}
+    lang="python"
+    filename="extract_patches.py"
+  />
+  <CodeBlock
+    code={`Extracted 2993 patches
+Images shape: (2993, 256, 256, 3)
+Coordinates shape: (2993, 4)`}
+    lang="text"
+    filename="Output"
+  />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/pathology/patch-gallery.png"
+      alt="Gallery of extracted patches"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/pathology/patches-on-slide.png"
+      alt="Patch locations overlaid on slide thumbnail"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Quality Filtering</h2>
+  <p class="mb-4">
+    Quality scores combine tissue ratio, color variance, and edge content.
+    Use <code>plot_quality_distribution()</code> to choose a threshold, then
+    <code>filter()</code> to discard low-quality patches. The <code>Patches</code>
+    container is immutable &mdash; filtering returns a new instance.
+  </p>
+  <CodeBlock
+    code={`# Visualize quality score distribution with a threshold line
+patches.plot_quality_distribution(threshold=0.7)
+
+# Filter patches (returns a new Patches instance)
+good_patches = patches.filter(min_quality=0.7)
+print(f"Filtered: {len(patches)} -> {len(good_patches)} patches")`}
+    lang="python"
+    filename="quality_filter.py"
+  />
+  <CodeBlock
+    code={`Filtered: 2993 -> 249 patches (min_quality=0.7)`}
+    lang="text"
+    filename="Output"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Multi-Resolution Extraction</h2>
+  <p class="mb-4">
+    For large slides, run tissue detection at low magnification to build a
+    coarse spatial grid, then pass it to a high-resolution extractor via the
+    <code>tissue_coordinates</code> parameter. This avoids re-running
+    detection at full resolution.
+  </p>
+  <CodeBlock
+    code={`# Low-res tissue grid: small patches at coarse magnification
+lowres_extractor = PatchExtractor(
+    patch_size=16, stride=16, magnification=5.0, min_tissue_ratio=0.3
+)
+tissue_grid = lowres_extractor.get_coordinates(slide)
+print(f"Low-res tissue grid: {len(tissue_grid)} tiles")
+
+# High-res extraction using the tissue grid as a spatial filter
+hires_extractor = PatchExtractor(
+    patch_size=256, stride=256, magnification=20.0, min_tissue_ratio=0.5
+)
+hires_patches = hires_extractor.extract(slide, tissue_coordinates=tissue_grid)
+print(f"High-res patches: {len(hires_patches)}")`}
+    lang="python"
+    filename="multi_resolution.py"
+  />
+  <CodeBlock
+    code={`Low-res tissue grid: 809280 tiles (16px @ ~5x)
+High-res patches: 3188 (256px @ ~20x)
+Tissue filter: tissue_coordinates
+Tissue coordinates used: 809280`}
+    lang="text"
+    filename="Output"
+  />
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/pathology/multi-resolution-grid.png"
+      alt="High-resolution extraction grid preview"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Stain Normalization</h2>
   <p class="mb-4">
-    HoneyBee implements three state-of-the-art stain normalization methods:
+    Stain normalization reduces color variability across slides from different
+    scanners and labs. Three methods are available: Reinhard, Macenko, and Vahadane.
+    All stain operations on <code>Patches</code> are immutable and return new instances.
   </p>
   <CodeBlock
-    code={`from honeybee.processors import PathologyProcessor
+    code={`# Compare all normalization methods side-by-side on a single patch
+good_patches.plot_normalization_comparison()
 
-processor = PathologyProcessor()
-wsi = processor.load_wsi("path/to/slide.svs")
+# Apply Macenko normalization (returns a new Patches instance)
+normalized = good_patches.normalize(method="macenko")
 
-# Reinhard normalization
-normalized_wsi_reinhard = processor.normalize_stain(wsi, method="reinhard")
-
-# Macenko normalization
-normalized_wsi_macenko = processor.normalize_stain(wsi, method="macenko")
-
-# Vahadane normalization
-normalized_wsi_vahadane = processor.normalize_stain(wsi, method="vahadane")`}
+# Before/after visualization
+good_patches.plot_normalization_before_after(normalized)`}
     lang="python"
+    filename="stain_normalization.py"
   />
+  <CodeBlock
+    code={`Normalized 249 patches`}
+    lang="text"
+    filename="Output"
+  />
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/pathology/normalization-comparison.png"
+      alt="Reinhard, Macenko, and Vahadane normalization comparison"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/pathology/normalization-before-after.png"
+      alt="Before and after Macenko stain normalization"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Stain Separation</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">H&E Stain Separation</h2>
   <p class="mb-4">
-    HoneyBee implements color deconvolution for stain separation:
+    Deconvolve patches into hematoxylin, eosin, and background channels
+    using color deconvolution:
   </p>
   <CodeBlock
-    code={`from honeybee.processors import PathologyProcessor
-
-processor = PathologyProcessor()
-wsi = processor.load_wsi("path/to/slide.svs")
-
-# Separate stains (returns a dictionary of stain components)
-stains = processor.separate_stains(wsi)
-
-# Access individual stain components
-hematoxylin = stains['hematoxylin']
-eosin = stains['eosin']
-dab = stains.get('dab')  # May be None if no DAB staining present`}
+    code={`patches.plot_stain_separation()`}
     lang="python"
   />
-
-  <h2 class="text-2xl font-bold mt-8 mb-4">Patch Extraction</h2>
-  <p class="mb-4">Extract patches from tissue regions for analysis:</p>
-  <CodeBlock
-    code={`from honeybee.processors import PathologyProcessor
-
-processor = PathologyProcessor()
-wsi = processor.load_wsi("path/to/slide.svs")
-tissue_mask = processor.detect_tissue(wsi)
-
-# Extract patches
-patches = processor.extract_patches(
-    wsi, 
-    tissue_mask,
-    patch_size=256,
-    overlap=0.2,
-    min_tissue_percentage=0.5
-)`}
-    lang="python"
-  />
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/pathology/stain-separation.png"
+      alt="H&E stain separation into hematoxylin, eosin, and background channels"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Embedding Generation</h2>
   <p class="mb-4">
-    Generate embeddings from tissue patches using pretrained models:
+    <code>PathologyProcessor</code> wraps the model registry to generate
+    patch-level embeddings from any supported foundation model. Pass a
+    <code>Patches</code> object directly to <code>generate_embeddings()</code>.
   </p>
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Available Models</h3>
+  <p class="mb-4">
+    HoneyBee ships with 8 preset foundation models. Use <code>list_models()</code>
+    to see all available presets, or pass any HuggingFace / timm model ID with an
+    explicit <code>provider</code>.
+  </p>
+
+  <div class="overflow-x-auto mb-6">
+    <table class="min-w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-gray-600">
+          <th class="text-left py-2 px-3">Alias</th>
+          <th class="text-left py-2 px-3">Embedding Dim</th>
+          <th class="text-left py-2 px-3">Provider</th>
+          <th class="text-left py-2 px-3">Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>uni</code></td>
+          <td class="py-2 px-3">1024</td>
+          <td class="py-2 px-3">timm</td>
+          <td class="py-2 px-3">UNI ViT-L/16 pathology foundation model (MahmoodLab)</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>uni2</code></td>
+          <td class="py-2 px-3">1536</td>
+          <td class="py-2 px-3">timm</td>
+          <td class="py-2 px-3">UNI2-h ViT-H/14 pathology foundation model (MahmoodLab)</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>virchow2</code></td>
+          <td class="py-2 px-3">2560</td>
+          <td class="py-2 px-3">timm</td>
+          <td class="py-2 px-3">Virchow2 ViT-H/14 pathology model (Paige AI) - cls+mean pooling</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>h-optimus</code></td>
+          <td class="py-2 px-3">1536</td>
+          <td class="py-2 px-3">timm</td>
+          <td class="py-2 px-3">H-optimus-0 pathology foundation model (Bioptimus)</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>gigapath</code></td>
+          <td class="py-2 px-3">1536</td>
+          <td class="py-2 px-3">timm</td>
+          <td class="py-2 px-3">Prov-GigaPath DINOv2-based pathology model</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>phikon-v2</code></td>
+          <td class="py-2 px-3">1024</td>
+          <td class="py-2 px-3">huggingface</td>
+          <td class="py-2 px-3">Phikon-v2 pathology foundation model (Owkin)</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>medsiglip</code></td>
+          <td class="py-2 px-3">1152</td>
+          <td class="py-2 px-3">huggingface</td>
+          <td class="py-2 px-3">MedSigLIP medical image-text model (Google) - 448x448</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>remedis</code></td>
+          <td class="py-2 px-3">2048</td>
+          <td class="py-2 px-3">onnx</td>
+          <td class="py-2 px-3">REMEDIS CXR model (Google) - requires ONNX model_path</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
   <CodeBlock
-    code={`from honeybee.processors import PathologyProcessor
+    code={`from honeybee.models.registry import list_models
 
-processor = PathologyProcessor(model="uni")  # Options: uni, remedis
-wsi = processor.load_wsi("path/to/slide.svs")
-tissue_mask = processor.detect_tissue(wsi)
-patches = processor.extract_patches(wsi, tissue_mask)
-
-# Generate embeddings for all patches
-embeddings = processor.generate_embeddings(patches)
-
-# Shape: (num_patches, embedding_dim)  # embedding_dim depends on the model`}
+# List all registered model presets
+for m in list_models():
+    print(f"  {m['alias']:>12s}  dim={m['embedding_dim']:>4d}  provider={m['provider']}")`}
     lang="python"
+    filename="list_models.py"
+  />
+  <CodeBlock
+    code={`      gigapath  dim=1536  provider=timm
+     h-optimus  dim=1536  provider=timm
+     medsiglip  dim=1152  provider=huggingface
+     phikon-v2  dim=1024  provider=huggingface
+       remedis  dim=2048  provider=onnx
+           uni  dim=1024  provider=timm
+          uni2  dim=1536  provider=timm
+      virchow2  dim=2560  provider=timm`}
+    lang="text"
+    filename="Output"
   />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Complete Example</h2>
-  <p class="mb-4">Full pipeline from WSI loading to embedding generation:</p>
+  <h3 class="text-xl font-bold mt-4 mb-2">Generate Embeddings</h3>
+  <p class="mb-4">
+    Initialize <code>PathologyProcessor</code> with a model alias, then call
+    <code>generate_embeddings()</code> with a <code>Patches</code> object:
+  </p>
   <CodeBlock
-    code={`from honeybee.processors import PathologyProcessor
+    code={`processor = PathologyProcessor(model="uni2")
 
-# Initialize processor with specific model
-processor = PathologyProcessor(model="uni")
+# Inspect model configuration
+info = processor.get_model_info()
+print(f"Model: {info['alias']}, dim: {info['embedding_dim']}")
 
-# Load WSI
-wsi = processor.load_wsi("path/to/slide.svs")
-
-# Normalize staining
-normalized_wsi = processor.normalize_stain(wsi, method="macenko")
-
-# Detect tissue
-tissue_mask = processor.detect_tissue(normalized_wsi, method="deeplearning")
-
-# Extract patches
-patches = processor.extract_patches(
-    normalized_wsi, 
-    tissue_mask,
-    patch_size=256,
-    overlap=0,
-    min_tissue_percentage=0.7
+# Generate patch-level embeddings
+embeddings = processor.generate_embeddings(
+    patches,
+    batch_size=32,
+    progress=True,
 )
-
-# Generate embeddings
-embeddings = processor.generate_embeddings(patches)
-
-# Aggregate patch-level embeddings to slide-level
-slide_embedding = processor.aggregate_embeddings(embeddings, method="mean")
-
-# Use for downstream tasks
-# ...`}
+print(f"Embeddings shape: {embeddings.shape}")  # (num_patches, embedding_dim)`}
     lang="python"
+    filename="generate_embeddings.py"
+  />
+  <CodeBlock
+    code={`Model: uni2, dim: 1536
+Embeddings shape: (2993, 1536)`}
+    lang="text"
+    filename="Output"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Slide-Level Aggregation</h2>
+  <p class="mb-4">
+    Aggregate patch-level embeddings into a single slide-level representation
+    using one of five methods:
+  </p>
+  <CodeBlock
+    code={`# Available methods: mean, max, median, std, concat
+for method in ["mean", "max", "median", "std", "concat"]:
+    agg = processor.aggregate_embeddings(embeddings, method=method)
+    print(f"  {method:>8s}: shape={agg.shape}")`}
+    lang="python"
+    filename="aggregation.py"
+  />
+  <CodeBlock
+    code={`      mean: shape=(1536,)
+       max: shape=(1536,)
+    median: shape=(1536,)
+       std: shape=(1536,)
+    concat: shape=(3072,)`}
+    lang="text"
+    filename="Output"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">UMAP Feature Maps</h2>
+  <p class="mb-4">
+    Project high-dimensional embeddings to 3D with UMAP, map each dimension
+    to an RGB channel, and overlay on the slide thumbnail. Similar tissue
+    regions receive similar colors.
+  </p>
+  <CodeBlock
+    code={`processor.plot_feature_map(patches, embeddings, slide)`}
+    lang="python"
+  />
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/pathology/umap-feature-maps.png"
+      alt="Multi-model UMAP feature map comparison"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Complete Pipeline Example</h2>
+  <p class="mb-4">
+    Full end-to-end workflow from WSI loading to slide-level embeddings:
+  </p>
+  <CodeBlock
+    code={`import torch
+from huggingface_hub import hf_hub_download
+
+from honeybee.loaders.Slide.slide import Slide
+from honeybee.processors import PathologyProcessor
+from honeybee.processors.wsi import PatchExtractor
+
+# 1. Load slide
+slide_path = hf_hub_download(
+    repo_id="Lab-Rasool/honeybee-samples",
+    filename="sample.svs",
+    repo_type="dataset",
+)
+slide = Slide(slide_path)
+
+# 2. Detect tissue
+device = "cuda" if torch.cuda.is_available() else "cpu"
+slide.detect_tissue(method="dl", device=device, patch_size=64)
+
+# 3. Extract patches
+extractor = PatchExtractor(patch_size=256, stride=256, min_tissue_ratio=0.5)
+patches = extractor.extract(slide)
+
+# 4. Quality filtering
+good_patches = patches.filter(min_quality=0.7)
+
+# 5. Stain normalization
+normalized = good_patches.normalize(method="macenko")
+
+# 6. Generate embeddings
+processor = PathologyProcessor(model="uni2")
+embeddings = processor.generate_embeddings(normalized, batch_size=32, progress=True)
+
+# 7. Slide-level aggregation
+slide_embedding = processor.aggregate_embeddings(embeddings, method="mean")
+print(f"Slide embedding: {slide_embedding.shape}")
+
+# 8. Visualize
+processor.plot_feature_map(normalized, embeddings, slide)`}
+    lang="python"
+    filename="complete_pipeline.py"
   />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Performance Considerations</h2>
   <p class="mb-4">When processing large WSIs, consider the following:</p>
   <ul class="list-disc pl-5 space-y-2 mb-6">
-    <li>Leverage GPU acceleration when available</li>
     <li>
-      Use appropriate magnification level for analysis (typically 20x or 40x)
-    </li>
-    <li>Process slides in batches to manage memory usage</li>
-    <li>Use multi-threading for patch extraction and processing</li>
-    <li>
-      Consider downsampling for initial tissue detection before high-resolution
-      analysis
-    </li>
-  </ul>
-
-  <h2 class="text-2xl font-bold mt-8 mb-4">References</h2>
-  <ul class="list-disc pl-5 space-y-2">
-    <li>
-      UNI Model: <a
-        href="https://arxiv.org/abs/2310.05694"
-        class="text-primary hover:underline"
-        target="_blank">https://arxiv.org/abs/2310.05694</a
-      >
+      <strong>CuCIM backend:</strong> Automatically preferred when available;
+      provides GPU-accelerated slide reading
     </li>
     <li>
-      REMEDIS: <a
-        href="https://arxiv.org/abs/2308.16184"
-        class="text-primary hover:underline"
-        target="_blank">https://arxiv.org/abs/2308.16184</a
-      >
+      <strong>Thumbnail-resolution detection:</strong> Run tissue detection on
+      downsampled thumbnails to save time on initial segmentation
     </li>
     <li>
-      Stain Normalization Methods: <a
-        href="https://bio-medical.github.io/staintools/"
-        class="text-primary hover:underline"
-        target="_blank">https://bio-medical.github.io/staintools/</a
-      >
+      <strong>Multi-resolution extraction:</strong> Build a coarse tissue grid
+      at low magnification, then pass it to a high-resolution extractor via
+      <code>tissue_coordinates</code>
+    </li>
+    <li>
+      <strong>Batch sizes:</strong> Tune <code>batch_size</code> in
+      <code>generate_embeddings()</code> to balance GPU memory and throughput
+    </li>
+    <li>
+      <strong>Quality filtering before embedding:</strong> Filter out
+      low-quality patches before the expensive embedding step to avoid wasted compute
+    </li>
+    <li>
+      <strong>Immutable Patches:</strong> <code>filter()</code>,
+      <code>normalize()</code>, and slicing return new <code>Patches</code>
+      instances &mdash; the original is never modified
     </li>
   </ul>
 </DocsLayout>

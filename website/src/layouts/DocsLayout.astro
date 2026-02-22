@@ -23,10 +23,10 @@ const currentPath = Astro.url.pathname;
 ---
 
 <BaseLayout title={title} description={description}>
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="lg:grid lg:grid-cols-12 lg:gap-8">
+  <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="lg:grid lg:grid-cols-[240px_1fr] xl:grid-cols-[240px_1fr_220px] lg:gap-8">
       <!-- Sidebar -->
-      <div class="hidden lg:block lg:col-span-3">
+      <div class="hidden lg:block">
         <nav class="sticky top-8 space-y-1">
           <a
             href="/HoneyBee/docs/"
@@ -50,14 +50,85 @@ const currentPath = Astro.url.pathname;
       </div>
 
       <!-- Content -->
-      <div class="lg:col-span-9">
-        <div class="prose max-w-none">
+      <div class="min-w-0">
+        <div class="docs-content prose max-w-none">
           <slot />
         </div>
       </div>
+
+      <!-- Table of Contents (right side, xl+ only) -->
+      <aside class="hidden xl:block">
+        <nav id="toc-nav" class="sticky top-8 max-h-[calc(100vh-4rem)] overflow-y-auto">
+          <span class="text-sm font-semibold text-gray-900 block mb-3">On this page</span>
+          <ul id="toc-list" class="space-y-1 border-l border-gray-200"></ul>
+        </nav>
+      </aside>
     </div>
   </div>
 </BaseLayout>
+
+<!-- Table of Contents script -->
+<script is:inline>
+  (function () {
+    const content = document.querySelector('.docs-content');
+    const tocList = document.getElementById('toc-list');
+    if (!content || !tocList) return;
+
+    const headings = content.querySelectorAll('h2, h3');
+    if (headings.length === 0) return;
+
+    // Generate slug from text
+    function slugify(text) {
+      return text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim();
+    }
+
+    // Build TOC entries and assign IDs
+    headings.forEach(function (heading) {
+      if (!heading.id) {
+        heading.id = slugify(heading.textContent);
+      }
+      var li = document.createElement('li');
+      var a = document.createElement('a');
+      a.href = '#' + heading.id;
+      a.textContent = heading.textContent;
+      a.className = 'block py-1 text-sm text-gray-500 hover:text-amber-600 transition-colors border-l-2 border-transparent -ml-px';
+      if (heading.tagName === 'H3') {
+        a.classList.add('pl-6');
+      } else {
+        a.classList.add('pl-3');
+      }
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.getElementById(heading.id).scrollIntoView({ behavior: 'smooth' });
+        history.replaceState(null, '', '#' + heading.id);
+      });
+      li.appendChild(a);
+      tocList.appendChild(li);
+    });
+
+    // Scroll-spy via IntersectionObserver
+    var tocLinks = tocList.querySelectorAll('a');
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(function (link) {
+            if (link.getAttribute('href') === '#' + entry.target.id) {
+              link.classList.remove('text-gray-500', 'border-transparent');
+              link.classList.add('text-amber-600', 'font-medium', 'border-amber-500');
+            } else {
+              link.classList.remove('text-amber-600', 'font-medium', 'border-amber-500');
+              link.classList.add('text-gray-500', 'border-transparent');
+            }
+          });
+        }
+      });
+    }, { rootMargin: '0px 0px -80% 0px', threshold: 0 });
+
+    headings.forEach(function (heading) {
+      observer.observe(heading);
+    });
+  })();
+</script>
 
 <!-- Add Prism.js for syntax highlighting before closing body -->
 <script

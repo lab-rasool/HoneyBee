@@ -77,7 +77,7 @@ class RadImageNet:
             if "DenseNet121" in model_filename:
                 self.model = models.densenet121(weights=None)
             elif "InceptionV3" in model_filename:
-                self.model = models.inception_v3(weights=None)
+                self.model = models.inception_v3(weights=None, aux_logits=False, init_weights=False)
             elif "ResNet50" in model_filename:
                 self.model = models.resnet50(weights=None)
             else:
@@ -88,7 +88,7 @@ class RadImageNet:
                 self.model = models.densenet121(weights=None)
                 model_filename = "DenseNet121.pt"
             elif "InceptionV3" in self.model_name:
-                self.model = models.inception_v3(weights=None)
+                self.model = models.inception_v3(weights=None, aux_logits=False, init_weights=False)
                 model_filename = "InceptionV3.pt"
             elif "ResNet50" in self.model_name:
                 self.model = models.resnet50(weights=None)
@@ -148,7 +148,20 @@ class RadImageNet:
         # Load the model weights
         try:
             state_dict = torch.load(self.model_path, map_location=self.device)
-            self.model.load_state_dict(state_dict, strict=False)
+
+            # Filter keys that don't match the model (e.g. aux_logits layers from different config)
+            model_state = self.model.state_dict()
+            filtered = {
+                k: v
+                for k, v in state_dict.items()
+                if k in model_state and v.shape == model_state[k].shape
+            }
+            skipped = set(state_dict.keys()) - set(filtered.keys())
+            if skipped:
+                logger.info(
+                    f"Skipped {len(skipped)} incompatible keys: {sorted(skipped)[:5]}..."
+                )
+            self.model.load_state_dict(filtered, strict=False)
 
             # Remove the final classification layer to get embeddings
             if isinstance(self.model, models.DenseNet):
@@ -157,12 +170,26 @@ class RadImageNet:
                 self.model.fc = nn.Identity()
             elif isinstance(self.model, models.Inception3):
                 self.model.fc = nn.Identity()
-                # Also disable auxiliary classifiers
-                self.model.aux_logits = False
 
-            self.model.to(self.device)  # Move model to the appropriate device (GPU or CPU)
-            self.model.eval()  # Set to evaluation mode
+            self.model.to(self.device)
+            self.model.eval()
             logger.info(f"Successfully loaded model from: {self.model_path}")
+
+            # Sanity check: verify embeddings have reasonable norms
+            try:
+                with torch.no_grad():
+                    dummy = torch.randn(
+                        1, 3, self.input_size, self.input_size, device=self.device
+                    )
+                    test_emb = self.model(dummy)
+                    norm = test_emb.norm().item()
+                    if norm > 10000:
+                        logger.warning(
+                            f"Model produces very large embeddings (norm={norm:.1f}). "
+                            f"Weight loading may have failed."
+                        )
+            except Exception as e:
+                logger.debug(f"Sanity check skipped: {e}")
         except Exception as e:
             raise RuntimeError(f"Failed to load model weights from {self.model_path}: {e}")
 

@@ -20,6 +20,8 @@ __all__ = [
     "validate_stain_matrix",
     "STAIN_NORM_TARGETS",
     "STAIN_MATRIX_DEFAULT",
+    "REFERENCE_STAIN_MATRIX",
+    "REFERENCE_MAX_CONCENTRATIONS",
 ]
 
 from typing import Dict, Optional, Tuple, Union
@@ -27,38 +29,42 @@ from typing import Dict, Optional, Tuple, Union
 import cv2
 import numpy as np
 
-# Standard stain normalization targets
+# Reference stain vectors from mitkovetta/staining-normalization (HistoPrep)
+# Rows are [H, E], columns are [R, G, B] in OD space
+REFERENCE_STAIN_MATRIX = np.array([
+    [0.5626, 0.7201, 0.4062],  # Hematoxylin
+    [0.2159, 0.8012, 0.5581],  # Eosin
+])
+REFERENCE_MAX_CONCENTRATIONS = np.array([1.9705, 1.0308])
+
+# Standard stain normalization targets (3x2 column format for backward compat)
 STAIN_NORM_TARGETS = {
     "tcga_avg": {
-        "mean_lab": np.array([66.98, 128.77, 113.74]),
-        "std_lab": np.array([15.89, 10.22, 9.41]),
-        "stain_matrix": np.array(
-            [
-                [0.644, 0.093],  # Red channel: H and E absorption
-                [0.717, 0.954],  # Green channel: H and E absorption
-                [0.267, 0.283],  # Blue channel: H and E absorption
-            ]
-        ),
+        "mean_lab": np.array([68.93, 12.47, -9.74]),  # H&E tissue from sample.svs (pink/purple)
+        "std_lab": np.array([13.34, 6.85, 4.89]),  # H&E tissue, background excluded
+        "stain_matrix": np.array([
+            [0.5626, 0.2159],  # Red channel: H and E absorption
+            [0.7201, 0.8012],  # Green channel: H and E absorption
+            [0.4062, 0.5581],  # Blue channel: H and E absorption
+        ]),
     }
 }
 
 
 def rgb_to_od(rgb):
-    """Convert RGB to optical density"""
-    rgb = rgb.astype(np.float32)
-    # Add epsilon to avoid log(0)
-    od = -np.log((rgb + 1) / 256)  # Use natural log, not log10
-    return od
+    """Convert RGB to optical density (Beer-Lambert law)."""
+    rgb = rgb.astype(np.float64).copy()
+    rgb[rgb == 0] = 1  # avoid log(0)
+    return np.maximum(-np.log(rgb / 255.0), 1e-6)
 
 
 def od_to_rgb(od):
-    """Convert optical density to RGB"""
-    rgb = 256 * np.exp(-od) - 1  # Use natural exp, not 10^x
-    rgb = np.clip(rgb, 0, 255).astype(np.uint8)
-    return rgb
+    """Convert optical density back to RGB."""
+    rgb = 255.0 * np.exp(-od)
+    return np.clip(rgb, 0, 255).astype(np.uint8)
 
 
-def normalize_rows(A):
+def normalize_rows(A):  # noqa: N803
     """Normalize rows of a matrix"""
     return A / np.linalg.norm(A, axis=1, keepdims=True)
 
@@ -79,13 +85,11 @@ def get_stain_matrix_macenko(rgb_image, tissue_mask=None, debug=False):
     debug_info = {}
 
     # Default H&E matrix
-    default_matrix = np.array(
-        [
-            [0.650, 0.072],  # H and E red absorption
-            [0.704, 0.990],  # H and E green absorption
-            [0.286, 0.105],
-        ]
-    )  # H and E blue absorption
+    default_matrix = np.array([
+        [0.5626, 0.2159],  # Red channel: H and E absorption
+        [0.7201, 0.8012],  # Green channel: H and E absorption
+        [0.4062, 0.5581],  # Blue channel: H and E absorption
+    ])
 
     try:
         # Convert to optical density
@@ -114,6 +118,12 @@ def get_stain_matrix_macenko(rgb_image, tissue_mask=None, debug=False):
         idx = eigenvalues.argsort()[::-1]
         eigenvectors = eigenvectors[:, idx]
 
+        # Fix eigenvector signs before projection (matches StainTools / HistoPrep)
+        if eigenvectors[0, 0] < 0:
+            eigenvectors[:, 0] *= -1
+        if eigenvectors[0, 1] < 0:
+            eigenvectors[:, 1] *= -1
+
         # Project data onto the plane spanned by the first two principal components
         projection = od_flat @ eigenvectors[:, :2]
 
@@ -138,9 +148,8 @@ def get_stain_matrix_macenko(rgb_image, tissue_mask=None, debug=False):
         if vec2[0] < 0:
             vec2 = -vec2
 
-        # Simple heuristic: Hematoxylin has higher blue component
-        # Eosin has higher green component
-        if vec1[2] > vec2[2]:  # vec1 has more blue
+        # Hematoxylin has higher red absorption in OD space (per HistoPrep)
+        if vec1[0] > vec2[0]:
             h_vec, e_vec = vec1, vec2
         else:
             h_vec, e_vec = vec2, vec1
@@ -238,16 +247,31 @@ class ReinhardNormalizer:
         self.target_mean = None
         self.target_std = None
 
+    @staticmethod
+    def _lab_split(image_rgb):
+        """RGB uint8 -> proper LAB channels (matching StainTools)."""
+        lab = cv2.cvtColor(cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR), cv2.COLOR_BGR2LAB)
+        lab = lab.astype(np.float32)
+        L, a, b = cv2.split(lab)  # noqa: N806
+        L /= 2.55       # [0,255] -> [0,100]  # noqa: N806
+        a -= 128.0       # [0,255] -> [-128,127]
+        b -= 128.0
+        return L, a, b
+
+    @staticmethod
+    def _lab_merge(L, a, b):  # noqa: N803
+        """Proper LAB channels -> RGB uint8 (matching StainTools)."""
+        L = L * 2.55  # noqa: N806
+        a = a + 128.0
+        b = b + 128.0
+        lab = np.clip(cv2.merge((L, a, b)), 0, 255).astype(np.uint8)
+        return cv2.cvtColor(cv2.cvtColor(lab, cv2.COLOR_LAB2BGR), cv2.COLOR_BGR2RGB)
+
     def fit(self, target_image: np.ndarray):
         """Fit normalizer to target image."""
-        # Convert to LAB color space - OpenCV expects BGR input
-        target_bgr = cv2.cvtColor(target_image, cv2.COLOR_RGB2BGR)
-        target_lab = cv2.cvtColor(target_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
-
-        # Calculate mean and std for each channel
-        self.target_mean = np.mean(target_lab.reshape(-1, 3), axis=0)
-        self.target_std = np.std(target_lab.reshape(-1, 3), axis=0)
-
+        L, a, b = self._lab_split(target_image)  # noqa: N806
+        self.target_mean = np.array([L.mean(), a.mean(), b.mean()])
+        self.target_std = np.array([L.std(), a.std(), b.std()])
         return self
 
     def set_target_params(self, params: Dict[str, np.ndarray]):
@@ -263,31 +287,15 @@ class ReinhardNormalizer:
         if self.target_mean is None:
             raise ValueError("Normalizer must be fitted first")
 
-        # Convert to LAB
-        source_bgr = cv2.cvtColor(source_image, cv2.COLOR_RGB2BGR)
-        source_lab = cv2.cvtColor(source_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
-
-        # Calculate source statistics
-        source_mean = np.mean(source_lab.reshape(-1, 3), axis=0)
-        source_std = np.std(source_lab.reshape(-1, 3), axis=0)
-
-        # Normalize each channel
-        normalized_lab = source_lab.copy()
-        for i in range(3):
-            # Avoid division by zero
-            if source_std[i] > 0:
-                normalized_lab[:, :, i] = (source_lab[:, :, i] - source_mean[i]) * (
-                    self.target_std[i] / source_std[i]
-                ) + self.target_mean[i]
+        L, a, b = self._lab_split(source_image)  # noqa: N806
+        channels = [L, a, b]
+        for i, c in enumerate(channels):
+            src_mean, src_std = c.mean(), c.std()
+            if src_std > 0:
+                channels[i] = (c - src_mean) * (self.target_std[i] / src_std) + self.target_mean[i]
             else:
-                normalized_lab[:, :, i] = source_lab[:, :, i] - source_mean[i] + self.target_mean[i]
-
-        # Convert back to RGB
-        normalized_lab = np.clip(normalized_lab, 0, 255).astype(np.uint8)
-        normalized_bgr = cv2.cvtColor(normalized_lab, cv2.COLOR_LAB2BGR)
-        normalized = cv2.cvtColor(normalized_bgr, cv2.COLOR_BGR2RGB)
-
-        return normalized
+                channels[i] = c - src_mean + self.target_mean[i]
+        return self._lab_merge(channels[0], channels[1], channels[2])
 
 
 class MacenkoNormalizer:
@@ -320,9 +328,10 @@ class MacenkoNormalizer:
         self.target_stain_matrix = get_stain_matrix_macenko(target_image, tissue_mask)
 
         # Validate stain matrix shape
-        assert self.target_stain_matrix.shape == (3, 2), (
-            f"Stain matrix should be 3x2, got {self.target_stain_matrix.shape}"
-        )
+        if self.target_stain_matrix.shape != (3, 2):
+            raise ValueError(
+                f"Stain matrix should be 3x2, got {self.target_stain_matrix.shape}"
+            )
 
         # Get target stain concentrations
         od = rgb_to_od(target_image)
@@ -339,6 +348,7 @@ class MacenkoNormalizer:
         # Solve: stain_matrix @ concentrations.T = od_flat.T
         # This gives us concentrations for each pixel
         concentrations = np.linalg.lstsq(self.target_stain_matrix, od_flat_tissue.T, rcond=-1)[0].T
+        concentrations = np.maximum(concentrations, 0)
 
         # Get 99th percentile concentrations (simpler approach)
         self.target_max_concentrations = np.percentile(concentrations, 99, axis=0)
@@ -353,7 +363,7 @@ class MacenkoNormalizer:
             self.target_max_concentrations = params["max_concentrations"]
         elif self.target_stain_matrix is not None:
             # Use default max concentrations if not provided
-            self.target_max_concentrations = np.array([1.0, 1.0])
+            self.target_max_concentrations = REFERENCE_MAX_CONCENTRATIONS.copy()
         return self
 
     def transform(
@@ -377,6 +387,7 @@ class MacenkoNormalizer:
         # Get source concentrations using lstsq with rcond=-1
         # Solve: stain_matrix @ concentrations.T = od_flat.T
         source_concentrations = np.linalg.lstsq(source_stain_matrix, od_flat.T, rcond=-1)[0].T
+        source_concentrations = np.maximum(source_concentrations, 0)
 
         # Normalize concentrations similar to working implementation
         # Calculate 99th percentile for both source and target
@@ -435,9 +446,10 @@ class VahadaneNormalizer:
         self.target_stain_matrix = get_stain_matrix_macenko(target_image, tissue_mask)
 
         # Validate stain matrix shape
-        assert self.target_stain_matrix.shape == (3, 2), (
-            f"Stain matrix should be 3x2, got {self.target_stain_matrix.shape}"
-        )
+        if self.target_stain_matrix.shape != (3, 2):
+            raise ValueError(
+                f"Stain matrix should be 3x2, got {self.target_stain_matrix.shape}"
+            )
 
         # Get target stain concentrations
         od = rgb_to_od(target_image)
@@ -737,10 +749,8 @@ class ColorAugmenter:
 
 
 # Constants for compatibility
-STAIN_MATRIX_DEFAULT = np.array(
-    [
-        [0.644, 0.093],  # Red channel: H and E absorption
-        [0.717, 0.954],  # Green channel: H and E absorption
-        [0.267, 0.283],  # Blue channel: H and E absorption
-    ]
-)
+STAIN_MATRIX_DEFAULT = np.array([
+    [0.5626, 0.2159],  # Red channel: H and E absorption
+    [0.7201, 0.8012],  # Green channel: H and E absorption
+    [0.4062, 0.5581],  # Blue channel: H and E absorption
+])

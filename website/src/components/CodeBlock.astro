@@ -6,37 +6,51 @@ export interface Props {
 }
 
 const { code, lang, filename } = Astro.props;
+const isOutput = filename === "Output";
 ---
 
-<div class="code-block-container">
-  <div class="code-block-header">
-    <div class="window-controls">
-      <span class="window-control close"></span>
-      <span class="window-control minimize"></span>
-      <span class="window-control maximize"></span>
-    </div>
-    {filename && <span class="filename">{filename}</span>}
-    <button class="copy-button" onclick="copyCode(this)">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="16"
-        height="16"
-        fill="currentColor"
-        viewBox="0 0 16 16"
-      >
-        <path
-          d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"
-        ></path>
-        <path
-          d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"
-        ></path>
+{isOutput ? (
+  <div class="output-block-container">
+    <div class="output-block-header">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" class="output-icon">
+        <path d="M6 9a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 6 9zM3.854 4.146a.5.5 0 1 0-.708.708L4.793 6.5 3.146 8.146a.5.5 0 1 0 .708.708l2-2a.5.5 0 0 0 0-.708l-2-2z"/>
+        <path d="M2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm12 1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h12z"/>
       </svg>
-      <span>Copy code</span>
-    </button>
+      <span class="output-label">Output</span>
+    </div>
+    <pre class="output-pre"><code>{code}</code></pre>
   </div>
-  <pre
-    class={`language-${lang}`}><code class={`language-${lang}`}>{code}</code></pre>
-</div>
+) : (
+  <div class="code-block-container">
+    <div class="code-block-header">
+      <div class="window-controls">
+        <span class="window-control close"></span>
+        <span class="window-control minimize"></span>
+        <span class="window-control maximize"></span>
+      </div>
+      {filename && <span class="filename">{filename}</span>}
+      <button class="copy-button" onclick="copyCode(this)">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          fill="currentColor"
+          viewBox="0 0 16 16"
+        >
+          <path
+            d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"
+          ></path>
+          <path
+            d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"
+          ></path>
+        </svg>
+        <span>Copy code</span>
+      </button>
+    </div>
+    <pre
+      class={`language-${lang}`}><code class={`language-${lang}`}>{code}</code></pre>
+  </div>
+)}
 
 <script is:inline>
   function copyCode(button) {
@@ -137,5 +151,50 @@ const { code, lang, filename } = Astro.props;
     padding: 1rem;
     background-color: #1e2127 !important; /* Dark background */
     overflow-x: auto;
+  }
+
+  /* Output block styles */
+  .output-block-container {
+    margin: 0.75rem 0 1.5rem 0;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    border-left: 3px solid #f59e0b;
+  }
+
+  .output-block-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #1a1d23;
+    padding: 0.4rem 0.75rem;
+    border-top: 1px solid #2a2e37;
+    border-right: 1px solid #2a2e37;
+    border-top-right-radius: 0.5rem;
+  }
+
+  .output-icon {
+    color: #f59e0b;
+    flex-shrink: 0;
+  }
+
+  .output-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #f59e0b;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+  }
+
+  .output-pre {
+    margin: 0 !important;
+    border-right: 1px solid #2a2e37;
+    border-bottom: 1px solid #2a2e37;
+    border-bottom-right-radius: 0.5rem;
+    padding: 0.75rem;
+    background-color: #12141a !important;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: #9ca3af;
   }
 </style>

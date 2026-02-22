@@ -1,4 +1,5 @@
 import os
+import warnings
 
 import numpy as np
 import timm
@@ -17,6 +18,13 @@ class UNI2:
     """
 
     def __init__(self, model_path=None, use_auth_token=False):
+        warnings.warn(
+            "UNI2 is deprecated. Use PathologyProcessor(model='uni2') with the registry "
+            "system or honeybee.models.registry.load_model('uni2'). "
+            "This class will be removed in a future version.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         print("Loading UNI2-h model (proper implementation)...")
@@ -43,9 +51,11 @@ class UNI2:
             # Use HuggingFace Hub (requires authentication)
             print("Using HuggingFace Hub (requires authentication)")
             try:
-                # Create model with HF hub
+                # Pass architecture kwargs to override HF config defaults
+                # (the Hub config.json lacks model_args, so timm uses wrong arch)
+                hf_kwargs = {k: v for k, v in self.timm_kwargs.items() if k != "model_name"}
                 self.model = timm.create_model(
-                    "hf-hub:MahmoodLab/UNI2-h", pretrained=True, **self.timm_kwargs
+                    "hf-hub:MahmoodLab/UNI2-h", pretrained=True, **hf_kwargs
                 )
                 print("Successfully loaded from HuggingFace Hub")
             except Exception as e:

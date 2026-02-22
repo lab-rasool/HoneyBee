@@ -4,7 +4,9 @@ HoneyBee Processors Module
 Provides unified interfaces for different data modality processors.
 """
 
-from .clinical import ClinicalProcessor
+from .clinical_processor import (
+    ClinicalProcessor,
+)
 from .pathology_processor import PathologyProcessor
 
 # Import from new modular structure

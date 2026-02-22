@@ -1,545 +1,440 @@
 """
 Segmentation Module for Medical Images
 
-Implements various segmentation algorithms for CT, MRI, and PET images:
-- Lung segmentation for CT
-- Multi-organ segmentation
-- Nodule detection
-- Brain extraction for MRI
-- Metabolic volume segmentation for PET
+Implements segmentation algorithms for medical images:
+- NNUNetSegmenter: nnU-Net v2 based segmentation for CT/MRI (lungs, organs, brain, tumors)
+- PETSegmenter: SUV-based metabolic volume segmentation for PET
+- detect_nodules: Standalone LoG blob detection for lung nodule detection
 """
 
+import json
 import logging
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-import SimpleITK as sitk
 from scipy import ndimage
-from scipy.ndimage import binary_dilation, binary_erosion, binary_fill_holes, label
+from scipy.ndimage import binary_fill_holes, label
 from skimage import measure, morphology
 from skimage.feature import peak_local_max
-from skimage.filters import gaussian, threshold_otsu
+from skimage.filters import gaussian
 from skimage.segmentation import watershed
 
 logger = logging.getLogger(__name__)
 
+# Default label maps for common nnU-Net tasks
+DEFAULT_LABEL_MAPS: Dict[str, Dict[int, str]] = {
+    "lung": {
+        1: "left_lung",
+        2: "right_lung",
+    },
+    "total_organs": {
+        1: "spleen",
+        2: "kidney_right",
+        3: "kidney_left",
+        4: "gallbladder",
+        5: "liver",
+        6: "stomach",
+        7: "pancreas",
+        8: "adrenal_gland_right",
+        9: "adrenal_gland_left",
+        10: "lung_upper_lobe_left",
+        11: "lung_lower_lobe_left",
+        12: "lung_upper_lobe_right",
+        13: "lung_middle_lobe_right",
+        14: "lung_lower_lobe_right",
+    },
+    "brain": {
+        1: "brain",
+    },
+    "brain_tumor": {
+        1: "tumor",
+    },
+}
 
-class CTSegmenter:
-    """CT-specific segmentation algorithms"""
 
-    def __init__(self):
-        self.lung_threshold = -320  # HU threshold for lung
-        self.organ_thresholds = {
-            "liver": (-50, 150),
-            "spleen": (40, 130),
-            "kidney": (30, 120),
-            "bone": (200, 3000),
-            "muscle": (0, 100),
-            "fat": (-150, -30),
-        }
+class NNUNetSegmenter:
+    """nnU-Net v2 based segmentation for CT and MRI images.
 
-    def segment_lungs(self, image: np.ndarray, enhanced: bool = True) -> np.ndarray:
-        """
-        Enhanced lung segmentation for CT
+    Wraps ``nnunetv2.inference.predict_from_raw_data.nnUNetPredictor`` to provide
+    high-level methods for common segmentation tasks (lung, organ, brain, tumor).
 
-        Args:
-            image: CT image in HU
-            enhanced: Use enhanced segmentation with airway removal
-        """
-        if len(image.shape) == 2:
-            return self._segment_lungs_2d(image, enhanced)
-        else:
-            # Process 3D volume
-            lung_mask = np.zeros_like(image, dtype=bool)
-            for i in range(image.shape[0]):
-                lung_mask[i] = self._segment_lungs_2d(image[i], enhanced)
+    Args:
+        model_paths: Mapping of task names to nnU-Net model folder paths.
+        device: Torch device string (e.g. ``"cuda"`` or ``"cpu"``).
+        use_mirroring: Enable test-time augmentation via mirroring.
+        tile_step_size: Overlap fraction for sliding-window inference.
+        verbose: Enable verbose nnU-Net logging.
+        label_maps: Custom label maps per task. Merged with ``DEFAULT_LABEL_MAPS``.
+    """
 
-            # Apply 3D morphological operations for consistency
-            if enhanced:
-                lung_mask = self._refine_3d_lung_mask(lung_mask)
+    def __init__(
+        self,
+        model_paths: Optional[Dict[str, str]] = None,
+        device: str = "cuda",
+        use_mirroring: bool = True,
+        tile_step_size: float = 0.5,
+        verbose: bool = False,
+        label_maps: Optional[Dict[str, Dict[int, str]]] = None,
+    ):
+        self._model_paths: Dict[str, str] = dict(model_paths) if model_paths else {}
+        self._device = device
+        self._use_mirroring = use_mirroring
+        self._tile_step_size = tile_step_size
+        self._verbose = verbose
+        self._predictors: Dict[str, object] = {}
 
-            return lung_mask
+        # Merge default + user label maps
+        self._label_maps: Dict[str, Dict[int, str]] = dict(DEFAULT_LABEL_MAPS)
+        if label_maps:
+            self._label_maps.update(label_maps)
 
-    def _segment_lungs_2d(self, image: np.ndarray, enhanced: bool) -> np.ndarray:
-        """Segment lungs in 2D slice"""
-        # Threshold for air/lung
-        binary = image < self.lung_threshold
+    # ---- Configuration helpers ----
 
-        # Remove small components
-        binary = morphology.remove_small_objects(binary, min_size=100)
+    @property
+    def available_tasks(self) -> List[str]:
+        """Return list of configured task names."""
+        return list(self._model_paths.keys())
 
-        # Fill holes
-        binary = binary_fill_holes(binary)
+    def set_model_path(self, task: str, path: str) -> None:
+        """Register or update the model path for a task."""
+        self._model_paths[task] = path
+        # Invalidate cached predictor for this task
+        self._predictors.pop(task, None)
 
-        # Separate left and right lungs
-        labeled, num_features = label(binary)
+    def set_label_map(self, task: str, label_map: Dict[int, str]) -> None:
+        """Set or override the label map for a task."""
+        self._label_maps[task] = label_map
 
-        # Find lung regions (usually the two largest components)
-        regions = measure.regionprops(labeled)
-        regions.sort(key=lambda x: x.area, reverse=True)
+    def get_label_map(self, task: str) -> Dict[int, str]:
+        """Return the label map for a task, reading from dataset.json if needed."""
+        if task not in self._label_maps and task in self._model_paths:
+            self._label_maps[task] = self._read_dataset_json_labels(task)
+        return self._label_maps.get(task, {})
 
-        # Create lung mask
-        lung_mask = np.zeros_like(image, dtype=bool)
+    # ---- Public segmentation methods ----
 
-        if len(regions) >= 2:
-            # Use two largest regions as lungs
-            for region in regions[:2]:
-                lung_mask[labeled == region.label] = True
-        elif len(regions) == 1:
-            # Single lung visible
-            lung_mask[labeled == regions[0].label] = True
-
-        if enhanced:
-            # Remove airways and vessels
-            lung_mask = self._remove_airways(lung_mask, image)
-
-        return lung_mask
-
-    def _remove_airways(self, mask: np.ndarray, image: np.ndarray) -> np.ndarray:
-        """Remove airways from lung mask"""
-        # Find very bright regions within lungs (airways)
-        airways = (image > -950) & mask
-
-        # Morphological operations to clean up
-        airways = morphology.opening(airways, morphology.disk(2))
-
-        # Remove airways from mask
-        refined_mask = mask & ~airways
-
-        # Fill small holes that might have been created
-        refined_mask = morphology.remove_small_holes(refined_mask, area_threshold=50)
-
-        return refined_mask
-
-    def _refine_3d_lung_mask(self, mask: np.ndarray) -> np.ndarray:
-        """Refine 3D lung mask for consistency across slices"""
-        # Remove small 3D components
-        labeled, num_features = label(mask)
-
-        # Keep only large connected components
-        component_sizes = np.bincount(labeled.ravel())
-        large_components = component_sizes > 1000  # Adjust threshold as needed
-        large_components[0] = False  # Background
-
-        refined_mask = large_components[labeled]
-
-        # Smooth boundaries in 3D
-        refined_mask = binary_erosion(refined_mask, iterations=1)
-        refined_mask = binary_dilation(refined_mask, iterations=2)
-        refined_mask = binary_erosion(refined_mask, iterations=1)
-
-        return refined_mask
-
-    def segment_organs(self, image: np.ndarray, organs: List[str] = None) -> Dict[str, np.ndarray]:
-        """
-        Multi-organ segmentation
+    def segment_lungs(
+        self,
+        image: np.ndarray,
+        spacing: Tuple[float, ...] = (1.0, 1.0, 1.0),
+        task: str = "lung",
+    ) -> np.ndarray:
+        """Segment lungs from CT volume.
 
         Args:
-            image: CT image in HU
-            organs: List of organs to segment (default: ['liver', 'spleen', 'kidney'])
+            image: CT volume ``(D, H, W)`` or 2D slice ``(H, W)`` in HU.
+            spacing: Voxel spacing ``(z, y, x)`` in mm.
+            task: nnU-Net task name (default ``"lung"``).
+
+        Returns:
+            Binary lung mask (union of all lung labels).
         """
-        if organs is None:
-            organs = ["liver", "spleen", "kidney"]
+        seg_map = self.predict_raw(image, spacing, task)
+        return (seg_map > 0).astype(np.uint8)
 
-        results = {}
+    def segment_organs(
+        self,
+        image: np.ndarray,
+        spacing: Tuple[float, ...] = (1.0, 1.0, 1.0),
+        organs: Optional[List[str]] = None,
+        task: str = "total_organs",
+    ) -> Dict[str, np.ndarray]:
+        """Segment multiple organs from CT volume.
 
-        for organ in organs:
-            if organ in self.organ_thresholds:
-                mask = self._segment_organ(image, organ)
-                results[organ] = mask
-            else:
-                logger.warning(f"Unknown organ: {organ}")
+        Args:
+            image: CT volume ``(D, H, W)`` in HU.
+            spacing: Voxel spacing ``(z, y, x)`` in mm.
+            organs: Filter to these organ names. ``None`` returns all.
+            task: nnU-Net task name.
+
+        Returns:
+            Dict mapping organ names to binary masks.
+        """
+        seg_map = self.predict_raw(image, spacing, task)
+        label_map = self.get_label_map(task)
+
+        results: Dict[str, np.ndarray] = {}
+        for label_id, name in label_map.items():
+            if organs is not None and name not in organs:
+                continue
+            results[name] = (seg_map == label_id).astype(np.uint8)
 
         return results
 
-    def _segment_organ(self, image: np.ndarray, organ: str) -> np.ndarray:
-        """Segment specific organ based on HU range"""
-        low, high = self.organ_thresholds[organ]
-
-        # Initial threshold
-        mask = (image >= low) & (image <= high)
-
-        # Morphological cleanup
-        mask = morphology.remove_small_objects(mask, min_size=500)
-        mask = morphology.remove_small_holes(mask, area_threshold=200)
-
-        # Organ-specific refinements
-        if organ == "liver":
-            mask = self._refine_liver_segmentation(mask, image)
-        elif organ == "kidney":
-            mask = self._refine_kidney_segmentation(mask, image)
-
-        return mask
-
-    def _refine_liver_segmentation(self, mask: np.ndarray, image: np.ndarray) -> np.ndarray:
-        """Refine liver segmentation"""
-        # Liver is typically the largest organ in abdomen
-        labeled, num_features = label(mask)
-
-        if num_features > 0:
-            # Keep largest component
-            component_sizes = np.bincount(labeled.ravel())
-            largest_component = component_sizes[1:].argmax() + 1
-            mask = labeled == largest_component
-
-        # Smooth boundaries
-        mask = morphology.binary_closing(mask, morphology.disk(3))
-        mask = morphology.binary_opening(mask, morphology.disk(2))
-
-        return mask
-
-    def _refine_kidney_segmentation(self, mask: np.ndarray, image: np.ndarray) -> np.ndarray:
-        """Refine kidney segmentation (usually two separate regions)"""
-        labeled, num_features = label(mask)
-
-        if num_features >= 2:
-            # Keep two largest components (left and right kidney)
-            component_sizes = np.bincount(labeled.ravel())
-            component_sizes[0] = 0  # Ignore background
-
-            # Get indices of two largest components
-            largest_two = np.argpartition(component_sizes, -2)[-2:]
-
-            refined_mask = np.zeros_like(mask)
-            for comp in largest_two:
-                if comp > 0:  # Skip background
-                    refined_mask |= labeled == comp
-
-            return refined_mask
-
-        return mask
-
-    def detect_nodules(
-        self,
-        image: np.ndarray,
-        lung_mask: Optional[np.ndarray] = None,
-        min_size: float = 3.0,
-        max_size: float = 30.0,
-    ) -> List[Dict]:
-        """
-        Detect lung nodules
-
-        Args:
-            image: CT image
-            lung_mask: Pre-computed lung mask
-            min_size: Minimum nodule diameter in mm
-            max_size: Maximum nodule diameter in mm
-        """
-        if lung_mask is None:
-            lung_mask = self.segment_lungs(image)
-
-        # Apply lung mask
-        lung_region = image * lung_mask
-
-        # Multi-scale LoG filter for blob detection
-        # Assuming 1mm pixel spacing (should be adjusted based on actual spacing)
-        sigma_min = min_size / 2.355  # FWHM to sigma
-        sigma_max = max_size / 2.355
-
-        # Generate sigmas for multi-scale detection
-        sigmas = np.logspace(np.log10(sigma_min), np.log10(sigma_max), num=10)
-
-        # Detect blobs
-        if len(image.shape) == 2:
-            blobs = self._detect_blobs_2d(lung_region, sigmas, lung_mask)
-        else:
-            blobs = self._detect_blobs_3d(lung_region, sigmas, lung_mask)
-
-        # Convert to nodule information
-        nodules = []
-        for blob in blobs:
-            nodule = {
-                "position": blob[:3] if len(image.shape) == 3 else blob[:2],
-                "radius": blob[-1],
-                "diameter": blob[-1] * 2,
-                "intensity": image[tuple(map(int, blob[: len(image.shape)]))],
-            }
-            nodules.append(nodule)
-
-        return nodules
-
-    def _detect_blobs_2d(
-        self, image: np.ndarray, sigmas: np.ndarray, mask: np.ndarray
-    ) -> np.ndarray:
-        """Detect blobs in 2D using LoG"""
-        # Apply Laplacian of Gaussian
-        log_images = []
-
-        for sigma in sigmas:
-            # LoG filter
-            log_image = ndimage.gaussian_laplace(image, sigma=sigma) * sigma**2
-            log_images.append(log_image)
-
-        # Stack and find local maxima
-        log_stack = np.stack(log_images, axis=-1)
-
-        # Find local maxima
-        local_maxima = peak_local_max(
-            -log_stack.max(axis=-1),  # Negative for bright blobs
-            min_distance=int(sigmas.min()),
-            threshold_abs=0.1,
-            exclude_border=False,
-        )
-
-        # Filter by mask
-        blobs = []
-        for peak in local_maxima:
-            if mask[peak[0], peak[1]]:
-                # Find which scale gave maximum response
-                scale_idx = log_stack[peak[0], peak[1]].argmax()
-                radius = sigmas[scale_idx] * np.sqrt(2)
-                blobs.append([peak[0], peak[1], radius])
-
-        return np.array(blobs) if blobs else np.array([])
-
-    def _detect_blobs_3d(
-        self, image: np.ndarray, sigmas: np.ndarray, mask: np.ndarray
-    ) -> np.ndarray:
-        """Detect blobs in 3D volume"""
-        # For 3D, we'll process slice by slice and then combine
-        all_blobs = []
-
-        for z in range(image.shape[0]):
-            if mask[z].any():
-                blobs_2d = self._detect_blobs_2d(image[z], sigmas, mask[z])
-
-                # Add z coordinate
-                for blob in blobs_2d:
-                    all_blobs.append([z, blob[0], blob[1], blob[2]])
-
-        # Merge nearby blobs in 3D
-        if all_blobs:
-            blobs_3d = self._merge_3d_blobs(np.array(all_blobs))
-            return blobs_3d
-
-        return np.array([])
-
-    def _merge_3d_blobs(self, blobs: np.ndarray, distance_threshold: float = 5.0) -> np.ndarray:
-        """Merge nearby blobs in 3D"""
-        if len(blobs) == 0:
-            return blobs
-
-        # Simple clustering based on distance
-        merged = []
-        used = np.zeros(len(blobs), dtype=bool)
-
-        for i in range(len(blobs)):
-            if used[i]:
-                continue
-
-            # Find all blobs within threshold
-            distances = np.sqrt(np.sum((blobs[:, :3] - blobs[i][:3]) ** 2, axis=1))
-            nearby = distances < distance_threshold
-
-            # Average position and max radius
-            cluster_blobs = blobs[nearby]
-            mean_pos = cluster_blobs[:, :3].mean(axis=0)
-            max_radius = cluster_blobs[:, 3].max()
-
-            merged.append(list(mean_pos) + [max_radius])
-            used[nearby] = True
-
-        return np.array(merged)
-
-    def segment_tumor(
-        self,
-        image: np.ndarray,
-        seed_point: Tuple[int, ...],
-        lower_threshold: float = -100,
-        upper_threshold: float = 200,
-    ) -> np.ndarray:
-        """
-        Segment tumor using region growing from seed point
-
-        Args:
-            image: CT image
-            seed_point: Starting point (y, x) or (z, y, x)
-            lower_threshold: Lower HU threshold
-            upper_threshold: Upper HU threshold
-        """
-        # Convert to SimpleITK for region growing
-        sitk_image = sitk.GetImageFromArray(image)
-
-        # Region growing
-        seg = sitk.ConnectedThreshold(
-            sitk_image,
-            seedList=[seed_point[::-1]],  # SimpleITK uses (x, y, z) order
-            lower=lower_threshold,
-            upper=upper_threshold,
-            replaceValue=1,
-        )
-
-        # Convert back to numpy
-        mask = sitk.GetArrayFromImage(seg).astype(bool)
-
-        # Morphological refinement
-        mask = morphology.binary_closing(mask, morphology.ball(2))
-        mask = morphology.remove_small_holes(mask, area_threshold=64)
-
-        return mask
-
-
-class MRISegmenter:
-    """MRI-specific segmentation algorithms"""
-
-    def __init__(self):
-        self.brain_templates = {
-            "t1": {"threshold_factor": 0.5},
-            "t2": {"threshold_factor": 0.6},
-            "flair": {"threshold_factor": 0.4},
-        }
-
     def extract_brain(
-        self, image: np.ndarray, sequence: str = "t1", method: str = "threshold"
+        self,
+        image: np.ndarray,
+        spacing: Tuple[float, ...] = (1.0, 1.0, 1.0),
+        task: str = "brain",
     ) -> np.ndarray:
-        """
-        Brain extraction (skull stripping)
+        """Extract brain mask from MRI volume.
 
         Args:
-            image: MRI image
-            sequence: MRI sequence type ('t1', 't2', 'flair')
-            method: Extraction method ('threshold', 'watershed', 'morphological')
+            image: MRI volume ``(D, H, W)``.
+            spacing: Voxel spacing ``(z, y, x)`` in mm.
+            task: nnU-Net task name (default ``"brain"``).
+
+        Returns:
+            Binary brain mask.
         """
-        if method == "threshold":
-            return self._threshold_brain_extraction(image, sequence)
-        elif method == "watershed":
-            return self._watershed_brain_extraction(image)
-        elif method == "morphological":
-            return self._morphological_brain_extraction(image)
-        else:
-            raise ValueError(f"Unknown method: {method}")
-
-    def _threshold_brain_extraction(self, image: np.ndarray, sequence: str) -> np.ndarray:
-        """Simple threshold-based brain extraction"""
-        # Get threshold factor for sequence
-        factor = self.brain_templates.get(sequence, {}).get("threshold_factor", 0.5)
-
-        # Calculate threshold
-        threshold = threshold_otsu(image) * factor
-
-        # Initial brain mask
-        brain_mask = image > threshold
-
-        # Remove small components
-        brain_mask = morphology.remove_small_objects(brain_mask, min_size=1000)
-
-        # Fill holes
-        brain_mask = binary_fill_holes(brain_mask)
-
-        # Get largest connected component (brain)
-        labeled, num_features = label(brain_mask)
-        if num_features > 0:
-            component_sizes = np.bincount(labeled.ravel())
-            largest_component = component_sizes[1:].argmax() + 1
-            brain_mask = labeled == largest_component
-
-        # Smooth boundaries
-        brain_mask = morphology.binary_closing(brain_mask, morphology.ball(5))
-        brain_mask = morphology.binary_opening(brain_mask, morphology.ball(3))
-
-        return brain_mask
-
-    def _watershed_brain_extraction(self, image: np.ndarray) -> np.ndarray:
-        """Watershed-based brain extraction"""
-        # Preprocessing
-        smoothed = gaussian(image, sigma=1.0)
-
-        # Calculate gradient
-        gradient = ndimage.morphological_gradient(smoothed, size=3)
-
-        # Markers for watershed
-        markers = np.zeros_like(image, dtype=int)
-
-        # Background markers (dark regions)
-        markers[image < np.percentile(image, 10)] = 1
-
-        # Foreground markers (bright regions)
-        markers[image > np.percentile(image, 70)] = 2
-
-        # Apply watershed
-        labels = watershed(gradient, markers)
-
-        # Brain is typically the foreground
-        brain_mask = labels == 2
-
-        # Clean up
-        brain_mask = morphology.remove_small_objects(brain_mask, min_size=5000)
-        brain_mask = binary_fill_holes(brain_mask)
-
-        return brain_mask
-
-    def _morphological_brain_extraction(self, image: np.ndarray) -> np.ndarray:
-        """Morphological operations-based brain extraction"""
-        # Initial threshold
-        threshold = np.percentile(image, 30)
-        brain_mask = image > threshold
-
-        # Series of morphological operations
-        # Remove thin connections
-        brain_mask = morphology.binary_opening(brain_mask, morphology.ball(2))
-
-        # Fill holes
-        brain_mask = binary_fill_holes(brain_mask)
-
-        # Remove small objects
-        brain_mask = morphology.remove_small_objects(brain_mask, min_size=10000)
-
-        # Get convex hull of the brain
-        if len(image.shape) == 2:
-            brain_mask = morphology.convex_hull_image(brain_mask)
-        else:
-            # Process slice by slice for 3D
-            for i in range(brain_mask.shape[0]):
-                if brain_mask[i].any():
-                    brain_mask[i] = morphology.convex_hull_image(brain_mask[i])
-
-        # Final smoothing
-        brain_mask = morphology.binary_closing(brain_mask, morphology.ball(3))
-
-        return brain_mask
+        seg_map = self.predict_raw(image, spacing, task)
+        return (seg_map > 0).astype(np.uint8)
 
     def segment_tumor(
         self,
         image: np.ndarray,
-        seed_point: Tuple[int, ...],
-        lower_threshold: Optional[float] = None,
-        upper_threshold: Optional[float] = None,
+        spacing: Tuple[float, ...] = (1.0, 1.0, 1.0),
+        task: str = "brain_tumor",
     ) -> np.ndarray:
-        """
-        Segment tumor using region growing from seed point
+        """Segment tumor from CT or MRI volume.
 
         Args:
-            image: MRI image
-            seed_point: Starting point (y, x) or (z, y, x)
-            lower_threshold: Lower intensity threshold
-            upper_threshold: Upper intensity threshold
+            image: Image volume ``(D, H, W)``.
+            spacing: Voxel spacing ``(z, y, x)`` in mm.
+            task: nnU-Net task name (default ``"brain_tumor"``).
+
+        Returns:
+            Binary tumor mask.
         """
-        # Auto-calculate thresholds if not provided
-        if lower_threshold is None:
-            lower_threshold = np.percentile(image, 10)
-        if upper_threshold is None:
-            upper_threshold = np.percentile(image, 90)
+        seg_map = self.predict_raw(image, spacing, task)
+        return (seg_map > 0).astype(np.uint8)
 
-        # Convert to SimpleITK for region growing
-        sitk_image = sitk.GetImageFromArray(image)
+    def predict_raw(
+        self,
+        image: np.ndarray,
+        spacing: Tuple[float, ...] = (1.0, 1.0, 1.0),
+        task: str = "lung",
+    ) -> np.ndarray:
+        """Run nnU-Net inference and return the raw integer segmentation map.
 
-        # Region growing
-        seg = sitk.ConnectedThreshold(
-            sitk_image,
-            seedList=[seed_point[::-1]],  # SimpleITK uses (x, y, z) order
-            lower=float(lower_threshold),
-            upper=float(upper_threshold),
-            replaceValue=1,
+        Args:
+            image: Input image ``(D, H, W)`` or ``(H, W)``.
+            spacing: Voxel spacing ``(z, y, x)`` in mm.
+            task: nnU-Net task name.
+
+        Returns:
+            Integer segmentation map with same spatial shape as input.
+        """
+        predictor = self._get_predictor(task)
+        data, props = self._prepare_input(image, spacing)
+        seg = predictor.predict_single_npy_array(data, props, None, None, False)
+        # Squeeze channel dim if present
+        if seg.ndim > image.ndim:
+            seg = seg.squeeze()
+        # Remove added depth dim for 2D input
+        if image.ndim == 2 and seg.ndim == 3:
+            seg = seg[0]
+        return seg
+
+    # ---- Internal helpers ----
+
+    def _get_predictor(self, task: str):
+        """Return a cached nnUNetPredictor for the given task."""
+        if task in self._predictors:
+            return self._predictors[task]
+
+        if task not in self._model_paths:
+            raise ValueError(
+                f"No model path configured for task '{task}'. "
+                f"Available tasks: {self.available_tasks}. "
+                f"Use set_model_path('{task}', '/path/to/model') to configure."
+            )
+
+        model_dir = Path(self._model_paths[task])
+        if not model_dir.exists():
+            raise FileNotFoundError(
+                f"Model directory does not exist: {model_dir}"
+            )
+
+        from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
+
+        predictor = nnUNetPredictor(
+            tile_step_size=self._tile_step_size,
+            use_mirroring=self._use_mirroring,
+            verbose=self._verbose,
+            verbose_preprocessing=self._verbose,
+            allow_tqdm=self._verbose,
+        )
+        predictor.initialize_from_trained_model_folder(
+            str(model_dir),
+            use_folds="all",
+            checkpoint_name="checkpoint_final.pth",
+        )
+        # Move to device
+        predictor.network = predictor.network.to(self._device)
+
+        self._predictors[task] = predictor
+        logger.info(f"Loaded nnU-Net predictor for task '{task}' from {model_dir}")
+        return predictor
+
+    def _prepare_input(
+        self, image: np.ndarray, spacing: Tuple[float, ...]
+    ) -> Tuple[np.ndarray, dict]:
+        """Convert numpy image to nnU-Net input format.
+
+        nnU-Net expects ``(C, D, H, W)`` float32 and SimpleITK-order spacing ``(x, y, z)``.
+        """
+        arr = image.astype(np.float32)
+
+        # Handle 2D input: add depth=1
+        if arr.ndim == 2:
+            arr = arr[np.newaxis, :, :]  # (1, H, W)
+            spacing = (1.0,) + tuple(spacing[-2:]) if len(spacing) >= 2 else (1.0, 1.0, 1.0)
+
+        # Add channel dim: (D, H, W) → (1, D, H, W)
+        arr = arr[np.newaxis, ...]
+
+        # Reverse spacing from HoneyBee (z, y, x) to nnU-Net/SimpleITK (x, y, z)
+        spacing_xyz = tuple(reversed(spacing[:3]))
+
+        props = {"spacing": list(spacing_xyz)}
+        return arr, props
+
+    def _read_dataset_json_labels(self, task: str) -> Dict[int, str]:
+        """Read label names from dataset.json in model folder."""
+        if task not in self._model_paths:
+            return {}
+        dataset_json = Path(self._model_paths[task]) / "dataset.json"
+        if not dataset_json.exists():
+            return {}
+        try:
+            with open(dataset_json) as f:
+                data = json.load(f)
+            labels = data.get("labels", {})
+            # dataset.json uses string keys; skip "0" (background)
+            return {int(k): v for k, v in labels.items() if k != "0" and k != "background"}
+        except Exception:
+            logger.warning(f"Failed to read label map from {dataset_json}")
+            return {}
+
+
+# ============================================================
+# Standalone nodule detection (extracted from former CTSegmenter)
+# ============================================================
+
+
+def detect_nodules(
+    image: np.ndarray,
+    lung_mask: np.ndarray,
+    min_size: float = 3.0,
+    max_size: float = 30.0,
+) -> List[Dict]:
+    """Detect lung nodules using multi-scale LoG (Laplacian of Gaussian) blob detection.
+
+    Args:
+        image: CT image in HU.
+        lung_mask: Pre-computed binary lung mask (required).
+        min_size: Minimum nodule diameter in mm.
+        max_size: Maximum nodule diameter in mm.
+
+    Returns:
+        List of dicts with keys ``position``, ``radius``, ``diameter``, ``intensity``.
+
+    Raises:
+        ValueError: If ``lung_mask`` is None.
+    """
+    if lung_mask is None:
+        raise ValueError(
+            "lung_mask is required. Compute it first with NNUNetSegmenter.segment_lungs()."
         )
 
-        # Convert back to numpy
-        mask = sitk.GetArrayFromImage(seg).astype(bool)
+    lung_region = image * lung_mask
 
-        # Morphological refinement
-        mask = morphology.binary_closing(mask, morphology.ball(2))
-        mask = morphology.remove_small_holes(mask, area_threshold=64)
+    # Multi-scale LoG filter for blob detection (assuming ~1mm spacing)
+    sigma_min = min_size / 2.355  # FWHM to sigma
+    sigma_max = max_size / 2.355
+    sigmas = np.logspace(np.log10(sigma_min), np.log10(sigma_max), num=10)
 
-        return mask
+    if image.ndim == 2:
+        blobs = _detect_blobs_2d(lung_region, sigmas, lung_mask)
+    else:
+        blobs = _detect_blobs_3d(lung_region, sigmas, lung_mask)
+
+    nodules = []
+    for blob in blobs:
+        nodule = {
+            "position": blob[:3] if image.ndim == 3 else blob[:2],
+            "radius": blob[-1],
+            "diameter": blob[-1] * 2,
+            "intensity": image[tuple(map(int, blob[: image.ndim]))],
+        }
+        nodules.append(nodule)
+
+    return nodules
+
+
+def _detect_blobs_2d(
+    image: np.ndarray, sigmas: np.ndarray, mask: np.ndarray
+) -> np.ndarray:
+    """Detect blobs in 2D using LoG."""
+    log_images = []
+    for sigma in sigmas:
+        log_image = ndimage.gaussian_laplace(image, sigma=sigma) * sigma**2
+        log_images.append(log_image)
+
+    log_stack = np.stack(log_images, axis=-1)
+
+    local_maxima = peak_local_max(
+        -log_stack.max(axis=-1),
+        min_distance=int(sigmas.min()),
+        threshold_abs=0.1,
+        exclude_border=False,
+    )
+
+    blobs = []
+    for peak in local_maxima:
+        if mask[peak[0], peak[1]]:
+            scale_idx = log_stack[peak[0], peak[1]].argmax()
+            radius = sigmas[scale_idx] * np.sqrt(2)
+            blobs.append([peak[0], peak[1], radius])
+
+    return np.array(blobs) if blobs else np.array([])
+
+
+def _detect_blobs_3d(
+    image: np.ndarray, sigmas: np.ndarray, mask: np.ndarray
+) -> np.ndarray:
+    """Detect blobs in 3D volume (slice-by-slice + merge)."""
+    all_blobs = []
+    for z in range(image.shape[0]):
+        if mask[z].any():
+            blobs_2d = _detect_blobs_2d(image[z], sigmas, mask[z])
+            for blob in blobs_2d:
+                all_blobs.append([z, blob[0], blob[1], blob[2]])
+
+    if all_blobs:
+        return _merge_3d_blobs(np.array(all_blobs))
+    return np.array([])
+
+
+def _merge_3d_blobs(blobs: np.ndarray, distance_threshold: float = 5.0) -> np.ndarray:
+    """Merge nearby blobs in 3D."""
+    if len(blobs) == 0:
+        return blobs
+
+    merged = []
+    used = np.zeros(len(blobs), dtype=bool)
+
+    for i in range(len(blobs)):
+        if used[i]:
+            continue
+        distances = np.sqrt(np.sum((blobs[:, :3] - blobs[i][:3]) ** 2, axis=1))
+        nearby = distances < distance_threshold
+
+        cluster_blobs = blobs[nearby]
+        mean_pos = cluster_blobs[:, :3].mean(axis=0)
+        max_radius = cluster_blobs[:, 3].max()
+
+        merged.append(list(mean_pos) + [max_radius])
+        used[nearby] = True
+
+    return np.array(merged)
+
+
+# ============================================================
+# PET Segmenter (unchanged)
+# ============================================================
 
 
 class PETSegmenter:
@@ -601,7 +496,6 @@ class PETSegmenter:
         """Adaptive threshold based on reference region"""
         if reference_region is None:
             # Auto-detect liver region (simplified)
-            # In practice, this would use anatomical information or atlas
             reference_region = self._estimate_liver_region(image)
 
         # Calculate reference statistics
@@ -648,9 +542,6 @@ class PETSegmenter:
 
     def _estimate_liver_region(self, image: np.ndarray) -> np.ndarray:
         """Estimate liver region for reference (simplified)"""
-        # This is a very simplified approach
-        # In practice, you would use anatomical priors or registration
-
         # Liver typically has moderate uptake
         liver_range = (np.percentile(image, 40), np.percentile(image, 60))
 
@@ -659,10 +550,9 @@ class PETSegmenter:
 
         # Spatial constraints (liver is typically in upper right)
         if len(image.shape) == 3:
-            # Assume axial orientation
             z_center = image.shape[0] // 2
-            liver_mask[: z_center // 2] = False  # Remove lower slices
-            liver_mask[int(z_center * 1.5) :] = False  # Remove upper slices
+            liver_mask[: z_center // 2] = False
+            liver_mask[int(z_center * 1.5) :] = False
 
         # Get largest connected component
         labeled, num_features = label(liver_mask)
@@ -680,27 +570,18 @@ class PETSegmenter:
                 "suv_max": 0.0,
                 "suv_mean": 0.0,
                 "suv_peak": 0.0,
-                "mtv": 0.0,  # Metabolic tumor volume
-                "tlg": 0.0,  # Total lesion glycolysis
+                "mtv": 0.0,
+                "tlg": 0.0,
             }
 
-        # Extract values in mask
         values = image[mask]
-
-        # SUVmax
         suv_max = values.max()
-
-        # SUVmean
         suv_mean = values.mean()
 
-        # SUVpeak (mean of 1cm³ sphere around max)
         max_loc = np.unravel_index(np.argmax(image * mask), image.shape)
         suv_peak = self._calculate_suv_peak(image, max_loc)
 
-        # MTV (metabolic tumor volume) - assuming 1mm³ voxels
         mtv = mask.sum()
-
-        # TLG (total lesion glycolysis)
         tlg = suv_mean * mtv
 
         return {
@@ -715,7 +596,6 @@ class PETSegmenter:
         self, image: np.ndarray, center: Tuple[int, ...], radius: int = 6
     ) -> float:
         """Calculate SUV peak in sphere around point"""
-        # Create sphere mask
         if len(image.shape) == 2:
             y, x = np.ogrid[: image.shape[0], : image.shape[1]]
             mask = (x - center[1]) ** 2 + (y - center[0]) ** 2 <= radius**2
@@ -723,7 +603,6 @@ class PETSegmenter:
             z, y, x = np.ogrid[: image.shape[0], : image.shape[1], : image.shape[2]]
             mask = (x - center[2]) ** 2 + (y - center[1]) ** 2 + (z - center[0]) ** 2 <= radius**2
 
-        # Calculate mean in sphere
         if mask.any():
             return image[mask].mean()
         else:

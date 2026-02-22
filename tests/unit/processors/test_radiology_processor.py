@@ -234,51 +234,39 @@ class TestResampling:
 
 
 class TestSegmentation:
-    """Test segmentation methods"""
+    """Test segmentation methods (via NNUNetSegmenter)"""
 
     def test_segment_lungs(self):
-        """Test lung segmentation from CT"""
-        # Create simple CT image with lung-like regions
-        # The algorithm looks for low-density regions (< -400 HU) that aren't background
-        ct_image = np.full((32, 128, 128), 50, dtype=np.int16)  # Body tissue
-        # Create lung regions (air-filled, around -800 HU)
-        ct_image[:, 30:50, 40:80] = -800  # Left lung
-        ct_image[:, 70:90, 40:80] = -800  # Right lung
-        # Background is typically very low
-        ct_image[:, :10, :] = -1000  # Outside body
-
+        """Test lung segmentation delegates to NNUNetSegmenter"""
         processor = RadiologyProcessor()
-        lung_mask = processor.segment_lungs(ct_image)
+        processor.segmenter = MagicMock()
+        expected = np.ones((32, 128, 128), dtype=np.uint8)
+        processor.segmenter.segment_lungs.return_value = expected
 
-        assert lung_mask is not None
-        assert lung_mask.shape == ct_image.shape
-        assert lung_mask.dtype == np.uint8
-        # May or may not detect lungs depending on algorithm behavior
-        # Just verify it returns a valid mask
+        ct_image = np.random.randint(-1000, 1000, (32, 128, 128), dtype=np.int16)
+        result = processor.segment_lungs(ct_image)
+
+        processor.segmenter.segment_lungs.assert_called_once()
+        assert result.dtype == np.uint8
 
     def test_segment_brain(self):
-        """Test brain segmentation from MRI"""
-        # Create simple MRI-like image
-        mri_image = np.random.randint(0, 255, (32, 128, 128), dtype=np.uint8)
-        # Add brain-like structure
-        mri_image[10:22, 40:90, 40:90] = 150
-
+        """Test brain segmentation delegates to NNUNetSegmenter"""
         processor = RadiologyProcessor()
-        brain_mask = processor.segment_brain(mri_image)
+        processor.segmenter = MagicMock()
+        expected = np.ones((32, 128, 128), dtype=np.uint8)
+        processor.segmenter.extract_brain.return_value = expected
 
-        assert brain_mask is not None
-        assert brain_mask.shape == mri_image.shape
-        assert brain_mask.dtype == np.uint8
+        mri_image = np.random.randint(0, 255, (32, 128, 128), dtype=np.uint8)
+        result = processor.segment_brain(mri_image)
+
+        processor.segmenter.extract_brain.assert_called_once()
+        assert result.dtype == np.uint8
 
     def test_segment_organs(self, sample_image_3d):
-        """Test multi-organ segmentation"""
+        """Test multi-organ segmentation delegates to NNUNetSegmenter"""
         processor = RadiologyProcessor()
-
-        # Mock the ct_segmenter's segment_organs method
-        from unittest.mock import MagicMock
-
-        processor.ct_segmenter = MagicMock()
-        processor.ct_segmenter.segment_organs.return_value = {
+        processor.segmenter = MagicMock()
+        processor.segmenter.segment_organs.return_value = {
             "liver": np.random.rand(64, 128, 128) > 0.8,
             "spleen": np.random.rand(64, 128, 128) > 0.9,
         }
@@ -287,6 +275,7 @@ class TestSegmentation:
 
         assert masks is not None
         assert isinstance(masks, dict)
+        processor.segmenter.segment_organs.assert_called_once()
 
 
 class TestMetalArtifactReduction:
@@ -476,3 +465,509 @@ class TestModalitySpecificProcessing:
         )
 
         assert processed is not None
+
+
+class TestCropToROI:
+    """Test crop_to_roi method"""
+
+    def test_crop_to_roi_3d(self, sample_image_3d):
+        """Test ROI cropping with 3D image"""
+        processor = RadiologyProcessor()
+        mask = np.zeros_like(sample_image_3d, dtype=np.uint8)
+        mask[10:30, 40:80, 40:80] = 1
+
+        cropped = processor.crop_to_roi(sample_image_3d, mask)
+
+        assert cropped is not None
+        assert cropped.shape == (20, 40, 40)
+
+    def test_crop_to_roi_empty_mask(self, sample_image_3d):
+        """Test ROI cropping with empty mask returns original"""
+        processor = RadiologyProcessor()
+        mask = np.zeros_like(sample_image_3d, dtype=np.uint8)
+
+        cropped = processor.crop_to_roi(sample_image_3d, mask)
+        assert cropped.shape == sample_image_3d.shape
+
+
+class TestApplyMask:
+    """Test apply_mask method"""
+
+    def test_apply_mask(self, sample_image_3d):
+        """Test masking zeros outside region"""
+        processor = RadiologyProcessor()
+        mask = np.zeros_like(sample_image_3d, dtype=np.uint8)
+        mask[10:30, 40:80, 40:80] = 1
+
+        masked = processor.apply_mask(sample_image_3d, mask)
+
+        assert masked.shape == sample_image_3d.shape
+        assert np.all(masked[0:10] == 0)
+        assert np.any(masked[10:30, 40:80, 40:80] != 0)
+
+
+class TestCorrectBiasField:
+    """Test correct_bias_field method"""
+
+    @patch("honeybee.processors.radiology.processor.sitk")
+    def test_correct_bias_field(self, mock_sitk, sample_image_3d):
+        """Test N4 bias field correction delegates to SimpleITK"""
+        processor = RadiologyProcessor()
+
+        mock_sitk_image = MagicMock()
+        mock_sitk.GetImageFromArray.return_value = mock_sitk_image
+
+        corrected_sitk = MagicMock()
+        mock_corrector = MagicMock()
+        mock_sitk.N4BiasFieldCorrectionImageFilter.return_value = mock_corrector
+        mock_corrector.Execute.return_value = corrected_sitk
+
+        mock_sitk.GetArrayFromImage.return_value = sample_image_3d.astype(np.float32)
+
+        result = processor.correct_bias_field(sample_image_3d)
+        assert result is not None
+        assert result.shape == sample_image_3d.shape
+        mock_corrector.Execute.assert_called_once()
+
+
+class TestCalculateSUV:
+    """Test calculate_suv method"""
+
+    def test_calculate_suv_basic(self):
+        """Test SUV calculation formula"""
+        processor = RadiologyProcessor()
+        image = np.ones((10, 64, 64), dtype=np.float32) * 1000
+
+        suv = processor.calculate_suv(image, patient_weight=70, injected_dose=10)
+
+        assert suv is not None
+        assert suv.shape == image.shape
+        # SUV = pixel * weight_g / dose_bq
+        # = 1000 * 70000 / (10 * 3.7e7) = 1000 * 70000 / 3.7e8
+        expected = 1000 * 70000 / (10 * 3.7e7)
+        np.testing.assert_allclose(suv[0, 0, 0], expected, rtol=1e-5)
+
+
+class TestAggregateEmbeddings:
+    """Test aggregate_embeddings method"""
+
+    def test_aggregate_mean(self):
+        """Test mean aggregation"""
+        processor = RadiologyProcessor()
+        embeddings = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+
+        result = processor.aggregate_embeddings(embeddings, method="mean")
+
+        assert result.shape == (3,)
+        np.testing.assert_array_equal(result, [2.5, 3.5, 4.5])
+
+    def test_aggregate_max(self):
+        """Test max aggregation"""
+        processor = RadiologyProcessor()
+        embeddings = np.array([[1.0, 5.0, 3.0], [4.0, 2.0, 6.0]])
+
+        result = processor.aggregate_embeddings(embeddings, method="max")
+
+        assert result.shape == (3,)
+        np.testing.assert_array_equal(result, [4.0, 5.0, 6.0])
+
+    def test_aggregate_concat(self):
+        """Test concat aggregation"""
+        processor = RadiologyProcessor()
+        embeddings = np.array([[1.0, 2.0], [3.0, 4.0]])
+
+        result = processor.aggregate_embeddings(embeddings, method="concat")
+
+        assert result.shape == (4,)
+        np.testing.assert_array_equal(result, [1.0, 2.0, 3.0, 4.0])
+
+    def test_aggregate_invalid_method(self):
+        """Test invalid aggregation method raises error"""
+        processor = RadiologyProcessor()
+        embeddings = np.array([[1.0, 2.0]])
+
+        with pytest.raises(ValueError, match="Unknown aggregation"):
+            processor.aggregate_embeddings(embeddings, method="invalid")
+
+
+class TestLoadAtlas:
+    """Test load_atlas method"""
+
+    def test_load_atlas_delegates(self):
+        """Test load_atlas delegates to nifti_loader"""
+        processor = RadiologyProcessor()
+        processor.nifti_loader = MagicMock()
+        mock_result = (np.zeros((10, 10, 10)), MagicMock())
+        processor.nifti_loader.load_file.return_value = mock_result
+
+        result = processor.load_atlas("/fake/atlas.nii.gz")
+
+        assert result == mock_result
+        processor.nifti_loader.load_file.assert_called_once_with("/fake/atlas.nii.gz")
+
+
+class TestDenoiseRician:
+    """Test Rician denoising"""
+
+    def test_denoise_rician(self, sample_image_2d):
+        """Test Rician denoising runs without error"""
+        processor = RadiologyProcessor()
+        denoised = processor.denoise(sample_image_2d.astype(np.float32), method="rician")
+
+        assert denoised is not None
+        assert denoised.shape == sample_image_2d.shape
+
+    def test_denoise_rician_3d(self, sample_image_3d):
+        """Test Rician denoising on 3D volume"""
+        processor = RadiologyProcessor()
+        denoised = processor.denoise(sample_image_3d.astype(np.float32), method="rician")
+
+        assert denoised is not None
+        assert denoised.shape == sample_image_3d.shape
+
+
+class TestHUVerificationExtended:
+    """Test extended HU verification fixes"""
+
+    def test_verify_hu_ge_padding_value(self):
+        """Test that GE padding value -2048 is recognized as valid HU"""
+        ct_image = np.random.randint(-1000, 1000, (32, 64, 64), dtype=np.int16)
+        ct_image[0, :, :] = -2048  # GE padding
+
+        processor = RadiologyProcessor()
+        result = processor.verify_hounsfield_units(ct_image)
+
+        assert result["is_hu"] is True
+        assert result["min_value"] == -2048.0
+
+    def test_verify_hu_extended_bone_range(self):
+        """Test that max value up to 4096 is valid HU"""
+        ct_image = np.random.randint(-500, 500, (32, 64, 64), dtype=np.int16)
+        ct_image[10, 30, 30] = 3500  # Dense bone/metal
+
+        processor = RadiologyProcessor()
+        result = processor.verify_hounsfield_units(ct_image)
+
+        assert result["is_hu"] is True
+        assert result["likely_bone_present"] is True
+
+    def test_verify_hu_no_false_rescale_warning(self, sample_dicom_metadata):
+        """Test that rescale warning doesn't fire for already-rescaled data"""
+        ct_image = np.random.randint(-1000, 1000, (32, 64, 64), dtype=np.int16)
+
+        processor = RadiologyProcessor()
+        result = processor.verify_hounsfield_units(ct_image, metadata=sample_dicom_metadata)
+
+        # Metadata has rescale_intercept=-1024, slope=1.0 but data is already in HU
+        # So no "raw pixel data" warning should appear
+        for w in result["warnings"]:
+            assert "raw pixel data" not in w
+
+    def test_verify_hu_air_detection_with_padding(self):
+        """Test air detection works even when min is -2048 (padding)"""
+        ct_image = np.full((32, 64, 64), 0, dtype=np.int16)
+        ct_image[0, :, :] = -2048  # Padding (not air)
+        # Add actual air voxels
+        ct_image[5:10, 10:30, 10:30] = -1000
+
+        processor = RadiologyProcessor()
+        result = processor.verify_hounsfield_units(ct_image)
+
+        assert result["likely_air_present"] is True
+
+
+class TestSegmentationDelegation:
+    """Test that segmentation methods delegate to NNUNetSegmenter"""
+
+    def test_segment_lungs_delegates_to_segmenter(self):
+        """Test segment_lungs delegates to NNUNetSegmenter"""
+        processor = RadiologyProcessor()
+        processor.segmenter = MagicMock()
+        expected_mask = np.ones((32, 64, 64), dtype=np.uint8)
+        processor.segmenter.segment_lungs.return_value = expected_mask
+
+        ct_image = np.random.randint(-1000, 1000, (32, 64, 64), dtype=np.int16)
+        result = processor.segment_lungs(ct_image)
+
+        processor.segmenter.segment_lungs.assert_called_once()
+        assert result.dtype == np.uint8
+
+    def test_segment_brain_delegates_to_segmenter(self):
+        """Test segment_brain delegates to NNUNetSegmenter"""
+        processor = RadiologyProcessor()
+        processor.segmenter = MagicMock()
+        expected_mask = np.ones((32, 64, 64), dtype=np.uint8)
+        processor.segmenter.extract_brain.return_value = expected_mask
+
+        mri_image = np.random.randint(0, 255, (32, 64, 64), dtype=np.uint8)
+        result = processor.segment_brain(mri_image)
+
+        processor.segmenter.extract_brain.assert_called_once()
+        assert result.dtype == np.uint8
+
+
+class TestPrepareForModel:
+    """Test prepare_for_model method"""
+
+    def test_prepare_2d_image(self):
+        """Test preparing a 2D image returns RGB uint8"""
+        processor = RadiologyProcessor()
+        image = np.random.randint(-1000, 1000, (128, 128), dtype=np.int16)
+
+        result = processor.prepare_for_model(image)
+
+        assert len(result) == 1
+        assert result[0].dtype == np.uint8
+        assert result[0].shape == (128, 128, 3)
+
+    def test_prepare_3d_middle_slice(self):
+        """Test preparing a 3D image returns middle slice by default"""
+        processor = RadiologyProcessor()
+        image = np.random.randint(-1000, 1000, (64, 128, 128), dtype=np.int16)
+
+        result = processor.prepare_for_model(image)
+
+        assert len(result) == 1
+        assert result[0].shape == (128, 128, 3)
+
+    def test_prepare_3d_n_slices(self):
+        """Test preparing a 3D image with n_slices"""
+        processor = RadiologyProcessor()
+        image = np.random.randint(-1000, 1000, (64, 128, 128), dtype=np.int16)
+
+        result = processor.prepare_for_model(image, n_slices=5)
+
+        assert len(result) == 5
+        for img in result:
+            assert img.shape == (128, 128, 3)
+            assert img.dtype == np.uint8
+
+    def test_prepare_auto_window_detection(self, sample_dicom_metadata):
+        """Test auto-window detection from metadata"""
+        processor = RadiologyProcessor()
+
+        # Chest CT should get lung window
+        preset = processor._detect_window_preset(sample_dicom_metadata)
+        assert preset == "lung"  # series_description = "Chest CT with contrast"
+
+    def test_prepare_abdomen_window(self):
+        """Test abdomen window detection"""
+        from honeybee.loaders.Radiology.metadata import ImageMetadata
+
+        metadata = ImageMetadata(
+            modality="CT",
+            patient_id="TEST",
+            study_date="20240101",
+            series_description="ABD/PELVIS CT",
+            pixel_spacing=(1.0, 1.0, 1.0),
+            image_position=(0.0, 0.0, 0.0),
+            image_orientation=[1, 0, 0, 0, 1, 0],
+        )
+        preset = RadiologyProcessor._detect_window_preset(metadata)
+        assert preset == "abdomen"
+
+    def test_prepare_with_explicit_window(self):
+        """Test that explicit window overrides auto-detection"""
+        processor = RadiologyProcessor()
+        image = np.random.randint(-1000, 1000, (128, 128), dtype=np.int16)
+
+        result = processor.prepare_for_model(image, window="bone")
+
+        assert len(result) == 1
+        assert result[0].dtype == np.uint8
+
+
+class TestRegistryModelInit:
+    """Test registry-based model initialization"""
+
+    @patch("honeybee.models.registry.load_model")
+    def test_init_registry_model(self, mock_load):
+        """Test initializing a model from the registry"""
+        mock_model = MagicMock()
+        mock_model.embedding_dim = 512
+        mock_load.return_value = mock_model
+
+        processor = RadiologyProcessor(model="biomedclip")
+
+        assert processor._registry_model is True
+        mock_load.assert_called_once()
+
+    def test_init_unknown_model_raises(self):
+        """Test that truly unknown model raises ValueError"""
+        with pytest.raises(ValueError, match="Unknown model"):
+            RadiologyProcessor(model="completely_nonexistent_model_xyz")
+
+
+class TestCorrectBiasFieldBackend:
+    """Test correct_bias_field with backend parameter"""
+
+    @patch("honeybee.processors.radiology.processor.sitk")
+    def test_correct_bias_field_sitk_backend(self, mock_sitk, sample_image_3d):
+        """Test N4 bias field correction with SimpleITK backend"""
+        processor = RadiologyProcessor()
+
+        mock_sitk_image = MagicMock()
+        mock_sitk.GetImageFromArray.return_value = mock_sitk_image
+        corrected_sitk = MagicMock()
+        mock_corrector = MagicMock()
+        mock_sitk.N4BiasFieldCorrectionImageFilter.return_value = mock_corrector
+        mock_corrector.Execute.return_value = corrected_sitk
+        mock_sitk.GetArrayFromImage.return_value = sample_image_3d.astype(np.float32)
+
+        result = processor.correct_bias_field(sample_image_3d, backend="sitk")
+        assert result is not None
+        mock_corrector.Execute.assert_called_once()
+
+
+class TestNNUNetSegmenter:
+    """Test NNUNetSegmenter class"""
+
+    def test_init_default(self):
+        """Test NNUNetSegmenter with no model paths has empty tasks"""
+        from honeybee.processors.radiology.segmentation import NNUNetSegmenter
+
+        seg = NNUNetSegmenter()
+        assert seg.available_tasks == []
+
+    def test_init_with_model_paths(self, tmp_path):
+        """Test NNUNetSegmenter with model paths registers tasks"""
+        from honeybee.processors.radiology.segmentation import NNUNetSegmenter
+
+        model_dir = tmp_path / "lung_model"
+        model_dir.mkdir()
+        seg = NNUNetSegmenter(model_paths={"lung": str(model_dir)})
+        assert "lung" in seg.available_tasks
+
+    def test_missing_task_raises(self):
+        """Test that predict_raw raises ValueError for unconfigured task"""
+        from honeybee.processors.radiology.segmentation import NNUNetSegmenter
+
+        seg = NNUNetSegmenter()
+        image = np.zeros((10, 64, 64), dtype=np.float32)
+        with pytest.raises(ValueError, match="No model path configured"):
+            seg.predict_raw(image, (1.0, 1.0, 1.0), task="nonexistent")
+
+    def test_missing_model_dir_raises(self, tmp_path):
+        """Test that predict_raw raises FileNotFoundError for bad path"""
+        from honeybee.processors.radiology.segmentation import NNUNetSegmenter
+
+        seg = NNUNetSegmenter(model_paths={"lung": str(tmp_path / "does_not_exist")})
+        image = np.zeros((10, 64, 64), dtype=np.float32)
+        with pytest.raises(FileNotFoundError, match="does not exist"):
+            seg.predict_raw(image, (1.0, 1.0, 1.0), task="lung")
+
+    def test_set_model_path(self, tmp_path):
+        """Test dynamic model path configuration"""
+        from honeybee.processors.radiology.segmentation import NNUNetSegmenter
+
+        seg = NNUNetSegmenter()
+        assert "lung" not in seg.available_tasks
+
+        model_dir = tmp_path / "lung_model"
+        model_dir.mkdir()
+        seg.set_model_path("lung", str(model_dir))
+        assert "lung" in seg.available_tasks
+
+    def test_set_label_map(self):
+        """Test dynamic label map configuration"""
+        from honeybee.processors.radiology.segmentation import NNUNetSegmenter
+
+        seg = NNUNetSegmenter()
+        custom_map = {1: "my_organ", 2: "other_organ"}
+        seg.set_label_map("custom_task", custom_map)
+        assert seg.get_label_map("custom_task") == custom_map
+
+    @patch("honeybee.processors.radiology.segmentation.nnUNetPredictor", create=True)
+    def test_segment_lungs_calls_predictor(self, mock_pred_cls, tmp_path):
+        """Test that segment_lungs invokes the nnU-Net predictor"""
+        from honeybee.processors.radiology.segmentation import NNUNetSegmenter
+
+        model_dir = tmp_path / "lung_model"
+        model_dir.mkdir()
+
+        mock_predictor = MagicMock()
+        mock_predictor.predict_single_npy_array.return_value = np.ones(
+            (10, 64, 64), dtype=np.int32
+        )
+
+        seg = NNUNetSegmenter(model_paths={"lung": str(model_dir)})
+        # Inject mock predictor directly
+        seg._predictors["lung"] = mock_predictor
+
+        image = np.zeros((10, 64, 64), dtype=np.float32)
+        result = seg.segment_lungs(image, spacing=(1.0, 1.0, 1.0))
+
+        mock_predictor.predict_single_npy_array.assert_called_once()
+        assert result.dtype == np.uint8
+        assert result.shape == (10, 64, 64)
+        assert np.all(result == 1)
+
+    def test_segment_organs_splits_labels(self, tmp_path):
+        """Test that segment_organs splits integer map into per-organ masks"""
+        from honeybee.processors.radiology.segmentation import NNUNetSegmenter
+
+        model_dir = tmp_path / "organ_model"
+        model_dir.mkdir()
+
+        seg = NNUNetSegmenter(model_paths={"total_organs": str(model_dir)})
+
+        # Create a mock predictor returning a map with labels 1 and 5
+        mock_predictor = MagicMock()
+        seg_map = np.zeros((10, 64, 64), dtype=np.int32)
+        seg_map[0:3, 10:20, 10:20] = 1  # spleen
+        seg_map[5:8, 30:40, 30:40] = 5  # liver
+        mock_predictor.predict_single_npy_array.return_value = seg_map
+        seg._predictors["total_organs"] = mock_predictor
+
+        image = np.zeros((10, 64, 64), dtype=np.float32)
+        result = seg.segment_organs(image, spacing=(1.0, 1.0, 1.0))
+
+        assert isinstance(result, dict)
+        assert "spleen" in result
+        assert "liver" in result
+        assert result["spleen"].sum() > 0
+        assert result["liver"].sum() > 0
+
+    def test_predictor_caching(self, tmp_path):
+        """Test that same predictor instance is reused on second call"""
+        from honeybee.processors.radiology.segmentation import NNUNetSegmenter
+
+        model_dir = tmp_path / "lung_model"
+        model_dir.mkdir()
+
+        seg = NNUNetSegmenter(model_paths={"lung": str(model_dir)})
+
+        mock_predictor = MagicMock()
+        mock_predictor.predict_single_npy_array.return_value = np.zeros(
+            (10, 64, 64), dtype=np.int32
+        )
+        seg._predictors["lung"] = mock_predictor
+
+        image = np.zeros((10, 64, 64), dtype=np.float32)
+        seg.segment_lungs(image)
+        seg.segment_lungs(image)
+
+        # Should use the same cached predictor (2 calls to predict)
+        assert mock_predictor.predict_single_npy_array.call_count == 2
+
+
+class TestDetectNodules:
+    """Test standalone detect_nodules function"""
+
+    def test_requires_lung_mask(self):
+        """Test that None lung_mask raises ValueError"""
+        from honeybee.processors.radiology.segmentation import detect_nodules
+
+        image = np.zeros((10, 64, 64), dtype=np.float32)
+        with pytest.raises(ValueError, match="lung_mask is required"):
+            detect_nodules(image, lung_mask=None)
+
+    def test_returns_list(self):
+        """Test basic execution with synthetic data"""
+        from honeybee.processors.radiology.segmentation import detect_nodules
+
+        image = np.random.randn(64, 64).astype(np.float32) * 100
+        mask = np.ones((64, 64), dtype=bool)
+
+        result = detect_nodules(image, lung_mask=mask)
+        assert isinstance(result, list)

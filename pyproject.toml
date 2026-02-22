@@ -133,21 +133,9 @@ models = [
     "peft>=0.5.0",
 ]
 
-# NLP dependencies for advanced entity recognition
-nlp = [
-    "spacy>=3.4.0",
-    "scispacy>=0.5.0",
-]
-
-# FHIR/HL7 interoperability
-clinical-interop = [
-    "fhir.resources>=7.0.0",
-    "hl7apy>=1.3.4",
-]
-
 # Complete installation with all features
 all = [
-    "honeybee-ml[clinical,radiology,radiology-extended,pathology,molecular,database,visualization,models,nlp,clinical-interop]",
+    "honeybee-ml[clinical,radiology,radiology-extended,pathology,molecular,database,visualization,models]",
 ]
 
 [project.urls]

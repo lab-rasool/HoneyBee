@@ -46,14 +46,14 @@ from honeybee.processors import RadiologyProcessor
 # Initialize the radiology processor
 processor = RadiologyProcessor()
 
-# Load DICOM series
-dicom_series = processor.load_dicom("path/to/dicom_folder/")
+# Load DICOM series (returns tuple)
+image, metadata = processor.load_dicom("path/to/dicom_folder/")
 
 # Or load NIfTI file
-nifti_image = processor.load_nifti("path/to/image.nii.gz")
+image, metadata = processor.load_nifti("path/to/image.nii.gz")
 
-# Access metadata
-metadata = dicom_series.metadata`}
+# Access metadata fields
+print(metadata.modality, metadata.pixel_spacing)`}
     lang="python"
     filename="optional_filename.py"
   />
@@ -69,24 +69,24 @@ metadata = dicom_series.metadata`}
 from honeybee.processors import RadiologyProcessor
 
 processor = RadiologyProcessor()
-ct_scan = processor.load_dicom("path/to/ct_scan/")
+image, metadata = processor.load_dicom("path/to/ct_scan/")
 
 # Lung segmentation for CT
-lung_mask = processor.segment_lungs(ct_scan)
+lung_mask = processor.segment_lungs(image)
 
 # Multi-organ segmentation
-organs = processor.segment_organs(ct_scan)
+organs = processor.segment_organs(image)
 liver_mask = organs['liver']
 spleen_mask = organs['spleen']
 
 # Tumor segmentation in MRI
-mri_scan = processor.load_dicom("path/to/mri_scan/")
-tumor_mask = processor.segment_tumor(mri_scan)
+mri_image, mri_metadata = processor.load_dicom("path/to/mri_scan/")
+tumor_mask = processor.segment_tumor(mri_image, mri_metadata, seed_point=(64, 64, 64))
 
 # PET metabolic volume delineation
-pet_scan = processor.load_dicom("path/to/pet_scan/")
+pet_image, pet_metadata = processor.load_dicom("path/to/pet_scan/")
 suv_threshold = 2.5  # Standardized Uptake Value threshold
-metabolic_mask = processor.segment_metabolic_volume(pet_scan, threshold=suv_threshold)`}
+metabolic_mask = processor.segment_metabolic_volume(pet_image, threshold=suv_threshold)`}
     lang="python"
     filename="optional_filename.py"
   />
@@ -100,24 +100,24 @@ metabolic_mask = processor.segment_metabolic_volume(pet_scan, threshold=suv_thre
 from honeybee.processors import RadiologyProcessor
 
 processor = RadiologyProcessor()
-ct_scan = processor.load_dicom("path/to/ct_scan/")
+image, metadata = processor.load_dicom("path/to/ct_scan/")
 
 # Non-local means denoising for CT
-denoised_ct = processor.denoise(ct_scan, method="nlm")
+denoised_ct = processor.denoise(image, method="nlm")
 
 # Deep learning-based denoising
-denoised_ct_dl = processor.denoise(ct_scan, method="deep")
+denoised_ct_dl = processor.denoise(image, method="deep")
 
 # Metal artifact reduction
-mar_ct = processor.reduce_metal_artifacts(ct_scan)
+mar_ct = processor.reduce_metal_artifacts(image)
 
 # MRI-specific denoising
-mri_scan = processor.load_dicom("path/to/mri_scan/")
-denoised_mri = processor.denoise(mri_scan, method="rician")  # Rician noise model for MRI
+mri_image, _ = processor.load_dicom("path/to/mri_scan/")
+denoised_mri = processor.denoise(mri_image, method="rician")  # Rician noise model for MRI
 
 # PET denoising
-pet_scan = processor.load_dicom("path/to/pet_scan/")
-denoised_pet = processor.denoise(pet_scan, method="pet_specific")`}
+pet_image, _ = processor.load_dicom("path/to/pet_scan/")
+denoised_pet = processor.denoise(pet_image, method="pet_specific")`}
     lang="python"
     filename="optional_filename.py"
   />
@@ -131,20 +131,21 @@ denoised_pet = processor.denoise(pet_scan, method="pet_specific")`}
 from honeybee.processors import RadiologyProcessor
 
 processor = RadiologyProcessor()
-ct_scan = processor.load_dicom("path/to/ct_scan/")
+image, metadata = processor.load_dicom("path/to/ct_scan/")
 
-# Isotropic resampling
-resampled_ct = processor.resample(ct_scan, spacing=(1.0, 1.0, 1.0))  # 1mm isotropic
+# Isotropic resampling (requires metadata for current spacing)
+resampled_ct = processor.resample(image, metadata, new_spacing=(1.0, 1.0, 1.0))
 
 # Reorient to standard orientation (RAS: Right-Anterior-Superior)
-standardized_ct = processor.reorient(resampled_ct, orientation="RAS")
+standardized_ct, new_metadata = processor.reorient(resampled_ct, metadata, target_orientation="RAS")
 
 # Registration to atlas
-atlas = processor.load_atlas("path/to/atlas.nii.gz")
-registered_ct = processor.register(standardized_ct, atlas)
+atlas_image, atlas_metadata = processor.load_atlas("path/to/atlas.nii.gz")
+registered_ct = processor.register(standardized_ct, atlas_image)
 
 # Crop to region of interest
-cropped_ct = processor.crop_to_roi(registered_ct, roi_mask)`}
+lung_mask = processor.segment_lungs(registered_ct)
+cropped_ct = processor.crop_to_roi(registered_ct, lung_mask)`}
     lang="python"
     filename="optional_filename.py"
   />
@@ -160,23 +161,23 @@ from honeybee.processors import RadiologyProcessor
 processor = RadiologyProcessor()
 
 # CT Hounsfield unit verification
-ct_scan = processor.load_dicom("path/to/ct_scan/")
-verified_ct = processor.verify_hounsfield_units(ct_scan)
+image, metadata = processor.load_dicom("path/to/ct_scan/")
+hu_info = processor.verify_hounsfield_units(image, metadata)
 
 # CT window/level adjustment
-window_ct = processor.apply_window(verified_ct, window=400, level=50)  # Soft tissue window
+windowed_ct = processor.apply_window(image, window=400, level=50)  # Soft tissue window
 
 # MRI intensity normalization
-mri_scan = processor.load_dicom("path/to/mri_scan/")
-normalized_mri = processor.normalize_intensity(mri_scan, method="z_score")
+mri_image, mri_metadata = processor.load_dicom("path/to/mri_scan/")
+normalized_mri = processor.normalize_intensity(mri_image, method="z_score")
 
 # Bias field correction for MRI
-bias_corrected_mri = processor.correct_bias_field(mri_scan)
+bias_corrected_mri = processor.correct_bias_field(mri_image)
 
 # PET SUV calculation
-pet_scan = processor.load_dicom("path/to/pet_scan/")
+pet_image, pet_metadata = processor.load_dicom("path/to/pet_scan/")
 suv_pet = processor.calculate_suv(
-    pet_scan,
+    pet_image,
     patient_weight=70,  # in kg
     injected_dose=10,   # in mCi
     injection_time="20220101T120000"  # ISO format
@@ -197,20 +198,16 @@ from honeybee.processors import RadiologyProcessor
 processor = RadiologyProcessor(model="remedis")  # Options: remedis, radimagenet
 
 # Load and preprocess image
-ct_scan = processor.load_dicom("path/to/ct_scan/")
-preprocessed_ct = processor.preprocess(ct_scan)
+image, metadata = processor.load_dicom("path/to/ct_scan/")
+preprocessed_ct = processor.preprocess(image, metadata)
 
 # Generate embeddings
 embeddings = processor.generate_embeddings(preprocessed_ct)
 
-# Shape: (1, embedding_dim)  # embedding_dim depends on the model
-
 # For 3D volumes, you might get embeddings per slice
-ct_volume = processor.load_dicom("path/to/ct_volume/")
-preprocessed_volume = processor.preprocess(ct_volume)
+volume, vol_metadata = processor.load_dicom("path/to/ct_volume/")
+preprocessed_volume = processor.preprocess(volume, vol_metadata)
 volume_embeddings = processor.generate_embeddings(preprocessed_volume, mode="3d")
-
-# Shape: (num_slices, embedding_dim)
 
 # Aggregate slice embeddings to volume-level
 volume_embedding = processor.aggregate_embeddings(volume_embeddings, method="mean")`}
@@ -228,13 +225,14 @@ from honeybee.processors import RadiologyProcessor
 processor = RadiologyProcessor(model="remedis")
 
 # Load CT scan
-ct_scan = processor.load_dicom("path/to/ct_scan/")
+image, metadata = processor.load_dicom("path/to/ct_scan/")
 
 # Preprocess
 preprocessed_ct = processor.preprocess(
-    ct_scan,
+    image,
+    metadata,
     denoise=True,
-    correct_artifacts=True,
+    reduce_artifacts=True,
     resample_spacing=(1.0, 1.0, 1.0),
     normalize=True
 )
@@ -246,10 +244,7 @@ lung_mask = processor.segment_lungs(preprocessed_ct)
 masked_ct = processor.apply_mask(preprocessed_ct, lung_mask)
 
 # Generate embeddings
-embeddings = processor.generate_embeddings(masked_ct)
-
-# Use for downstream tasks
-# ...`}
+embeddings = processor.generate_embeddings(masked_ct)`}
     lang="python"
     filename="optional_filename.py"
   />
@@ -280,6 +275,13 @@ embeddings = processor.generate_embeddings(masked_ct)
         href="https://arxiv.org/abs/2201.12520"
         class="text-primary hover:underline"
         target="_blank">https://arxiv.org/abs/2201.12520</a
+      >
+    </li>
+    <li>
+      MedSigLIP: <a
+        href="https://huggingface.co/google/medsiglip-448"
+        class="text-primary hover:underline"
+        target="_blank">https://huggingface.co/google/medsiglip-448</a
       >
     </li>
   </ul>

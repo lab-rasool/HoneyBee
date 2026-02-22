@@ -6,6 +6,8 @@ tissue detection, stain normalization, and embedding generation.
 """
 
 # Re-export preprocessing components for backward compatibility
+from .patch_extractor import PatchExtractor
+from .patches import Patches, compute_patch_quality
 from .stain_normalization import (
     STAIN_NORM_TARGETS,
     ColorAugmenter,
@@ -51,4 +53,8 @@ __all__ = [
     "detect_tissue",
     "get_tissue_bounding_boxes",
     "tissue_mask_to_contours",
+    # Patch extraction
+    "PatchExtractor",
+    "Patches",
+    "compute_patch_quality",
 ]

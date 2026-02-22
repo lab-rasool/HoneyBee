@@ -4,11 +4,12 @@
 .aim
 .cache
 .pytest_cache
-
 __pycache__
 *.pyc
-
 *.pkl
+
+examples_pathology.ipynb
+
 /paper
 /to_delete
 /models
