@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "honeybee-ml"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Scalable Modular Framework for Multimodal AI in Oncology"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -162,7 +162,7 @@ Homepage = "https://github.com/lab-rasool/HoneyBee"
 Documentation = "https://lab-rasool.github.io/HoneyBee/"
 Repository = "https://github.com/lab-rasool/HoneyBee"
 "Bug Tracker" = "https://github.com/lab-rasool/HoneyBee/issues"
-"Paper" = "https://arxiv.org/abs/2405.07460"
+"Paper" = "https://www.nature.com/articles/s41746-025-02003-4"
 
 [tool.setuptools.packages.find]
 where = ["."]
