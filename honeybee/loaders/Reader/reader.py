@@ -1,5 +1,5 @@
 import pytesseract
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pdf2image import convert_from_path
 from PIL import Image
 from PyPDF2 import PdfReader

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "honeybee-ml"
-version = "0.2.0"
+version = "0.2.1"
 description = "A Scalable Modular Framework for Multimodal AI in Oncology"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -68,7 +68,7 @@ clinical = [
     # Document ingestion
     "unstructured[pdf,image]>=0.10.0",
     "pymupdf>=1.23.0",
-    "langchain>=0.1.0",
+    "langchain-text-splitters>=0.3.0",
     "pdf2image>=1.16.0",
     "PyPDF2>=3.0.0",
     # Clinical NLP
@@ -154,7 +154,7 @@ models = [
 
 # Complete installation with all features
 all = [
-    "honeybee-ml[clinical-full,pathology,radiology,molecular,database,visualization,models]",
+    "honeybee-ml[clinical,pathology,radiology,molecular,database,visualization,models]",
 ]
 
 [project.urls]
