@@ -110,9 +110,7 @@ def sample_clinical_entities():
 @pytest.fixture
 def sample_image_2d():
     """Sample 2D medical image"""
-    # 256x256 grayscale image with some structure
     image = np.random.randint(0, 255, (256, 256), dtype=np.uint8)
-    # Add some structure (circle in center)
     y, x = np.ogrid[:256, :256]
     mask = (x - 128) ** 2 + (y - 128) ** 2 <= 50**2
     image[mask] = 200
@@ -122,24 +120,20 @@ def sample_image_2d():
 @pytest.fixture
 def sample_image_3d():
     """Sample 3D medical image (CT/MRI volume)"""
-    # 64x128x128 volume with some structure
     image = np.random.randint(-1000, 1000, (64, 128, 128), dtype=np.int16)
-    # Add some anatomical-like structure
     z, y, x = np.ogrid[:64, :128, :128]
     mask = (x - 64) ** 2 + (y - 64) ** 2 + (z - 32) ** 2 <= 30**2
-    image[mask] = 100  # Soft tissue density
+    image[mask] = 100
     return image
 
 
 @pytest.fixture
 def sample_wsi_patch():
     """Sample WSI patch (H&E stained tissue)"""
-    # 224x224x3 RGB patch
     patch = np.random.randint(0, 255, (224, 224, 3), dtype=np.uint8)
-    # Make it look more like H&E (purple-pink colors)
-    patch[:, :, 0] = np.random.randint(150, 220, (224, 224))  # Red
-    patch[:, :, 1] = np.random.randint(100, 180, (224, 224))  # Green
-    patch[:, :, 2] = np.random.randint(180, 240, (224, 224))  # Blue
+    patch[:, :, 0] = np.random.randint(150, 220, (224, 224))
+    patch[:, :, 1] = np.random.randint(100, 180, (224, 224))
+    patch[:, :, 2] = np.random.randint(180, 240, (224, 224))
     return patch
 
 
@@ -262,9 +256,43 @@ def mock_uni_model():
 def mock_tissue_detector():
     """Mock tissue detector"""
     detector = MagicMock()
-    # Return mock tissue predictions
     detector.detect.return_value = np.random.rand(100, 100) > 0.5
     return detector
+
+
+# ============================================================================
+# Clinical Pipeline Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def clinical_config():
+    """Sample clinical processor configuration (new pipeline)"""
+    return {
+        "ner": {
+            "backends": [],
+        },
+        "ontology": {
+            "backends": [],  # No API keys in tests
+        },
+        "temporal": {
+            "enabled": True,
+        },
+        "embeddings": {
+            "mode": "local",
+            "model": "bioclinicalbert",
+        },
+    }
+
+
+@pytest.fixture
+def honeybee_config():
+    """Sample HoneyBee configuration"""
+    return {
+        "clinical": {
+            "ner": {"backends": []},
+        }
+    }
 
 
 # ============================================================================
@@ -296,54 +324,18 @@ def temp_output_dir(temp_dir):
 
 
 # ============================================================================
-# Configuration Fixtures
-# ============================================================================
-
-
-@pytest.fixture
-def clinical_config():
-    """Sample clinical processor configuration"""
-    return {
-        "document_processor": {
-            "use_ocr": False,  # Disable OCR for faster tests
-            "confidence_threshold": 60,
-        },
-        "tokenization": {"model": "gatortron", "max_length": 512, "segment_strategy": "sentence"},
-        "entity_recognition": {
-            "use_rules": True,
-            "use_patterns": True,
-            "cancer_specific_extraction": True,
-            "temporal_extraction": True,
-        },
-    }
-
-
-@pytest.fixture
-def honeybee_config():
-    """Sample HoneyBee configuration"""
-    return {
-        "clinical": {
-            "tokenization": {"model": "gatortron"},
-            "entity_recognition": {"use_rules": True},
-        }
-    }
-
-
-# ============================================================================
 # Pytest Configuration
 # ============================================================================
 
 
 def pytest_configure(config):
     """Pytest configuration hook"""
-    # Add custom markers
     config.addinivalue_line("markers", "slow: mark test as slow running")
     config.addinivalue_line("markers", "gpu: mark test as requiring GPU")
 
 
 def pytest_collection_modifyitems(config, items):
     """Modify test items during collection"""
-    # Skip slow tests unless --runslow is passed
     skip_slow = pytest.mark.skip(reason="need --runslow option to run")
     skip_gpu = pytest.mark.skip(reason="need --rungpu option to run")
     skip_models = pytest.mark.skip(reason="need --runmodels option to run")

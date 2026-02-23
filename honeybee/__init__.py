@@ -12,6 +12,18 @@ import numpy as np
 
 # Import processors
 from .processors import ClinicalProcessor, RadiologyProcessor
+from .processors.clinical import (
+    ClinicalDocument,
+    ClinicalEntity,
+    ClinicalResult,
+    DocumentIngester,
+    EmbeddingEngine,
+    NEREngine,
+    OntologyCode,
+    OntologyResolver,
+    TimelineEvent,
+    TimelineExtractor,
+)
 
 
 class HoneyBee:
@@ -21,23 +33,10 @@ class HoneyBee:
     Example:
         >>> honeybee = HoneyBee()
         >>> embeddings = honeybee.generate_embeddings("Patient diagnosed with cancer", modality="clinical")
-        >>> result = honeybee.process_clinical(document_path="report.pdf")
+        >>> result = honeybee.process_clinical(text="Patient with lung cancer")
     """
 
     def __init__(self, config: Dict = None):
-        """
-        Initialize HoneyBee framework
-
-        Args:
-            config: Configuration dictionary with processor-specific settings.
-                   Example:
-                   {
-                       "clinical": {
-                           "tokenization": {"model": "gatortron"},
-                           "entity_recognition": {"use_rules": True}
-                       }
-                   }
-        """
         self.config = config or {}
         self.logger = logging.getLogger(__name__)
 
@@ -58,46 +57,9 @@ class HoneyBee:
             data: Input data (text/list of texts for clinical, array for other modalities)
             modality: Data modality ("clinical", "pathology", "molecular")
             **kwargs: Additional arguments passed to the modality-specific processor
-                     For clinical modality:
-                         - model_name: Model to use. Can be preset name ("bioclinicalbert",
-                           "pubmedbert", "biobert", "scibert") or any HuggingFace model ID
-                           (e.g., "bert-base-uncased", "dmis-lab/biobert-v1.1")
-                         - pooling_method: How to pool embeddings (mean, cls, max, pooler_output)
-                         - batch_size: Batch size for processing
-                         - max_length: Maximum sequence length
 
         Returns:
             Generated embeddings as numpy array
-
-        Raises:
-            ModelAccessError: If model requires authentication (see error message for guidance)
-            ModelNotFoundError: If model doesn't exist on HuggingFace Hub
-
-        Examples:
-            >>> honeybee = HoneyBee()
-
-            >>> # Use preset biomedical model
-            >>> emb = honeybee.generate_embeddings(
-            ...     "Patient with lung cancer",
-            ...     modality="clinical",
-            ...     model_name="bioclinicalbert"
-            ... )
-
-            >>> # Use any HuggingFace model by full ID
-            >>> emb = honeybee.generate_embeddings(
-            ...     "Patient with lung cancer",
-            ...     modality="clinical",
-            ...     model_name="dmis-lab/biobert-v1.1"
-            ... )
-
-            >>> # Process multiple texts in batch
-            >>> texts = ["Text 1", "Text 2", "Text 3"]
-            >>> emb = honeybee.generate_embeddings(
-            ...     texts,
-            ...     modality="clinical",
-            ...     model_name="sentence-transformers/all-MiniLM-L6-v2",
-            ...     batch_size=8
-            ... )
         """
         if modality == "clinical":
             if isinstance(data, (str, list)):
@@ -129,8 +91,6 @@ class HoneyBee:
         if not embeddings_list:
             raise ValueError("No embeddings provided")
 
-        # Simple concatenation strategy
-        # In a real implementation, you might use attention mechanisms or learned fusion
         integrated = np.concatenate(embeddings_list, axis=-1)
 
         self.logger.info(
@@ -148,15 +108,13 @@ class HoneyBee:
         Returns:
             Survival prediction results
         """
-        # Placeholder implementation
-        # In a real system, this would use a trained survival model
         self.logger.info("Generating survival predictions (placeholder)")
 
         return {
             "survival_probability": 0.75,
             "risk_score": 0.25,
             "confidence": 0.85,
-            "time_to_event": 365,  # days
+            "time_to_event": 365,
         }
 
     def process_clinical(
@@ -164,29 +122,14 @@ class HoneyBee:
         document_path: Optional[Union[str, Path]] = None,
         text: Optional[str] = None,
         save_output: bool = False,
-    ) -> Dict:
+    ) -> ClinicalResult:
         """
-        Process clinical documents or text
+        Process clinical documents or text.
 
-        Convenience method that wraps ClinicalProcessor functionality.
-
-        Args:
-            document_path: Path to clinical document (PDF, image, EHR file)
-            text: Raw clinical text (used if document_path is None)
-            save_output: Whether to save processing results to file
-
-        Returns:
-            Processing results including entities, timeline, tokenization, etc.
-
-        Example:
-            >>> honeybee = HoneyBee()
-            >>> # Process PDF
-            >>> result = honeybee.process_clinical(document_path="report.pdf")
-            >>> # Process text directly
-            >>> result = honeybee.process_clinical(text="Patient with lung cancer")
+        Returns a ClinicalResult dataclass with entities, timeline, etc.
         """
         if document_path is not None:
-            return self.clinical_processor.process(document_path, save_output=save_output)
+            return self.clinical_processor.process(document_path)
         elif text is not None:
             return self.clinical_processor.process_text(text)
         else:
@@ -201,22 +144,7 @@ class HoneyBee:
         generate_embeddings: bool = False,
         **kwargs,
     ) -> Dict:
-        """
-        Process radiology images.
-
-        Convenience method that wraps RadiologyProcessor functionality.
-
-        Args:
-            dicom_path: Path to DICOM file or directory
-            nifti_path: Path to NIfTI file
-            image: Pre-loaded image array
-            preprocess: Whether to run preprocessing pipeline
-            generate_embeddings: Whether to generate embeddings
-            **kwargs: Additional arguments passed to processor methods
-
-        Returns:
-            Dictionary with processed image, metadata, and optional embeddings
-        """
+        """Process radiology images."""
         if self._radiology_processor is None:
             rad_config = self.config.get("radiology", {})
             self._radiology_processor = RadiologyProcessor(**rad_config)
@@ -255,28 +183,8 @@ class HoneyBee:
         file_pattern: str = "*",
         save_output: bool = True,
         output_dir: Optional[Union[str, Path]] = None,
-    ) -> List[Dict]:
-        """
-        Process multiple clinical documents in batch
-
-        Convenience method that wraps ClinicalProcessor batch functionality.
-
-        Args:
-            input_dir: Directory containing clinical documents
-            file_pattern: File pattern to match (e.g., "*.pdf")
-            save_output: Whether to save processing results
-            output_dir: Directory to save outputs (defaults to input_dir)
-
-        Returns:
-            List of processing results for each document
-
-        Example:
-            >>> honeybee = HoneyBee()
-            >>> results = honeybee.process_clinical_batch(
-            ...     input_dir="./clinical_reports",
-            ...     file_pattern="*.pdf"
-            ... )
-        """
+    ) -> List[ClinicalResult]:
+        """Process multiple clinical documents in batch."""
         return self.clinical_processor.process_batch(
             input_dir=input_dir,
             file_pattern=file_pattern,
@@ -287,4 +195,18 @@ class HoneyBee:
 
 # Re-export commonly used classes
 
-__all__ = ["HoneyBee", "ClinicalProcessor", "RadiologyProcessor"]
+__all__ = [
+    "HoneyBee",
+    "ClinicalProcessor",
+    "RadiologyProcessor",
+    "ClinicalDocument",
+    "ClinicalEntity",
+    "ClinicalResult",
+    "OntologyCode",
+    "TimelineEvent",
+    "DocumentIngester",
+    "NEREngine",
+    "OntologyResolver",
+    "TimelineExtractor",
+    "EmbeddingEngine",
+]

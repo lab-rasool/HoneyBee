@@ -6,11 +6,14 @@ import CodeBlock from "../../components/CodeBlock.astro";
 <DocsLayout title="Clinical Data Processing">
   <h2 class="text-2xl font-bold mb-4">Overview</h2>
   <p class="mb-6">
-    The clinical data processing pipeline in HoneyBee is designed to handle
-    various types of clinical data, including electronic health records (EHRs),
-    clinical notes, pathology reports, and other textual medical documents. The
-    pipeline extracts, processes, and generates embeddings from clinical text
-    data for downstream machine learning applications.
+    The clinical data processing pipeline in HoneyBee handles clinical text
+    end-to-end: ingest documents (PDF, scanned images, EHR exports), extract
+    named entities, detect context (negation, uncertainty), link to medical
+    ontologies (SNOMED CT, UMLS, BioPortal), build patient timelines, generate
+    biomedical embeddings, and export FHIR R4 bundles. The
+    <code>ClinicalProcessor</code> class exposes every step as a standalone
+    method so you can compose custom pipelines or run the full chain with a
+    single call via <code>HoneyBee.process_clinical()</code>.
   </p>
 
   <div class="mb-8">
@@ -23,426 +26,926 @@ import CodeBlock from "../../components/CodeBlock.astro";
 
   <h2 class="text-2xl font-bold mb-4">Key Features</h2>
   <ul class="list-disc pl-5 space-y-2 mb-6">
-    <li>
-      Support for multiple input formats (PDF, scanned images, EHR exports)
-    </li>
-    <li>OCR capabilities for digitizing scanned documents with medical terminology verification</li>
-    <li>Integration with specialized biomedical language models (Bio-ClinicalBERT, PubMedBERT, GatorTron, Clinical-T5)</li>
-    <li>Comprehensive clinical entity recognition and normalization</li>
-    <li>Integration with medical ontologies (SNOMED-CT, RxNorm, LOINC, ICD-O-3)</li>
-    <li>Temporal information extraction for patient timelines</li>
-    <li>Cancer-specific entity extractors for oncology use cases</li>
-    <li>Configurable processing pipelines and output options</li>
+    <li>Multi-backend PDF/image/EHR ingestion (Unstructured, PyMuPDF, PyPDF2, Tesseract OCR fallback)</li>
+    <li>Named entity recognition with 4 backends (<code>transformer</code>, <code>scispacy</code>, <code>medspacy</code>, <code>medcat</code>)</li>
+    <li>Context detection &mdash; negation, uncertainty, historical, and family flags</li>
+    <li>Proximity-based relationship extraction between entities</li>
+    <li>Temporal timeline construction with date parsing and entity linkage</li>
+    <li>SNOMED CT / UMLS / BioPortal ontology linking via Snowstorm</li>
+    <li>7 biomedical embedding model presets (BioClinicalBERT, PubMedBERT, BioBERT, SciBERT, GatorTron, Clinical-T5, sentence-transformers)</li>
+    <li>FHIR R4 transaction bundle export</li>
+    <li>High-level <code>HoneyBee.process_clinical()</code> one-call API</li>
   </ul>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Basic Usage</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Quick Start</h2>
   <p class="mb-4">
-    The ClinicalProcessor provides a unified interface for processing clinical documents:
+    Install HoneyBee and run the full clinical pipeline on a sample note:
   </p>
   <CodeBlock
-    code={`
-from honeybee.processors import ClinicalProcessor
+    code={`from honeybee import HoneyBee
 
-# Initialize the clinical processor with default configuration
-processor = ClinicalProcessor()
+hb = HoneyBee()
 
-# Process a clinical document (PDF, image, or EHR export)
-result = processor.process("path/to/clinical_document.pdf")
+clinical_note = """Patient: Jane Doe, 58-year-old postmenopausal female.
+Date of Visit: 03/15/2024
 
-# Access extracted text
-text = result["text"]
+History of Present Illness:
+Patient was diagnosed with invasive ductal carcinoma of the left breast on 01/10/2024
+following an abnormal screening mammogram on 12/05/2023. Core needle biopsy confirmed
+Grade 2 moderately differentiated adenocarcinoma. Tumor measures 2.3 cm on imaging.
 
-# Access extracted entities
-entities = result["entities"]
+Biomarker Profile:
+ER: positive (95%), PR: positive (80%), HER2: negative (IHC 1+), Ki-67: 22%.
 
-# Access temporal timeline
-timeline = result["temporal_timeline"]`}
-    lang="python"
-    filename="basic_usage.py"
-  />
+Medications:
+Tamoxifen 20 mg daily, Metformin 1000 mg bid, Lisinopril 10 mg daily.
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Custom Configuration</h2>
-  <p class="mb-4">
-    Configure the processor for specific use cases and document types:
-  </p>
-  <CodeBlock
-    code={`
-from honeybee.processors import ClinicalProcessor
-
-# Custom configuration
-config = {
-    "document_processor": {
-        "use_ocr": True,
-        "use_ehr": True
-    },
-    "tokenization": {
-        "model": "gatortron",  # Options: bioclinicalbert, pubmedbert, gatortron, clinicalt5
-        "max_length": 512,
-        "segment_strategy": "sentence",  # sentence, paragraph, fixed
-        "long_document_strategy": "sliding_window"  # sliding_window, hierarchical, important_segments, summarize
-    },
-    "entity_recognition": {
-        "use_rules": True,
-        "use_spacy": True,
-        "use_deep_learning": False,
-        "cancer_specific_extraction": True,
-        "temporal_extraction": True,
-        "ontologies": ["snomed_ct", "rxnorm", "loinc"]
-    },
-    "processing_pipeline": ["document", "tokenization", "entity_recognition"],
-    "output": {
-        "include_raw_text": True,
-        "include_tokens": True,
-        "include_entities": True,
-        "include_document_structure": True,
-        "include_temporal_timeline": True
-    }
-}
-
-# Initialize with custom configuration
-processor = ClinicalProcessor(config=config)
-
-# Process document
-result = processor.process("document.pdf", save_output=True)`}
-    lang="python"
-    filename="custom_configuration.py"
-  />
-
-  <h2 class="text-2xl font-bold mt-8 mb-4">Processing Raw Text</h2>
-  <p class="mb-4">
-    Process clinical text directly without file input:
-  </p>
-  <CodeBlock
-    code={`
-from honeybee.processors import ClinicalProcessor
-
-processor = ClinicalProcessor()
-
-# Process raw clinical text
-clinical_text = """
-Patient presents with stage III non-small cell lung cancer.
-EGFR mutation positive. Started on erlotinib 150mg daily.
-Partial response observed after 3 months of treatment.
+Plan: Begin dose-dense AC-T (doxorubicin/cyclophosphamide x4 followed by
+paclitaxel x4) starting 04/01/2024.
 """
 
-result = processor.process_text(
-    text=clinical_text,
-    document_type="progress_note"
+result = hb.process_clinical(text=clinical_note)
+
+print(f"Entities:      {len(result.entities)}")
+print(f"Relationships: {len(result.relationships)}")
+print(f"Timeline:      {len(result.timeline)} events")`}
+    lang="python"
+    filename="quickstart.py"
+  />
+  <CodeBlock
+    code={`Entities:      63
+Relationships: 36
+Timeline:      8 events`}
+    lang="text"
+    filename="Output"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Document Ingestion</h2>
+  <p class="mb-4">
+    HoneyBee can ingest clinical PDFs directly &mdash; it tries multiple
+    extraction backends (Unstructured, PyMuPDF, PyPDF2) and falls back to
+    Tesseract OCR for scanned documents. Here we download a sample pathology
+    report from the
+    <a href="https://huggingface.co/datasets/Lab-Rasool/honeybee-samples" class="text-primary hover:underline" target="_blank">honeybee-samples</a>
+    dataset and process it end-to-end.
+  </p>
+  <CodeBlock
+    code={`from huggingface_hub import hf_hub_download
+
+# Download sample clinical PDF from HuggingFace
+pdf_path = hf_hub_download(
+    repo_id="Lab-Rasool/honeybee-samples",
+    filename="sample.PDF",
+    repo_type="dataset",
+)
+print(f"Downloaded: {pdf_path}")
+
+# Process the PDF through the full clinical pipeline
+pdf_result = hb.process_clinical(document_path=pdf_path)
+
+# Show extraction metadata
+meta = pdf_result.document.metadata
+print(f"Extraction method: {meta.get('extraction_method', 'unknown')}")
+print(f"Pages: {meta.get('num_pages', 'N/A')}")
+print(f"Text length: {len(pdf_result.document.text):,} chars")
+print(f"Entities: {len(pdf_result.entities)}")
+print(f"Relationships: {len(pdf_result.relationships)}")`}
+    lang="python"
+    filename="document_ingestion.py"
+  />
+  <CodeBlock
+    code={`Downloaded: .../datasets--Lab-Rasool--honeybee-samples/.../sample.PDF
+
+Extraction method: pypdf2
+Pages: 1
+Text length: 1,470 chars
+Entities: 21
+Relationships: 4`}
+    lang="text"
+    filename="Output"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Extracted Entities</h2>
+  <p class="mb-4">
+    Each entity is a <code>ClinicalEntity</code> with typed spans
+    (<code>condition</code>, <code>medication</code>, <code>procedure</code>,
+    <code>measurement</code>, <code>temporal</code>, <code>anatomy</code>,
+    <code>dosage</code>), a confidence score, context flags
+    (<code>is_negated</code>, <code>is_uncertain</code>,
+    <code>is_historical</code>, <code>is_family</code>), and optional
+    <code>ontology_codes</code>.
+  </p>
+  <CodeBlock
+    code={`from collections import Counter
+
+entities = result.entities
+type_counts = Counter(e.type for e in entities)
+
+# Show entity type distribution
+for etype, count in type_counts.most_common():
+    print(f"  {etype:<14s}: {count}")
+
+# Top-15 entities
+print(f"\\n{'Text':>35s}  {'Type':<12s}  {'Conf':>5s}")
+print("-" * 58)
+for e in entities[:15]:
+    print(f"{e.text[:35]:>35s}  {e.type:<12s}  {e.confidence:>5.2f}")`}
+    lang="python"
+    filename="extracted_entities.py"
+  />
+  <CodeBlock
+    code={`  procedure      : 24
+  medication     : 14
+  measurement    : 10
+  condition      : 7
+  temporal       : 4
+  dosage         : 4
+
+                               Text  Type          Conf
+----------------------------------------------------------
+                        58-year-old  temporal       0.88
+                    ductal carcinoma  condition      1.00
+                            Grade 2  measurement    0.98
+                              Tumor  condition      1.00
+                                HER  procedure      0.99
+                         Lisinopril  medication     0.97
+                       chemotherapy  medication     1.00
+                 radiation oncology  procedure      0.87
+                       chemotherapy  medication     0.92
+                       chemotherapy  procedure      0.83`}
+    lang="text"
+    filename="Output"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Annotated Clinical Note</h2>
+  <p class="mb-4">
+    The same entities shown inline in the original text &mdash; each highlight
+    corresponds to an entity type detected by the NER pipeline.
+  </p>
+  <div class="mb-8 border border-gray-700 rounded-lg p-4 overflow-x-auto">
+    <div style="font-family:monospace;font-size:13px;line-height:1.8;white-space:pre-wrap;max-width:900px">Patient: Jane Doe, <span style="background:#f7d794;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="temporal (conf 0.88)">58-year-old</span> postmenopausal female.
+Date of Visit: <span style="background:#f7d794;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="temporal (conf 0.91)">03/15/2024</span>
+
+Chief Complaint:
+Follow-up evaluation for recently diagnosed <span style="background:#a8d8ea;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="condition (conf 0.94)">breast cancer</span>.
+
+History of Present Illness:
+Patient was diagnosed with invasive <span style="background:#a8d8ea;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="condition (conf 1.00)">ductal carcinoma</span> of the left breast on <span style="background:#f7d794;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="temporal (conf 0.92)">01/10/2024</span>
+following an abnormal <span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.92)">screening</span> mammogram on <span style="background:#f7d794;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="temporal (conf 0.90)">12/05/2023</span>. Core <span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.95)">needle biopsy</span> confirmed
+<span style="background:#fefdca;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="measurement (conf 0.98)">Grade 2</span> moderately differentiated <span style="background:#a8d8ea;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="condition (conf 0.97)">adenocarcinoma</span>. <span style="background:#a8d8ea;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="condition (conf 1.00)">Tumor</span> measures <span style="background:#fefdca;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="measurement (conf 0.94)">2.3 cm</span> on imaging.
+Staging workup including <span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.96)">CT</span> chest/abdomen/pelvis and bone <span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.91)">scan</span> completed on <span style="background:#f7d794;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="temporal (conf 0.93)">02/01/2024</span>
+showed no evidence of distant metastasis. Final pathologic staging: T2N1M0, Stage IIB.
+
+Biomarker Profile:
+ER: positive (<span style="background:#fefdca;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="measurement (conf 0.91)">95%</span>), PR: positive (<span style="background:#fefdca;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="measurement (conf 0.90)">80%</span>), <span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.99)">HER</span>2: negative (IHC 1+), Ki-67: <span style="background:#fefdca;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="measurement (conf 0.88)">22%</span>.
+<span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.93)">Genomic testing</span> (Oncotype DX) returned a recurrence score of 18 on <span style="background:#f7d794;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="temporal (conf 0.91)">02/20/2024</span>.
+
+Past Medical History:
+<span style="background:#a8d8ea;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="condition (conf 0.96)">Hypertension</span>, Type 2 <span style="background:#a8d8ea;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="condition (conf 0.95)">diabetes mellitus</span>, hyperlipidemia.
+
+Medications:
+<span style="background:#c3bef7;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="medication (conf 0.99)">Tamoxifen</span> <span style="background:#ffcfdf;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="dosage (conf 0.97)">20 mg</span> daily, <span style="background:#c3bef7;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="medication (conf 0.98)">Metformin</span> <span style="background:#ffcfdf;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="dosage (conf 0.96)">1000 mg</span> bid, <span style="background:#c3bef7;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="medication (conf 0.97)">Lisinopril</span> <span style="background:#ffcfdf;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="dosage (conf 0.95)">10 mg</span> daily,
+<span style="background:#c3bef7;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="medication (conf 0.98)">Atorvastatin</span> <span style="background:#ffcfdf;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="dosage (conf 0.97)">40 mg</span> daily, <span style="background:#c3bef7;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="medication (conf 0.96)">Ondansetron</span> 8 mg prn.
+
+Allergies: No known drug allergies.
+
+Laboratory Results (03/15/2024):
+<span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.94)">Hemoglobin</span>: 11.2 g/dL, <span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.91)">White Blood Cell</span> Count: 5.8 K/uL,
+<span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.93)">Platelet</span> Count: 210 K/uL, <span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.95)">Creatinine</span>: 0.9 mg/dL,
+<span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.92)">Albumin</span>: 3.8 g/dL, <span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.94)">Calcium</span>: 9.4 mg/dL.
+
+Assessment and Plan:
+1. Invasive <span style="background:#a8d8ea;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="condition (conf 1.00)">ductal carcinoma</span>, left breast, T2N1M0, Stage IIB, ER+/PR+/HER2-.
+   - Oncotype DX recurrence score 18 supports adjuvant <span style="background:#c3bef7;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="medication (conf 1.00)">chemotherapy</span> followed by
+     endocrine therapy.
+   - Plan: Begin dose-dense AC-T (<span style="background:#c3bef7;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="medication (conf 0.99)">doxorubicin</span>/<span style="background:#c3bef7;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="medication (conf 0.98)">cyclophosphamide</span> x4 cycles followed
+     by <span style="background:#c3bef7;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="medication (conf 0.97)">paclitaxel</span> x4 cycles) starting <span style="background:#f7d794;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="temporal (conf 0.93)">04/01/2024</span>.
+   - Refer to <span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.87)">radiation oncology</span> for post-chemotherapy radiation planning.
+   - Continue <span style="background:#c3bef7;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="medication (conf 0.99)">tamoxifen</span>; transition to aromatase inhibitor after <span style="background:#c3bef7;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="medication (conf 0.92)">chemotherapy</span>.
+2. Pre-chemotherapy cardiac evaluation: <span style="background:#cadefc;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="procedure (conf 0.95)">Echocardiogram</span> scheduled for <span style="background:#f7d794;color:#1a1a2e;padding:1px 3px;border-radius:3px" title="temporal (conf 0.91)">03/25/2024</span>.
+3. Follow-up in 2 weeks for lab work and treatment initiation.
+</div>
+    <div style="margin-top:12px" class="flex flex-wrap gap-2">
+      <span style="background:#a8d8ea;color:#1a1a2e;padding:2px 8px;border-radius:3px">condition</span>
+      <span style="background:#ffcfdf;color:#1a1a2e;padding:2px 8px;border-radius:3px">dosage</span>
+      <span style="background:#fefdca;color:#1a1a2e;padding:2px 8px;border-radius:3px">measurement</span>
+      <span style="background:#c3bef7;color:#1a1a2e;padding:2px 8px;border-radius:3px">medication</span>
+      <span style="background:#cadefc;color:#1a1a2e;padding:2px 8px;border-radius:3px">procedure</span>
+      <span style="background:#f7d794;color:#1a1a2e;padding:2px 8px;border-radius:3px">temporal</span>
+    </div>
+  </div>
+  <details class="mb-8 border border-gray-700 rounded-lg overflow-hidden">
+    <summary class="cursor-pointer px-4 py-3 bg-gray-800/50 hover:bg-gray-800 text-lg font-semibold transition-colors">
+      Generate this visualization in Python
+    </summary>
+    <div class="px-4 pb-4 pt-2">
+      <p class="mb-4">
+        Reproduce the annotated note above from a <code>process_clinical()</code>
+        result in a Jupyter notebook:
+      </p>
+      <CodeBlock
+        code={`from html import escape
+from IPython.display import HTML, display
+
+entities = result.entities
+
+# Colour per entity type (alphabetical order)
+palette = {
+    "condition": "#a8d8ea", "dosage": "#ffcfdf",
+    "measurement": "#fefdca", "medication": "#c3bef7",
+    "procedure": "#cadefc", "temporal": "#f7d794",
+}
+
+# Resolve overlapping spans — keep earlier / longer
+sorted_ents = sorted(entities, key=lambda e: (e.start, -(e.end - e.start)))
+keep, last_end = [], -1
+for e in sorted_ents:
+    if e.start >= last_end:
+        keep.append(e)
+        last_end = e.end
+
+# Build annotated HTML
+parts, prev = [], 0
+for e in keep:
+    if e.start > prev:
+        parts.append(escape(clinical_note[prev:e.start]))
+    bg = palette.get(e.type, "#d5dbdb")
+    tip = f"{e.type} (conf {e.confidence:.2f})"
+    parts.append(
+        f'<span style="background:{bg};padding:1px 3px;border-radius:3px"'
+        f' title="{tip}">{escape(clinical_note[e.start:e.end])}</span>'
+    )
+    prev = e.end
+if prev < len(clinical_note):
+    parts.append(escape(clinical_note[prev:]))
+
+# Legend
+legend = " &nbsp; ".join(
+    f'<span style="background:{c};padding:2px 8px;border-radius:3px">{t}</span>'
+    for t, c in palette.items()
 )
 
-# Extract entities
-for entity in result["entities"]:
-    print(f"Entity: {entity['text']}")
-    print(f"Type: {entity['type']}")
-    print(f"Properties: {entity['properties']}")
-    print("---")`}
-    lang="python"
-    filename="process_text.py"
-  />
+display(HTML(
+    f'<div style="font-family:monospace;font-size:13px;line-height:1.8;'
+    f'white-space:pre-wrap;max-width:900px">{"".join(parts)}</div>'
+    f'<div style="margin-top:12px">{legend}</div>'
+))`}
+        lang="python"
+        filename="annotated_note.py"
+      />
+    </div>
+  </details>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Batch Processing</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Cancer-Specific Entities</h2>
   <p class="mb-4">
-    Process multiple clinical documents efficiently:
+    The clinical note describes breast cancer with biomarkers (ER+, PR+, HER2&minus;),
+    staging (T2N1M0, Stage IIB), and tumor type (invasive ductal carcinoma). The
+    default <code>transformer</code> NER backend maps these to generic types.
+    We can filter for oncology-relevant entities by matching known cancer terms.
   </p>
   <CodeBlock
-    code={`
-from honeybee.processors import ClinicalProcessor
-
-processor = ClinicalProcessor()
-
-# Process all PDF files in a directory
-results = processor.process_batch(
-    input_dir="path/to/clinical_documents",
-    file_pattern="*.pdf",
-    save_output=True,
-    output_dir="path/to/output"
-)
-
-# Analyze batch results
-total_docs = len(results)
-total_entities = sum(len(r.get("entities", [])) for r in results)
-
-print(f"Processed {total_docs} documents")
-print(f"Extracted {total_entities} total entities")`}
-    lang="python"
-    filename="batch_processing.py"
-  />
-
-  <h2 class="text-2xl font-bold mt-8 mb-4">Advanced Tokenization</h2>
-  <p class="mb-4">
-    Handle long documents with various tokenization strategies:
-  </p>
-  <CodeBlock
-    code={`
-from honeybee.processors import ClinicalProcessor
-
-# Configure for long document processing
-config = {
-    "tokenization": {
-        "model": "gatortron",
-        "max_length": 512,
-        "segment_strategy": "paragraph",
-        "long_document_strategy": "hierarchical",  # Preserves document structure
-        "stride": 128
-    }
+    code={`# Define oncology keyword categories
+CANCER_KEYWORDS = {
+    "tumor": ["carcinoma", "adenocarcinoma", "cancer", "tumor",
+              "ductal", "invasive", "glioblastoma"],
+    "biomarker": ["ER", "PR", "HER2", "Ki-67", "EGFR", "ALK",
+                  "PD-L1", "Oncotype", "GFAP", "MIB-1"],
+    "staging": ["T2N1M0", "Stage", "Grade", "metastasis"],
+    "treatment": ["doxorubicin", "cyclophosphamide", "paclitaxel",
+                  "tamoxifen", "pembrolizumab", "chemotherapy", "radiation"],
 }
 
-processor = ClinicalProcessor(config=config)
-
-# Process long operative report
-result = processor.process("long_operative_report.pdf")
-
-# Access tokenization details
-tokenization = result["tokenization"]
-print(f"Number of tokens: {len(tokenization['tokens'])}")
-print(f"Number of segments: {tokenization['num_segments']}")
-
-if tokenization.get("hierarchical"):
-    print("Document sections:")
-    for section in tokenization["sections"]:
-        print(f"- {section['name']}: {len(section['segment_indices'])} segments")`}
+# Filter entities
+print(f"{'Entity Text':>35s}  {'NER Type':<12s}  {'Onc. Category':<14s}")
+print("-" * 65)
+for e in entities:
+    for cat, keywords in CANCER_KEYWORDS.items():
+        if any(kw.lower() in e.text.lower() for kw in keywords):
+            print(f"{e.text[:35]:>35s}  {e.type:<12s}  {cat:<14s}")
+            break`}
     lang="python"
-    filename="advanced_tokenization.py"
+    filename="cancer_entities.py"
   />
+  <CodeBlock
+    code={`                        Entity Text  NER Type      Onc. Category
+-----------------------------------------------------------------
+                   ductal carcinoma  condition     tumor
+                            Grade 2  measurement   staging
+                              Tumor  condition     tumor
+                       chemotherapy  medication    biomarker
+                 radiation oncology  procedure     treatment
+                       chemotherapy  medication    biomarker
+                       chemotherapy  procedure     biomarker`}
+    lang="text"
+    filename="Output"
+  />
+  <p class="mb-4 mt-4">
+    <strong>Tip:</strong> Configure the <code>scispacy</code> or <code>medspacy</code>
+    backend for dedicated <code>tumor</code>, <code>biomarker</code>, and
+    <code>staging</code> entity types.
+  </p>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Cancer-Specific Entity Extraction</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Context Attributes</h2>
   <p class="mb-4">
-    Extract oncology-specific entities with specialized extractors:
+    Each entity carries four boolean flags that capture how it appears in
+    clinical narrative:
+  </p>
+  <div class="overflow-x-auto mb-6">
+    <table class="min-w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-gray-600">
+          <th class="text-left py-2 px-3">Flag</th>
+          <th class="text-left py-2 px-3">Meaning</th>
+          <th class="text-left py-2 px-3">Example</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>is_negated</code></td>
+          <td class="py-2 px-3">Explicitly denied</td>
+          <td class="py-2 px-3">"<strong>no</strong> evidence of distant metastasis"</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>is_uncertain</code></td>
+          <td class="py-2 px-3">Hedging language</td>
+          <td class="py-2 px-3">"<strong>possible</strong> pneumonia"</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>is_historical</code></td>
+          <td class="py-2 px-3">Past event</td>
+          <td class="py-2 px-3">"<strong>history of</strong> hypertension"</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>is_family</code></td>
+          <td class="py-2 px-3">Family member</td>
+          <td class="py-2 px-3">"<strong>mother had</strong> breast cancer"</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="mb-4">
+    The default <code>transformer</code> backend does not perform context
+    detection. Enable the <code>medspacy</code> backend
+    (<code>pip install medspacy</code>) for automatic detection via ConText:
   </p>
   <CodeBlock
-    code={`
-from honeybee.processors import ClinicalProcessor
+    code={`# Default transformer backend — no context flags set
+sample = entities[0]
+print(f"Entity: {sample.text!r}")
+print(f"  is_negated:    {sample.is_negated}")
+print(f"  is_uncertain:  {sample.is_uncertain}")
+print(f"  is_historical: {sample.is_historical}")
+print(f"  is_family:     {sample.is_family}")
 
-# Enable cancer-specific extraction
-config = {
-    "entity_recognition": {
-        "cancer_specific_extraction": True,
-        "temporal_extraction": True,
-        "ontologies": ["snomed_ct", "rxnorm"]
-    }
-}
-
-processor = ClinicalProcessor(config=config)
-
-pathology_text = """
-Invasive ductal carcinoma, Grade 2, measuring 2.1 cm.
-ER positive (90%), PR positive (75%), HER2 negative.
-T2N0M0 stage IIA. Margins clear.
-"""
-
-result = processor.process_text(pathology_text, "pathology_report")
-
-# Filter entities by type
-tumors = [e for e in result["entities"] if e["type"] == "tumor"]
-biomarkers = [e for e in result["entities"] if e["type"] == "biomarker"]
-staging = [e for e in result["entities"] if e["type"] == "staging"]
-
-print(f"Found {len(tumors)} tumor entities")
-print(f"Found {len(biomarkers)} biomarker entities")
-print(f"Found {len(staging)} staging entities")
-
-# Examine biomarker details
-for biomarker in biomarkers:
-    props = biomarker["properties"]
-    print(f"Biomarker: {props['name']}")
-    print(f"Status: {props['status']}")
-    if "percentage" in props:
-        print(f"Percentage: {props['percentage']}%")`}
+# Enable context detection with medspacy
+hb = HoneyBee(config={"clinical": {"ner": {"backends": ["medspacy"]}}})`}
     lang="python"
-    filename="cancer_specific_extraction.py"
+    filename="context_attributes.py"
+  />
+  <CodeBlock
+    code={`Entity: '58-year-old'
+  is_negated:    False
+  is_uncertain:  False
+  is_historical: False
+  is_family:     False`}
+    lang="text"
+    filename="Output"
   />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Temporal Timeline Construction</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Entity Relationships</h2>
   <p class="mb-4">
-    Extract and organize temporal information for patient timelines:
+    The processor detects proximity-based relationships between entities
+    (medication&ndash;dosage, condition&ndash;treatment, tumor&ndash;staging, etc.).
   </p>
   <CodeBlock
-    code={`
-from honeybee.processors import ClinicalProcessor
-
-processor = ClinicalProcessor()
-
-clinical_note = """
-Patient diagnosed with breast cancer on 03/15/2023.
-Started neoadjuvant chemotherapy in April 2023.
-Surgery performed on 08/20/2023.
-Currently on adjuvant hormone therapy as of September 2023.
-"""
-
-result = processor.process_text(clinical_note, "consultation_note")
-
-# Access temporal timeline
-timeline = result["temporal_timeline"]
-
-print("Patient Timeline:")
-for event in timeline:
-    print(f"Date: {event['temporal_text']}")
-    if event["normalized_date"]:
-        print(f"Normalized: {event['normalized_date']}")
-    
-    # Show related entities
-    related_entities = [result["entities"][i] for i in event["related_entities"]]
-    for entity in related_entities:
-        print(f"  - {entity['type']}: {entity['text']}")
-    print("---")`}
+    code={`print(f"{'Source':>30s}  {'Relation':<18s}  Target")
+print("-" * 80)
+for rel in result.relationships[:12]:
+    src = rel.get("source_text", entities[rel["source_idx"]].text)[:30]
+    tgt = rel.get("target_text", entities[rel["target_idx"]].text)[:30]
+    print(f"{src:>30s}  {rel['type']:<18s}  {tgt}")`}
     lang="python"
-    filename="temporal_timeline.py"
+    filename="relationships.py"
+  />
+  <CodeBlock
+    code={`                        Source  Relation            Target
+--------------------------------------------------------------------------------
+              ductal carcinoma  temporal_relation   /2024
+                         /2024  temporal_relation   screening
+                          mamm  has_result          Grade 2
+                 needle biopsy  has_result          Grade 2
+                 needle biopsy  investigated_by     adenocarcino
+                          3 cm  has_result          CT
+                            CT  temporal_relation   02/01/2024
+                          scan  temporal_relation   02/01/2024`}
+    lang="text"
+    filename="Output"
   />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Entity Normalization and Ontology Linking</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Patient Timeline</h2>
   <p class="mb-4">
-    Normalize entities and link to standard medical ontologies:
+    Dates are extracted from the text and linked to nearby clinical entities
+    to build a chronological patient timeline.
   </p>
   <CodeBlock
-    code={`
-from honeybee.processors import ClinicalProcessor
+    code={`timeline = result.timeline
 
-# Configure with specific ontologies
-config = {
-    "entity_recognition": {
-        "ontologies": ["snomed_ct", "rxnorm", "loinc"],
-        "abbreviation_expansion": True,
-        "term_disambiguation": True
-    }
-}
+print(f"{'Date Text':>15s}  {'Parsed':>12s}  Related Entities")
+print("-" * 75)
+for ev in timeline:
+    related = [entities[i].text[:25] for i in ev.related_entities
+               if i < len(entities)]
+    label = ", ".join(related[:3])
+    if len(related) > 3:
+        label += f" (+{len(related) - 3})"
+    print(f"{ev.date_text:>15s}  {str(ev.date)[:10]:>12s}  {label}")`}
+    lang="python"
+    filename="timeline.py"
+  />
+  <CodeBlock
+    code={`      Date Text        Parsed  Related Entities
+---------------------------------------------------------------------------
+     12/05/2023    2023-12-05  ductal carcinoma, screening, mamm (+8)
+     01/10/2024    2024-01-10  ductal carcinoma, screening, mamm (+5)
+     02/01/2024    2024-02-01  adenocarcino, Tumor, 2 (+8)
+     02/20/2024    2024-02-20  positive, positive, HER (+13)
+     03/15/2024    2024-03-15  ductal carcinoma
+     03/15/2024    2024-03-15  ductal carcinoma
+     03/25/2024    2024-03-25  tam, tase inhibitor, chemotherapy (+1)
+     04/01/2024    2024-04-01  AC, do, or (+5)`}
+    lang="text"
+    filename="Output"
+  />
+  <p class="mb-4 mt-4">
+    The timeline can be visualized as a scatter plot using matplotlib, with
+    events positioned chronologically and labeled with their most relevant
+    clinical entities.
+  </p>
 
-processor = ClinicalProcessor(config=config)
+  <h2 class="text-2xl font-bold mt-8 mb-4">FHIR Export</h2>
+  <p class="mb-4">
+    Convert the processing result into a FHIR R4 transaction Bundle. Entity
+    types map to FHIR resources: conditions to <code>Condition</code>,
+    medications to <code>MedicationStatement</code>, measurements to
+    <code>Observation</code>.
+  </p>
+  <CodeBlock
+    code={`import json
 
-text = "Pt started on tamoxifen 20mg daily for breast ca."
+bundle = hb.clinical_processor.to_fhir(result, patient_id="patient-001")
 
-result = processor.process_text(text)
+entries = bundle.get("entry", [])
+resource_types = Counter(e["resource"]["resourceType"] for e in entries)
+print(f"Bundle: {bundle['resourceType']}  ({len(entries)} entries)")
+for rtype, count in resource_types.most_common():
+    print(f"  {rtype:<25s}: {count}")
 
-# Examine normalized entities
-for entity in result["entities"]:
-    props = entity["properties"]
-    
-    print(f"Original text: {entity['text']}")
-    print(f"Type: {entity['type']}")
-    
-    # Check for abbreviation expansion
-    if "expanded" in props:
-        print(f"Expanded: {props['expanded']}")
-    
-    # Check for ontology links
-    if "ontology_links" in props:
-        for link in props["ontology_links"]:
-            print(f"Ontology: {link['ontology']}")
-            print(f"Concept: {link['concept_name']} ({link['concept_id']})")
-    
-    print("---")`}
+print(f"\\n--- Sample Condition resource ---")
+print(json.dumps(entries[0]["resource"], indent=2))`}
+    lang="python"
+    filename="fhir_export.py"
+  />
+  <CodeBlock
+    code={`Bundle: Bundle  (32 entries)
+  MedicationStatement      : 14
+  Observation              : 10
+  Condition                : 7
+  DiagnosticReport         : 1
+
+--- Sample Condition resource ---
+{
+  "resourceType": "Condition",
+  "code": {
+    "text": "ductal carcinoma"
+  },
+  "clinicalStatus": {
+    "coding": [
+      {
+        "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+        "code": "active"
+      }
+    ]
+  },
+  "subject": {
+    "reference": "Patient/patient-001"
+  }
+}`}
+    lang="text"
+    filename="Output"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Ontology Linking</h2>
+  <p class="mb-4">
+    HoneyBee can link extracted entities to standard medical ontologies
+    (SNOMED CT, RxNorm, LOINC, ICD-10). The <strong>Snowstorm</strong> backend
+    queries the free
+    <a href="https://snowstorm.ihtsdotools.org/" class="text-primary hover:underline" target="_blank">SNOMED International terminology server</a>
+    &mdash; no API key needed. Each entity gains an <code>ontology_codes</code>
+    list of <code>OntologyCode(system, code, display, source_api)</code> objects.
+  </p>
+  <CodeBlock
+    code={`# Re-process with Snowstorm ontology linking enabled
+hb_onto = HoneyBee(config={"clinical": {"ontology": {"backends": ["snowstorm"]}}})
+result_onto = hb_onto.process_clinical(text=clinical_note)
+
+coded = [e for e in result_onto.entities if e.ontology_codes]
+
+if coded:
+    print(f"{'Entity':>30s}  {'System':<12s}  {'Code':<14s}  Display")
+    print("-" * 90)
+    for e in coded[:15]:
+        oc = e.ontology_codes[0]
+        print(f"{e.text[:30]:>30s}  {oc.system:<12s}  {oc.code:<14s}  {oc.display[:35]}")
+    print(f"\\n{len(coded)} / {len(result_onto.entities)} entities linked")
+else:
+    print("Snowstorm returned 0 codes (public server may be rate-limiting).")`}
     lang="python"
     filename="ontology_linking.py"
   />
-
-  <h2 class="text-2xl font-bold mt-8 mb-4">Supported File Formats</h2>
-  <p class="mb-4">
-    The clinical processor supports various input formats:
+  <p class="mb-4 mt-4">
+    <strong>Note:</strong> The public Snowstorm server enforces rate limits. If
+    many entities time out, try again later or point to a
+    <a href="https://github.com/IHTSDO/snowstorm" class="text-primary hover:underline" target="_blank">local Snowstorm instance</a>:
   </p>
-  <ul class="list-disc pl-5 space-y-2 mb-6">
-    <li><strong>Image formats:</strong> PDF, PNG, JPG, JPEG, TIFF, BMP (processed via OCR)</li>
-    <li><strong>EHR formats:</strong> XML, JSON, CSV, XLSX (structured data processing)</li>
-    <li><strong>Document types:</strong> Operative reports, pathology reports, consultation notes, progress notes, discharge summaries</li>
-  </ul>
+  <CodeBlock
+    code={`hb = HoneyBee(config={"clinical": {"ontology": {
+    "backends": ["snowstorm"],
+    "snowstorm_base_url": "http://localhost:8080/snowstorm/snomed-ct",
+}}})`}
+    lang="python"
+    filename="local_snowstorm.py"
+  />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Supported Biomedical Models</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Biomedical Embeddings</h2>
   <p class="mb-4">
-    Choose from specialized biomedical language models:
+    Generate dense vector representations with pre-configured biomedical
+    language models:
   </p>
-  <ul class="list-disc pl-5 space-y-2 mb-6">
-    <li><strong>bioclinicalbert:</strong> Bio-ClinicalBERT for clinical text</li>
-    <li><strong>pubmedbert:</strong> PubMedBERT for biomedical literature</li>
-    <li><strong>gatortron:</strong> GatorTron for clinical notes (default)</li>
-    <li><strong>clinicalt5:</strong> Clinical-T5 for text generation tasks</li>
-  </ul>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Performance Considerations</h2>
+  <h3 class="text-xl font-bold mt-4 mb-2">Available Models</h3>
+  <div class="overflow-x-auto mb-6">
+    <table class="min-w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-gray-600">
+          <th class="text-left py-2 px-3">Preset</th>
+          <th class="text-left py-2 px-3">Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>bioclinicalbert</code></td>
+          <td class="py-2 px-3">Clinical BERT trained on MIMIC-III notes (default)</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>pubmedbert</code></td>
+          <td class="py-2 px-3">BERT trained on PubMed abstracts</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>biobert</code></td>
+          <td class="py-2 px-3">BioBERT for biomedical text mining</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>scibert</code></td>
+          <td class="py-2 px-3">SciBERT trained on scientific publications</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>gatortron</code></td>
+          <td class="py-2 px-3">Clinical foundation model (gated)</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>clinicalt5</code></td>
+          <td class="py-2 px-3">T5 fine-tuned on PubMed Central</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>sentence-transformers</code></td>
+          <td class="py-2 px-3">Lightweight general-purpose sentence embeddings</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Generate Embeddings</h3>
+  <CodeBlock
+    code={`import numpy as np
+
+# Single model
+emb = hb.generate_embeddings(clinical_note, modality="clinical",
+                              model_name="bioclinicalbert")
+print(f"bioclinicalbert: shape={emb.shape}, norm={np.linalg.norm(emb):.2f}")
+
+# Multi-model comparison
+for name in ["bioclinicalbert", "pubmedbert", "biobert", "scibert"]:
+    e = hb.generate_embeddings(clinical_note, modality="clinical", model_name=name)
+    print(f"{name:>20s}: shape={e.shape}, norm={np.linalg.norm(e):.2f}")`}
+    lang="python"
+    filename="embeddings.py"
+  />
+  <CodeBlock
+    code={`bioclinicalbert: shape=(1, 768), norm=10.75
+     bioclinicalbert: shape=(1, 768), norm=10.75
+          pubmedbert: shape=(1, 768), norm=13.51
+             biobert: shape=(1, 768), norm=9.34
+             scibert: shape=(1, 768), norm=11.22`}
+    lang="text"
+    filename="Output"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Embedding Similarity</h2>
   <p class="mb-4">
-    When processing large clinical datasets, consider the following:
+    Compare how different clinical text segments relate to each other using
+    cosine similarity:
   </p>
-  <ul class="list-disc pl-5 space-y-2 mb-6">
-    <li>Use batch processing for large document collections</li>
-    <li>Configure appropriate tokenization strategies for long documents</li>
-    <li>Enable GPU acceleration when available for deep learning models</li>
-    <li>Use sliding window or hierarchical tokenization for very long documents</li>
-    <li>Consider memory-efficient processing for large datasets</li>
-    <li>Adjust entity recognition components based on performance requirements</li>
-  </ul>
+  <CodeBlock
+    code={`segments = [
+    "invasive ductal carcinoma Grade 2",
+    "breast cancer T2N1M0 Stage IIB",
+    "ER positive PR positive HER2 negative",
+    "tamoxifen 20 mg daily",
+    "doxorubicin cyclophosphamide paclitaxel",
+    "hemoglobin 11.2 albumin 3.8",
+    "non-small cell lung cancer EGFR positive",
+    "carboplatin paclitaxel pembrolizumab",
+]
+
+seg_emb = hb.generate_embeddings(segments, modality="clinical",
+                                  model_name="bioclinicalbert")
+norms = np.linalg.norm(seg_emb, axis=1, keepdims=True)
+norms = np.where(norms == 0, 1, norms)
+similarity = (seg_emb / norms) @ (seg_emb / norms).T
+
+# Print top-5 most similar pairs (excluding self-similarity)
+pairs = []
+for i in range(len(segments)):
+    for j in range(i + 1, len(segments)):
+        pairs.append((similarity[i, j], segments[i][:30], segments[j][:30]))
+pairs.sort(reverse=True)
+
+print("Top-5 most similar segment pairs:")
+for sim, a, b in pairs[:5]:
+    print(f"  {sim:.3f}  {a}  <->  {b}")`}
+    lang="python"
+    filename="similarity.py"
+  />
+  <p class="mb-4 mt-4">
+    A cosine similarity heatmap can be generated with matplotlib to visualize
+    the full pairwise similarity matrix across all segments.
+  </p>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Batch Processing</h2>
+  <p class="mb-4">
+    Process multiple notes and compare aggregate statistics. For file-based
+    workflows, use <code>hb.process_clinical_batch(input_dir=..., file_pattern="*.pdf")</code>.
+  </p>
+  <CodeBlock
+    code={`comparison_note = """Patient: John Smith, 65-year-old male.
+Diagnosed with stage IIIA non-small cell lung cancer (adenocarcinoma) on 06/15/2024.
+EGFR: positive, ALK: negative, PD-L1: positive (75%).
+Started on carboplatin 450 mg iv plus paclitaxel 200 mg iv q3w on 07/01/2024.
+Pembrolizumab 200 mg iv q3w added as immunotherapy.
+CT scan on 09/15/2024 showed partial response.
+"""
+
+result2 = hb.process_clinical(text=comparison_note)
+
+# Side-by-side summary statistics
+for label, r in [("Jane Doe (breast)", result), ("John Smith (lung)", result2)]:
+    stats = hb.clinical_processor.get_summary_statistics(r)
+    print(f"--- {label} ---")
+    print(f"  Text length:    {stats['text_length']:,} chars")
+    print(f"  Entities:       {stats['num_entities']}")
+    print(f"  Entity types:   {dict(stats['entity_types'])}")
+    print(f"  Relationships:  {stats['num_relationships']}")
+    print(f"  Timeline:       {stats['num_timeline_events']} events")
+    print()`}
+    lang="python"
+    filename="batch_processing.py"
+  />
+  <CodeBlock
+    code={`--- Jane Doe (breast) ---
+  Text length:    1,853 chars
+  Entities:       63
+  Entity types:   {'temporal': 4, 'condition': 7, 'procedure': 24, 'measurement': 10, 'medication': 14, 'dosage': 4}
+  Relationships:  36
+  Timeline:       8 events
+
+--- John Smith (lung) ---
+  Text length:    355 chars
+  Entities:       27
+  Entity types:   {'temporal': 5, 'condition': 2, 'procedure': 5, 'measurement': 4, 'medication': 7, 'dosage': 4}
+  Relationships:  44
+  Timeline:       3 events`}
+    lang="text"
+    filename="Output"
+  />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Output Structure</h2>
   <p class="mb-4">
-    The processor returns a comprehensive results dictionary:
+    <code>result.to_dict()</code> serializes the full pipeline output to a
+    JSON-compatible dictionary &mdash; the canonical format for saving results,
+    feeding downstream models, or exporting to external systems.
   </p>
   <CodeBlock
-    code={`
-{
-    "file_path": "path/to/document.pdf",
-    "file_name": "document.pdf",
-    "processing_timestamp": "2023-05-30T10:30:00",
-    "text": "Patient presents with...",
-    "document_structure": {
-        "sections": [...],
-        "headers": [...]
-    },
-    "tokenization": {
-        "tokens": [...],
-        "token_ids": [...],
-        "segment_mapping": [...],
-        "num_segments": 5
-    },
-    "entities": [
-        {
-            "text": "breast cancer",
-            "type": "condition",
-            "start": 25,
-            "end": 38,
-            "properties": {
-                "ontology_links": [...],
-                "source": "rule-based"
-            }
-        }
-    ],
-    "entity_relationships": [
-        {
-            "source": 0,
-            "target": 1,
-            "type": "treats"
-        }
-    ],
-    "temporal_timeline": [...]
-}`}
-    lang="json"
-    filename="output_structure.json"
+    code={`import json
+
+output = result.to_dict()
+
+print("Top-level keys:", list(output.keys()))
+print(f"  text:          {len(output['text']):,} chars")
+print(f"  sections:      {len(output['sections'])} sections")
+print(f"  metadata:      {output['metadata']}")
+print(f"  entities:      {len(output['entities'])} items")
+print(f"  relationships: {len(output['relationships'])} items")
+print(f"  timeline:      {len(output['timeline'])} items")`}
+    lang="python"
+    filename="output_structure.py"
+  />
+  <CodeBlock
+    code={`Top-level keys: ['text', 'sections', 'metadata', 'entities', 'relationships', 'timeline']
+  text:          1,853 chars
+  sections:      0 sections
+  metadata:      {'source_type': 'text', 'document_type': 'unknown'}
+  entities:      63 items
+  relationships: 36 items
+  timeline:      8 items`}
+    lang="text"
+    filename="Output"
   />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">References</h2>
-  <ul class="list-disc pl-5 space-y-2">
+  <h3 class="text-xl font-bold mt-4 mb-2">Entity Schema</h3>
+  <CodeBlock
+    code={`{
+  "text": "58-year-old",
+  "type": "temporal",
+  "start": 19,
+  "end": 30,
+  "confidence": 0.88,
+  "properties": {
+    "backend": "transformer",
+    "label": "Age"
+  },
+  "is_negated": false,
+  "is_uncertain": false,
+  "is_historical": false,
+  "is_family": false,
+  "ontology_codes": []
+}`}
+    lang="json"
+    filename="entity_schema.json"
+  />
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Timeline Event Schema</h3>
+  <CodeBlock
+    code={`{
+  "date": "2023-12-05T00:00:00",
+  "date_text": "12/05/2023",
+  "sentence": "Patient was diagnosed with invasive ductal carcinoma...",
+  "related_entities": [2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+}`}
+    lang="json"
+    filename="timeline_event_schema.json"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Multimodal Integration</h2>
+  <p class="mb-4">
+    <code>integrate_embeddings()</code> concatenates embeddings from different
+    modalities into a single fused vector:
+  </p>
+  <CodeBlock
+    code={`clinical_emb = hb.generate_embeddings(clinical_note, modality="clinical",
+                                       model_name="bioclinicalbert")
+pathology_emb = np.random.randn(1, 1536)   # e.g., UNI2 output
+radiology_emb = np.random.randn(1, 768)    # e.g., RAD-DINO output
+
+integrated = hb.integrate_embeddings([clinical_emb, pathology_emb, radiology_emb])
+
+print(f"Clinical:   {clinical_emb.shape}")
+print(f"Pathology:  {pathology_emb.shape}")
+print(f"Radiology:  {radiology_emb.shape}")
+print(f"Integrated: {integrated.shape}")`}
+    lang="python"
+    filename="multimodal_integration.py"
+  />
+  <CodeBlock
+    code={`Clinical:   (1, 768)
+Pathology:  (1, 1536)
+Radiology:  (1, 768)
+Integrated: (1, 3072)`}
+    lang="text"
+    filename="Output"
+  />
+
+  <details class="mb-8 border border-gray-700 rounded-lg overflow-hidden">
+    <summary class="cursor-pointer px-4 py-3 bg-gray-800/50 hover:bg-gray-800 text-lg font-semibold transition-colors">
+      Configuration Reference
+    </summary>
+    <div class="px-4 pb-4 pt-2">
+      <h3 class="text-xl font-bold mt-4 mb-2">NER Backends</h3>
+      <div class="overflow-x-auto mb-6">
+        <table class="min-w-full text-sm border-collapse">
+          <thead>
+            <tr class="border-b border-gray-600">
+              <th class="text-left py-2 px-3">Backend</th>
+              <th class="text-left py-2 px-3">Install</th>
+              <th class="text-left py-2 px-3">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-b border-gray-700">
+              <td class="py-2 px-3"><code>transformer</code></td>
+              <td class="py-2 px-3">included</td>
+              <td class="py-2 px-3">Default; HuggingFace token-classification model</td>
+            </tr>
+            <tr class="border-b border-gray-700">
+              <td class="py-2 px-3"><code>scispacy</code></td>
+              <td class="py-2 px-3"><code>pip install scispacy</code> + model</td>
+              <td class="py-2 px-3">Biomedical NER via spaCy</td>
+            </tr>
+            <tr class="border-b border-gray-700">
+              <td class="py-2 px-3"><code>medspacy</code></td>
+              <td class="py-2 px-3"><code>pip install medspacy</code></td>
+              <td class="py-2 px-3">Adds negation/uncertainty context detection</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <CodeBlock
+        code={`hb = HoneyBee(config={"clinical": {"ner": {"backends": ["transformer", "medspacy"]}}})`}
+        lang="python"
+        filename="ner_config.py"
+      />
+
+      <h3 class="text-xl font-bold mt-4 mb-2">Ontology Resolution</h3>
+      <div class="overflow-x-auto mb-6">
+        <table class="min-w-full text-sm border-collapse">
+          <thead>
+            <tr class="border-b border-gray-600">
+              <th class="text-left py-2 px-3">Backend</th>
+              <th class="text-left py-2 px-3">Requires</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-b border-gray-700">
+              <td class="py-2 px-3"><code>snowstorm</code></td>
+              <td class="py-2 px-3">Free SNOMED CT server (no key needed)</td>
+            </tr>
+            <tr class="border-b border-gray-700">
+              <td class="py-2 px-3"><code>umls</code></td>
+              <td class="py-2 px-3"><code>UMLS_API_KEY</code> env var or config</td>
+            </tr>
+            <tr class="border-b border-gray-700">
+              <td class="py-2 px-3"><code>bioportal</code></td>
+              <td class="py-2 px-3"><code>BIOPORTAL_API_KEY</code> env var or config</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <CodeBlock
+        code={`hb = HoneyBee(config={"clinical": {"ontology": {"backends": ["snowstorm"]}}})`}
+        lang="python"
+        filename="ontology_config.py"
+      />
+
+      <h3 class="text-xl font-bold mt-4 mb-2">API Embeddings</h3>
+      <p class="mb-4">
+        Use any provider supported by
+        <a href="https://docs.litellm.ai/" class="text-primary hover:underline" target="_blank">litellm</a>
+        instead of local models:
+      </p>
+      <CodeBlock
+        code={`hb = HoneyBee(config={"clinical": {"embeddings": {
+    "mode": "api",
+    "model": "ollama/nomic-embed-text",
+    "api_base": "http://localhost:11434",
+}}})`}
+        lang="python"
+        filename="api_embeddings.py"
+      />
+    </div>
+  </details>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Performance Considerations</h2>
+  <p class="mb-4">When processing clinical datasets, consider the following:</p>
+  <ul class="list-disc pl-5 space-y-2 mb-6">
     <li>
-      GatorTron: <a
-        href="https://arxiv.org/abs/2301.04619"
-        class="text-primary hover:underline"
-        target="_blank">https://arxiv.org/abs/2301.04619</a
-      >
+      <strong>Batch processing:</strong> Use
+      <code>process_clinical_batch()</code> for large document collections
     </li>
     <li>
-      Bio-ClinicalBERT: <a
-        href="https://huggingface.co/emilyalsentzer/Bio_ClinicalBERT"
-        class="text-primary hover:underline"
-        target="_blank">https://huggingface.co/emilyalsentzer/Bio_ClinicalBERT</a
-      >
+      <strong>GPU acceleration:</strong> Embedding models benefit from
+      <code>device="cuda"</code> when available
     </li>
     <li>
-      PubMedBERT: <a
-        href="https://huggingface.co/microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext"
-        class="text-primary hover:underline"
-        target="_blank">https://huggingface.co/microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext</a
-      >
+      <strong>Ontology caching:</strong> Snowstorm results are cached with
+      LRU (1,000 entries by default) to reduce repeated lookups
     </li>
     <li>
-      Clinical-T5: <a
-        href="https://huggingface.co/healx/gpt-t5-clinical"
-        class="text-primary hover:underline"
-        target="_blank">https://huggingface.co/healx/gpt-t5-clinical</a
-      >
+      <strong>Rate limiting:</strong> The public Snowstorm server enforces
+      rate limits; use a local instance for high-volume processing
+    </li>
+    <li>
+      <strong>Multiple NER backends:</strong> Combining backends (e.g.,
+      <code>transformer</code> + <code>medspacy</code>) increases entity
+      coverage but adds latency
     </li>
   </ul>
 </DocsLayout>

@@ -1,10 +1,15 @@
-import re
-
 import pytesseract
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from pdf2image import convert_from_path
 from PIL import Image
 from PyPDF2 import PdfReader
+
+_ALLOWED = frozenset(
+    "abcdefghijklmnopqrstuvwxyz"
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "0123456789"
+    " \t\n.,;:!?-"
+)
 
 
 class PDF:
@@ -58,10 +63,9 @@ class PDF:
 
                 text += pytesseract.image_to_string(processed_image)
 
-        # Clean up extracted text
-        text = re.sub(r"\s+", " ", text)
-        text = re.sub(r"\n+", "\n", text)
-        text = re.sub(r"[^a-zA-Z0-9\s.,;:!?\n-]", "", text)
+        # Clean up extracted text: collapse whitespace, filter disallowed chars
+        text = " ".join(text.split())
+        text = "".join(c for c in text if c in _ALLOWED)
 
         return text
 

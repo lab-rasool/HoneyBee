@@ -1,29 +1,33 @@
 """
 HoneyBee Clinical Processor subpackage.
 
-Provides ClinicalProcessor for clinical text processing, entity extraction,
-ontology normalization, and interoperability with FHIR/HL7 standards.
+Modular pipeline: Ingestion → NER → Ontology → Temporal → Embeddings
 """
 
-# Re-export ontology mappings for backward compatibility
-from .ontologies import ONTOLOGY_MAPPINGS
-from .processor import (
-    BIOMEDICAL_MODELS,
-    CANCER_PATTERNS,
-    CLINICAL_DOCUMENT_TYPES,
-    MEDICAL_ABBREVIATIONS,
-    SUPPORTED_EHR_FORMATS,
-    SUPPORTED_IMAGE_FORMATS,
-    ClinicalProcessor,
+from .embeddings import EmbeddingEngine
+from .ingestion import DocumentIngester
+from .ner import NEREngine
+from .ontology import OntologyResolver
+from .processor import ClinicalProcessor
+from .temporal import TimelineExtractor
+from .types import (
+    ClinicalDocument,
+    ClinicalEntity,
+    ClinicalResult,
+    OntologyCode,
+    TimelineEvent,
 )
 
 __all__ = [
     "ClinicalProcessor",
-    "BIOMEDICAL_MODELS",
-    "CANCER_PATTERNS",
-    "CLINICAL_DOCUMENT_TYPES",
-    "MEDICAL_ABBREVIATIONS",
-    "ONTOLOGY_MAPPINGS",
-    "SUPPORTED_EHR_FORMATS",
-    "SUPPORTED_IMAGE_FORMATS",
+    "ClinicalDocument",
+    "ClinicalEntity",
+    "ClinicalResult",
+    "OntologyCode",
+    "TimelineEvent",
+    "DocumentIngester",
+    "NEREngine",
+    "OntologyResolver",
+    "TimelineExtractor",
+    "EmbeddingEngine",
 ]

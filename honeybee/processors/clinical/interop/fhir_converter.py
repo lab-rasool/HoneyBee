@@ -4,14 +4,16 @@ FHIR R4 resource construction and parsing for clinical data interoperability.
 Builds FHIR-compliant JSON dicts. When fhir.resources is installed,
 resources can be validated via validate().
 
-Install optional validation with: pip install honeybee-ml[clinical-interop]
+Install optional validation with: pip install fhir.resources>=7.0.0
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
+
+from ..types import ClinicalEntity, ClinicalResult
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,8 @@ ONTOLOGY_SYSTEM_URIS = {
     "snomed_ct": "http://snomed.info/sct",
     "rxnorm": "http://www.nlm.nih.gov/research/umls/rxnorm",
     "loinc": "http://loinc.org",
+    "icd10cm": "http://hl7.org/fhir/sid/icd-10-cm",
+    "umls": "http://www.nlm.nih.gov/research/umls",
 }
 
 # Entity type to FHIR resource type mapping
@@ -46,34 +50,30 @@ ENTITY_FHIR_MAP = {
 
 
 class FHIRConverter:
-    """Convert between HoneyBee processor output and FHIR R4 resources.
-
-    Produces plain JSON-serializable dicts that conform to FHIR R4.
-    Does NOT require fhir.resources at runtime. When fhir.resources is
-    installed, use validate() to validate output against the spec.
-    """
+    """Convert between HoneyBee ClinicalResult and FHIR R4 resources."""
 
     def to_fhir_bundle(
         self,
-        result: Dict,
+        result: Union[ClinicalResult, Dict],
         patient_id: Optional[str] = None,
     ) -> Dict:
-        """Convert ClinicalProcessor output to a FHIR R4 Bundle.
-
-        Args:
-            result: Output from ClinicalProcessor.process_text() or process().
-            patient_id: Optional patient reference ID.
-
-        Returns:
-            FHIR Bundle as a JSON-serializable dict.
-        """
+        """Convert ClinicalResult (or legacy dict) to a FHIR R4 Bundle."""
         entries: List[Dict] = []
         patient_ref = (
             {"reference": f"Patient/{patient_id}"} if patient_id else None
         )
 
-        # Convert entities to FHIR resources
-        for entity in result.get("entities", []):
+        # Support both ClinicalResult and legacy dict
+        if isinstance(result, ClinicalResult):
+            entities = result.entities
+            text_content = result.text
+        else:
+            entities = [
+                self._dict_to_entity(e) for e in result.get("entities", [])
+            ]
+            text_content = result.get("text", "")
+
+        for entity in entities:
             resource = self._entity_to_resource(entity, patient_ref)
             if resource is not None:
                 entries.append({
@@ -86,8 +86,8 @@ class FHIRConverter:
                 })
 
         # Add DiagnosticReport if text is available
-        if result.get("text"):
-            report = self._create_diagnostic_report(result, patient_ref)
+        if text_content:
+            report = self._create_diagnostic_report(text_content, patient_ref)
             entries.append({
                 "fullUrl": f"urn:uuid:{uuid4()}",
                 "resource": report,
@@ -97,7 +97,7 @@ class FHIRConverter:
                 },
             })
 
-        bundle = {
+        bundle: Dict[str, Any] = {
             "resourceType": "Bundle",
             "type": "transaction",
         }
@@ -108,13 +108,11 @@ class FHIRConverter:
 
     def _entity_to_resource(
         self,
-        entity: Dict,
+        entity: ClinicalEntity,
         patient_ref: Optional[Dict] = None,
     ) -> Optional[Dict]:
-        """Convert a single entity to the appropriate FHIR resource dict."""
-        entity_type = entity.get("type", "")
-        fhir_type = ENTITY_FHIR_MAP.get(entity_type)
-
+        """Convert a ClinicalEntity to the appropriate FHIR resource dict."""
+        fhir_type = ENTITY_FHIR_MAP.get(entity.type)
         if fhir_type is None:
             return None
 
@@ -129,33 +127,39 @@ class FHIRConverter:
 
         return None
 
-    def _build_codeable_concept(self, entity: Dict) -> Dict:
-        """Build a CodeableConcept dict from entity text and ontology links."""
+    def _build_codeable_concept(self, entity: ClinicalEntity) -> Dict:
+        """Build a CodeableConcept from entity text and ontology codes."""
         codings = []
-        ontology_links = entity.get("properties", {}).get(
-            "ontology_links", []
-        )
 
-        for link in ontology_links:
-            system_uri = ONTOLOGY_SYSTEM_URIS.get(link["ontology"], "")
+        # Use OntologyCode objects from the new pipeline
+        for oc in entity.ontology_codes:
+            system_uri = ONTOLOGY_SYSTEM_URIS.get(oc.system, "")
             codings.append({
                 "system": system_uri,
-                "code": link["concept_id"],
-                "display": link["concept_name"],
+                "code": oc.code,
+                "display": oc.display,
             })
 
-        concept: Dict[str, Any] = {"text": entity.get("text", "")}
+        # Also check legacy ontology_links in properties
+        for link in entity.properties.get("ontology_links", []):
+            system_uri = ONTOLOGY_SYSTEM_URIS.get(link.get("ontology", ""), "")
+            codings.append({
+                "system": system_uri,
+                "code": link.get("concept_id", ""),
+                "display": link.get("concept_name", ""),
+            })
+
+        concept: Dict[str, Any] = {"text": entity.text}
         if codings:
             concept["coding"] = codings
         return concept
 
     def _create_condition(
         self,
-        entity: Dict,
+        entity: ClinicalEntity,
         code: Dict,
         patient_ref: Optional[Dict],
     ) -> Dict:
-        """Create a FHIR Condition resource dict."""
         resource: Dict[str, Any] = {
             "resourceType": "Condition",
             "code": code,
@@ -175,11 +179,10 @@ class FHIRConverter:
 
     def _create_medication_statement(
         self,
-        entity: Dict,
+        entity: ClinicalEntity,
         code: Dict,
         patient_ref: Optional[Dict],
     ) -> Dict:
-        """Create a FHIR MedicationStatement resource dict."""
         resource: Dict[str, Any] = {
             "resourceType": "MedicationStatement",
             "status": "active",
@@ -191,11 +194,10 @@ class FHIRConverter:
 
     def _create_observation(
         self,
-        entity: Dict,
+        entity: ClinicalEntity,
         code: Dict,
         patient_ref: Optional[Dict],
     ) -> Dict:
-        """Create a FHIR Observation resource dict."""
         resource: Dict[str, Any] = {
             "resourceType": "Observation",
             "status": "final",
@@ -204,7 +206,7 @@ class FHIRConverter:
         if patient_ref:
             resource["subject"] = patient_ref
 
-        props = entity.get("properties", {})
+        props = entity.properties
         if props.get("value"):
             resource["valueString"] = (
                 f"{props['value']} {props.get('unit', '')}"
@@ -214,16 +216,14 @@ class FHIRConverter:
 
     def _create_diagnostic_report(
         self,
-        result: Dict,
+        text_content: str,
         patient_ref: Optional[Dict],
     ) -> Dict:
-        """Create a DiagnosticReport dict from the full result."""
-        text_content = result.get("text", "")[:5000]
         resource: Dict[str, Any] = {
             "resourceType": "DiagnosticReport",
             "status": "final",
             "code": {"text": "Clinical NLP Analysis"},
-            "conclusion": text_content,
+            "conclusion": text_content[:5000],
         }
         if patient_ref:
             resource["subject"] = patient_ref
@@ -232,15 +232,7 @@ class FHIRConverter:
     # --- Inbound (FHIR -> HoneyBee) ---
 
     def from_fhir_bundle(self, bundle_json: Dict) -> Dict:
-        """Extract narrative text from a FHIR Bundle for NLP processing.
-
-        Args:
-            bundle_json: FHIR Bundle as dict.
-
-        Returns:
-            Dict with 'text' (combined narrative), 'resources' (parsed),
-            and 'resource_count'.
-        """
+        """Extract narrative text from a FHIR Bundle for NLP processing."""
         texts = []
         resources = []
 
@@ -258,14 +250,7 @@ class FHIRConverter:
         }
 
     def from_fhir_resource(self, resource_json: Dict) -> Dict:
-        """Parse a single FHIR resource to extract clinical text.
-
-        Args:
-            resource_json: Single FHIR resource as dict.
-
-        Returns:
-            Dict with 'resource_type', 'text', and extracted fields.
-        """
+        """Parse a single FHIR resource to extract clinical text."""
         resource_type = resource_json.get("resourceType", "Unknown")
         result: Dict[str, Any] = {"resource_type": resource_type, "text": ""}
 
@@ -301,29 +286,31 @@ class FHIRConverter:
             result["status"] = resource_json.get("status", "")
 
         else:
-            # Try to extract text from narrative
             narrative = resource_json.get("text", {})
             result["text"] = narrative.get("div", "")
 
         return result
 
     def validate(self, bundle_dict: Dict) -> bool:
-        """Validate a bundle dict against FHIR R4 spec using fhir.resources.
-
-        Requires fhir.resources to be installed.
-
-        Returns:
-            True if valid.
-
-        Raises:
-            ImportError: If fhir.resources is not installed.
-            ValidationError: If the bundle is invalid.
-        """
+        """Validate a bundle dict against FHIR R4 spec using fhir.resources."""
         if not _FHIR_AVAILABLE:
             raise ImportError(
                 "fhir.resources is required for FHIR validation. "
-                "Install with: pip install 'fhir.resources>=7.0.0' "
-                "or: pip install 'honeybee-ml[clinical-interop]'"
+                "Install with: pip install 'fhir.resources>=7.0.0'"
             )
         Bundle.model_validate(bundle_dict)
         return True
+
+    # --- Helpers ---
+
+    @staticmethod
+    def _dict_to_entity(d: Dict) -> ClinicalEntity:
+        """Convert a legacy entity dict to ClinicalEntity."""
+        return ClinicalEntity(
+            text=d.get("text", ""),
+            type=d.get("type", ""),
+            start=d.get("start", 0),
+            end=d.get("end", 0),
+            confidence=d.get("confidence", 1.0),
+            properties=d.get("properties", {}),
+        )

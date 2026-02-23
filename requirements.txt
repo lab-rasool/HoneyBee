@@ -1,34 +1,47 @@
-ipykernel
-ipywidgets
+# Core
 numpy
 pandas
-llama_index
-pymongo
-transformers
-torch 
-torchvision 
+torch
+torchvision
 torchaudio
+transformers
 accelerate
 bitsandbytes
-pytesseract
+scikit-image
+scipy
+matplotlib
+imageio
+tqdm
+Pillow
+opencv-python
+huggingface_hub
+
+# Clinical pipeline
+langchain
 pdf2image
 PyPDF2
-pyarrow
-fastparquet
-opencv-python
-matplotlib
-langchain
-scikit-image
-imageio
-albumentations
-peft
-cucim
+unstructured[pdf,image]
+pymupdf
+scispacy
+spacy
+medspacy
+medcat
+fhir.resources
+hl7apy
+requests
+dateparser
+litellm
+pytesseract
+
+# Pathology
 openslide-python
 colour-science
-scipy
-pytesseract
-onnxruntime
-timm
+albumentations
+cucim
+umap-learn
+scikit-learn
+
+# Radiology
 SimpleITK
 monai
 torchio
@@ -40,3 +53,26 @@ dipy
 intensity-normalization
 neuroCombat
 nnunetv2
+
+# Molecular
+pyarrow
+fastparquet
+
+# Database
+pymongo
+
+# Visualization
+ipykernel
+ipywidgets
+
+# Models
+timm
+onnxruntime
+peft
+
+# Dev
+pytest
+pytest-cov
+black
+ruff
+mypy

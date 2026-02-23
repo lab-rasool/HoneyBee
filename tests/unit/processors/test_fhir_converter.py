@@ -200,7 +200,9 @@ class TestFHIRConverterOutbound:
 
     def test_codeable_concept_text(self, converter):
         """CodeableConcept should include entity text."""
-        entity = {"text": "lung cancer", "properties": {}}
+        from honeybee.processors.clinical.types import ClinicalEntity
+
+        entity = ClinicalEntity(text="lung cancer", type="condition", start=0, end=11)
         concept = converter._build_codeable_concept(entity)
         assert concept["text"] == "lung cancer"
 

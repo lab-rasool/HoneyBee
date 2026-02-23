@@ -2,11 +2,13 @@
 HL7 v2 message parsing for clinical data interoperability.
 
 Requires optional dependency: hl7apy>=1.3.4
-Install with: pip install honeybee-ml[clinical-interop]
+Install with: pip install hl7apy
 """
 
 import logging
 from typing import Dict
+
+from ..types import ClinicalDocument
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +25,7 @@ def _require_hl7():
     if not _HL7_AVAILABLE:
         raise ImportError(
             "hl7apy is required for HL7 v2 support. "
-            "Install with: pip install 'hl7apy>=1.3.4' "
-            "or: pip install 'honeybee-ml[clinical-interop]'"
+            "Install with: pip install 'hl7apy>=1.3.4'"
         )
 
 
@@ -98,15 +99,9 @@ class HL7Parser:
     def parse(self, message: str) -> Dict:
         """Parse an HL7 v2 message.
 
-        Supports ADT (Admit/Discharge/Transfer), ORU (Observation Result),
-        and ORM (Order) message types.
-
-        Args:
-            message: Raw HL7 v2 message string.
-
         Returns:
-            Dict with 'message_type', 'segments', and 'text' field
-            ready for NLP processing.
+            Dict with 'message_type', 'segments', 'text', and 'document'.
+            The 'document' key contains a ClinicalDocument.
         """
         _require_hl7()
 
@@ -130,10 +125,7 @@ class HL7Parser:
             seg_type = seg_str[:3]
 
             if seg_type == "MSH":
-                # Extract message type from MSH-9
-                result["message_type"] = _safe_field(
-                    seg_str, 8
-                )
+                result["message_type"] = _safe_field(seg_str, 8)
 
             parser = _SEGMENT_PARSERS.get(seg_type)
             if parser:
@@ -148,45 +140,42 @@ class HL7Parser:
                 elif seg_type == "RXA":
                     result["medications"].append(parsed)
 
-                # Store by segment type
                 if seg_type not in result["segments"]:
                     result["segments"][seg_type] = []
                 result["segments"][seg_type].append(parsed)
 
         # Generate text for NLP processing
         result["text"] = self.to_text(result)
+
+        # Also provide a ClinicalDocument
+        result["document"] = ClinicalDocument(
+            text=result["text"],
+            metadata={
+                "source_type": "hl7",
+                "message_type": result["message_type"],
+            },
+        )
+
         return result
 
     def to_text(self, parsed: Dict) -> str:
-        """Convert parsed HL7 data to clinical text for NLP.
-
-        Args:
-            parsed: Output from parse().
-
-        Returns:
-            Clinical text representation.
-        """
+        """Convert parsed HL7 data to clinical text for NLP."""
         parts = []
 
-        # Patient info
         patient = parsed.get("patient", {})
         if patient.get("patient_name"):
-            parts.append(
-                f"Patient: {patient['patient_name']}"
-            )
+            parts.append(f"Patient: {patient['patient_name']}")
         if patient.get("date_of_birth"):
             parts.append(f"DOB: {patient['date_of_birth']}")
         if patient.get("sex"):
             parts.append(f"Sex: {patient['sex']}")
 
-        # Diagnoses
         for dx in parsed.get("diagnoses", []):
             desc = dx.get("description", "")
             code = dx.get("diagnosis_code", "")
             if desc:
                 parts.append(f"Diagnosis: {desc} ({code})")
 
-        # Observations
         for obs in parsed.get("observations", []):
             obs_id = obs.get("observation_id", "")
             value = obs.get("value", "")
@@ -194,7 +183,6 @@ class HL7Parser:
             if obs_id and value:
                 parts.append(f"{obs_id}: {value} {units}".strip())
 
-        # Medications
         for med in parsed.get("medications", []):
             code = med.get("administered_code", "")
             amount = med.get("administered_amount", "")
