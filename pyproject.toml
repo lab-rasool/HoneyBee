@@ -23,7 +23,6 @@ keywords = [
     "clinical NLP",
     "machine learning",
     "pathology",
-    "radiology",
     "biomedical",
     "healthcare"
 ]
@@ -70,26 +69,6 @@ clinical = [
     "PyPDF2>=3.0.0",
 ]
 
-# Radiology processing dependencies
-radiology = [
-    "pydicom>=2.3.0",
-    "SimpleITK>=2.2.0",
-    "nibabel>=4.0.0",
-    "opencv-python>=4.5.0",
-    "nnunetv2>=2.5.0",
-]
-
-# Extended radiology (state-of-the-art segmentation, denoising, registration)
-radiology-extended = [
-    "honeybee-ml[radiology]",
-    "torchio>=0.19.0",
-    "antspyx>=0.4.0",
-    "dipy>=1.7.0",
-    "monai>=1.3.0",
-    "torchxrayvision>=1.2.0",
-    "open_clip_torch>=2.20.0",
-]
-
 # Pathology processing dependencies
 pathology = [
     "openslide-python>=1.2.0",
@@ -98,6 +77,21 @@ pathology = [
     "cucim>=23.0.0",
     "umap-learn>=0.5.0",
     "scikit-learn>=1.0.0",
+]
+
+# Radiology image processing
+radiology = [
+    "SimpleITK>=2.2.0",
+    "monai>=1.0.0",
+    "torchio>=0.19.0",
+    "pydicom>=2.3.0",
+    "nibabel>=5.0.0",
+    "lungmask>=0.2.0",
+    "TotalSegmentator>=2.0.0",
+    "dipy>=1.7.0",
+    "intensity-normalization>=2.0.0",
+    "neuroCombat>=0.2.0",
+    "nnunetv2>=2.0",
 ]
 
 # Molecular data processing
@@ -135,7 +129,7 @@ models = [
 
 # Complete installation with all features
 all = [
-    "honeybee-ml[clinical,radiology,radiology-extended,pathology,molecular,database,visualization,models]",
+    "honeybee-ml[clinical,pathology,radiology,molecular,database,visualization,models]",
 ]
 
 [project.urls]
@@ -174,7 +168,7 @@ exclude = '''
 line-length = 100
 target-version = "py38"
 select = ["E", "F", "I", "N", "W"]
-ignore = ["E501"]  # Line too long (handled by black)
+ignore = ["E501", "N813"]  # E501: Line too long (handled by black), N813: SimpleITK as sitk
 
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401"]  # Unused imports in __init__.py

@@ -95,16 +95,29 @@ class TestGenerateEmbeddings:
         assert embeddings is not None
         assert embeddings.shape == (1, 768)
 
-    def test_radiology_modality_placeholder(self):
-        """Test that radiology modality returns placeholder"""
-        honeybee = HoneyBee()
-        embeddings = honeybee.generate_embeddings(
-            np.random.randn(64, 128, 128), modality="radiology"
-        )
+    @patch("honeybee.RadiologyProcessor")
+    def test_radiology_modality(self, mock_rad_cls):
+        """Test generating embeddings for radiology modality"""
+        mock_processor = mock_rad_cls.return_value
+        mock_processor.generate_embeddings.return_value = np.random.randn(2048)
 
-        # Should return placeholder embedding
+        honeybee = HoneyBee()
+        image = np.random.randn(64, 128, 128)
+        embeddings = honeybee.generate_embeddings(image, modality="radiology")
+
         assert embeddings is not None
-        assert embeddings.shape == (1, 768)
+        mock_processor.generate_embeddings.assert_called_once()
+
+    def test_radiology_modality_invalid_input(self):
+        """Test that non-array input for radiology raises error"""
+        honeybee = HoneyBee()
+        with pytest.raises(ValueError, match="Radiology modality requires numpy array"):
+            honeybee.generate_embeddings("text input", modality="radiology")
+
+    def test_radiology_processor_lazy_init(self):
+        """Test that radiology processor is lazily initialized"""
+        honeybee = HoneyBee()
+        assert honeybee._radiology_processor is None
 
     def test_invalid_clinical_input_type(self):
         """Test that non-text input for clinical raises error"""
@@ -255,6 +268,74 @@ class TestProcessClinicalBatch:
         mock_process_batch.assert_called_once()
 
 
+class TestProcessRadiology:
+    """Test process_radiology method"""
+
+    @patch("honeybee.RadiologyProcessor")
+    def test_process_radiology_with_image(self, mock_rad_cls):
+        """Test processing radiology with pre-loaded image"""
+        mock_processor = mock_rad_cls.return_value
+
+        honeybee = HoneyBee()
+        image = np.random.randn(64, 128, 128)
+        result = honeybee.process_radiology(image=image, preprocess=False)
+
+        assert result is not None
+        assert "image" in result
+        assert np.array_equal(result["image"], image)
+        assert result["metadata"] is None
+
+    @patch("honeybee.RadiologyProcessor")
+    def test_process_radiology_with_dicom(self, mock_rad_cls):
+        """Test processing radiology with DICOM path"""
+        from honeybee.processors.radiology.metadata import ImageMetadata
+
+        mock_processor = mock_rad_cls.return_value
+        mock_metadata = ImageMetadata(
+            modality="CT",
+            patient_id="TEST",
+            study_date="20240101",
+            series_description="CT",
+            pixel_spacing=(1.0, 1.0, 1.0),
+            image_position=(0.0, 0.0, 0.0),
+            image_orientation=[1, 0, 0, 0, 1, 0],
+        )
+        mock_processor.load_dicom.return_value = (
+            np.random.randn(64, 128, 128),
+            mock_metadata,
+        )
+        mock_processor.preprocess.return_value = np.random.randn(64, 128, 128)
+
+        honeybee = HoneyBee()
+        result = honeybee.process_radiology(dicom_path="/fake/dicom")
+
+        assert result is not None
+        assert "image" in result
+        assert "metadata" in result
+        mock_processor.load_dicom.assert_called_once_with("/fake/dicom")
+
+    @patch("honeybee.RadiologyProcessor")
+    def test_process_radiology_with_embeddings(self, mock_rad_cls):
+        """Test process_radiology with embedding generation"""
+        mock_processor = mock_rad_cls.return_value
+        mock_processor.generate_embeddings.return_value = np.random.randn(2048)
+
+        honeybee = HoneyBee()
+        image = np.random.randn(64, 128, 128)
+        result = honeybee.process_radiology(
+            image=image, preprocess=False, generate_embeddings=True
+        )
+
+        assert "embeddings" in result
+        mock_processor.generate_embeddings.assert_called_once()
+
+    def test_process_radiology_no_input(self):
+        """Test that calling without input raises error"""
+        honeybee = HoneyBee()
+        with pytest.raises(ValueError, match="One of dicom_path, nifti_path, or image"):
+            honeybee.process_radiology()
+
+
 class TestPredictSurvival:
     """Test predict_survival method"""
 
@@ -313,12 +394,11 @@ class TestEndToEnd:
         # Generate embeddings for each modality
         clinical_emb = honeybee.generate_embeddings("Patient with cancer", modality="clinical")
         pathology_emb = honeybee.generate_embeddings(np.ones((224, 224, 3)), modality="pathology")
-        radiology_emb = honeybee.generate_embeddings(np.ones((64, 128, 128)), modality="radiology")
 
         # Integrate
-        integrated = honeybee.integrate_embeddings([clinical_emb, pathology_emb, radiology_emb])
+        integrated = honeybee.integrate_embeddings([clinical_emb, pathology_emb])
         assert integrated is not None
-        assert integrated.shape == (1, 768 * 3)
+        assert integrated.shape == (1, 768 * 2)
 
         # Predict survival
         survival = honeybee.predict_survival(integrated)

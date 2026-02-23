@@ -6,11 +6,13 @@ import CodeBlock from "../../components/CodeBlock.astro";
 <DocsLayout title="Radiology Processing">
   <h2 class="text-2xl font-bold mb-4">Overview</h2>
   <p class="mb-6">
-    The radiology processing pipeline in HoneyBee handles various medical
-    imaging modalities, including Computed Tomography (CT), Magnetic Resonance
-    Imaging (MRI), and Positron Emission Tomography (PET). Each modality
-    presents unique characteristics that require specialized preprocessing
-    techniques.
+    The radiology processing pipeline in HoneyBee handles Computed Tomography
+    (CT) imaging end-to-end: load DICOM series, inspect metadata, apply HU
+    windowing, preprocess (denoise, normalize, resample), segment lungs, and
+    generate embeddings with radiology foundation models. The
+    <code>RadiologyProcessor</code> class exposes every step as a standalone
+    method so you can compose custom pipelines or run the full chain with a
+    single call.
   </p>
 
   <div class="mb-8">
@@ -23,266 +25,678 @@ import CodeBlock from "../../components/CodeBlock.astro";
 
   <h2 class="text-2xl font-bold mb-4">Key Features</h2>
   <ul class="list-disc pl-5 space-y-2 mb-6">
-    <li>Support for DICOM and NIfTI formats</li>
-    <li>
-      Metadata preservation (acquisition parameters, patient information, etc.)
-    </li>
-    <li>Anatomical segmentation and region-of-interest (ROI) analysis</li>
-    <li>Denoising and artifact reduction</li>
-    <li>Spatial standardization and resampling</li>
-    <li>Intensity normalization</li>
-    <li>Embedding generation using specialized models</li>
+    <li>DICOM series loading with automatic slice ordering and metadata extraction</li>
+    <li>Hounsfield Unit verification and 6 built-in window presets (lung, mediastinum, soft tissue, bone, abdomen, liver)</li>
+    <li>Denoising (non-local means, bilateral) and intensity normalization (z-score, min-max, percentile)</li>
+    <li>Isotropic resampling and bounding-box crop to ROI</li>
+    <li>Lung segmentation via <code>lungmask</code> with mask application</li>
+    <li>7 radiology foundation model presets (RAD-DINO, MedSigLIP, REMEDIS, RadImageNet, TorchXRayVision)</li>
+    <li>Slice-level and volume-level embedding aggregation (mean, max, median, std, concat)</li>
+    <li>High-level <code>HoneyBee.process_radiology()</code> one-call API</li>
   </ul>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Radiological Data Management</h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Quick Start</h2>
   <p class="mb-4">
-    HoneyBee supports standard medical imaging formats with metadata
-    preservation:
+    Install HoneyBee and download a sample CT DICOM series from HuggingFace:
   </p>
   <CodeBlock
-    code={`
-from honeybee.processors import RadiologyProcessor
+    code={`import glob
+import os
 
-# Initialize the radiology processor
-processor = RadiologyProcessor()
+import numpy as np
+import torch
+from huggingface_hub import snapshot_download
 
-# Load DICOM series (returns tuple)
-image, metadata = processor.load_dicom("path/to/dicom_folder/")
+from honeybee.processors.radiology import RadiologyProcessor
 
-# Or load NIfTI file
-image, metadata = processor.load_nifti("path/to/image.nii.gz")
+# Download CT DICOM samples from HuggingFace
+data_dir = snapshot_download(
+    repo_id="Lab-Rasool/honeybee-samples",
+    repo_type="dataset",
+    allow_patterns="CT/**",
+)
 
-# Access metadata fields
-print(metadata.modality, metadata.pixel_spacing)`}
+# Find the DICOM series directory
+dcm_files = glob.glob(os.path.join(data_dir, "CT", "**", "*.dcm"), recursive=True)
+dicom_dir = os.path.dirname(dcm_files[0])
+print(f"Found {len(dcm_files)} DICOM files in {dicom_dir}")
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"Device: {DEVICE}")`}
     lang="python"
-    filename="optional_filename.py"
+    filename="quickstart.py"
+  />
+  <CodeBlock
+    code={`Found 205 DICOM files in .../CT/1.3.6.1.4.1.14519.5.2.1...
+Device: cuda`}
+    lang="text"
+    filename="Output"
   />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">
-    Anatomical Segmentation and Masking
-  </h2>
+  <h2 class="text-2xl font-bold mt-8 mb-4">DICOM Loading and Metadata</h2>
   <p class="mb-4">
-    Isolate relevant anatomical structures for targeted analysis:
+    <code>load_dicom()</code> reads a directory of DICOM files, sorts slices by
+    position, and returns a 3-D NumPy volume plus an <code>ImageMetadata</code>
+    object with acquisition parameters.
   </p>
   <CodeBlock
-    code={`
-from honeybee.processors import RadiologyProcessor
+    code={`processor = RadiologyProcessor(device=DEVICE)
+image, metadata = processor.load_dicom(dicom_dir)
 
-processor = RadiologyProcessor()
-image, metadata = processor.load_dicom("path/to/ct_scan/")
-
-# Lung segmentation for CT
-lung_mask = processor.segment_lungs(image)
-
-# Multi-organ segmentation
-organs = processor.segment_organs(image)
-liver_mask = organs['liver']
-spleen_mask = organs['spleen']
-
-# Tumor segmentation in MRI
-mri_image, mri_metadata = processor.load_dicom("path/to/mri_scan/")
-tumor_mask = processor.segment_tumor(mri_image, mri_metadata, seed_point=(64, 64, 64))
-
-# PET metabolic volume delineation
-pet_image, pet_metadata = processor.load_dicom("path/to/pet_scan/")
-suv_threshold = 2.5  # Standardized Uptake Value threshold
-metabolic_mask = processor.segment_metabolic_volume(pet_image, threshold=suv_threshold)`}
+print(f"Volume shape:        {image.shape}")
+print(f"Volume dtype:        {image.dtype}")
+print(f"Value range:         [{image.min():.1f}, {image.max():.1f}]")
+print(f"Modality:            {metadata.modality}")
+print(f"Patient ID:          {metadata.patient_id}")
+print(f"Pixel spacing:       {metadata.pixel_spacing}")
+print(f"Slice thickness:     {metadata.slice_thickness}")`}
     lang="python"
-    filename="optional_filename.py"
+    filename="dicom_loading.py"
+  />
+  <CodeBlock
+    code={`Volume shape:        (104, 512, 512)
+Volume dtype:        int32
+Value range:         [-2048.0, 3072.0]
+Modality:            unknown
+Patient ID:
+Pixel spacing:       (4.952378796116505, 0.976562, 0.976562)
+Slice thickness:     None`}
+    lang="text"
+    filename="Output"
   />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Denoising and Artifact Reduction</h2>
+  <details class="mb-8 border border-gray-700 rounded-lg overflow-hidden">
+    <summary class="cursor-pointer px-4 py-3 bg-gray-800/50 hover:bg-gray-800 text-lg font-semibold transition-colors">
+      Anatomical Landmarks and Volume Visualization
+    </summary>
+    <div class="px-4 pb-4 pt-2">
+      <p class="mb-4">
+        Named slice indices can be derived from the HU distribution to show each
+        feature at its most relevant anatomy. Lung parenchyma (&minus;900 to &minus;400 HU)
+        gives the lung extent; the heart is detected as a dip in lung area where
+        it displaces parenchyma. This is not core HoneyBee functionality but
+        useful for understanding the volume before processing.
+      </p>
+      <CodeBlock
+        code={`from scipy.ndimage import binary_fill_holes
+
+n_slices = image.shape[0]
+h, w = image.shape[1], image.shape[2]
+
+# Detect lung region via internal air cavities
+lung_area = np.zeros(n_slices)
+for i in range(n_slices):
+    body = image[i] > -500
+    internal_air = binary_fill_holes(body) & ~body
+    lung_area[i] = (internal_air & (image[i] > -900) & (image[i] < -300)).sum()
+
+# Lung-containing slices: > 2% of slice area
+threshold = 0.02 * h * w
+has_lung = np.where(lung_area > threshold)[0]
+
+if len(has_lung) > 5:
+    lung_start, lung_end = int(has_lung[0]), int(has_lung[-1])
+    lung_extent = lung_end - lung_start
+
+    # Orientation: diaphragm has steeper transition than apex
+    quarter = max(3, lung_extent // 4)
+    start_edge = lung_area[lung_start : lung_start + quarter]
+    end_edge = lung_area[lung_end - quarter : lung_end + 1]
+    start_steepness = np.max(np.abs(np.diff(start_edge))) if len(start_edge) > 1 else 0
+    end_steepness = np.max(np.abs(np.diff(end_edge))) if len(end_edge) > 1 else 0
+    apex_first = end_steepness > start_steepness
+
+    if apex_first:
+        SLICE_APEX, SLICE_BASES = lung_start, lung_end
+    else:
+        SLICE_APEX, SLICE_BASES = lung_end, lung_start
+
+    # Heart: minimum lung area in the middle portion
+    mid_lo = min(SLICE_APEX, SLICE_BASES) + lung_extent // 3
+    mid_hi = max(SLICE_APEX, SLICE_BASES) - lung_extent // 4
+    mid_range = np.arange(mid_lo, mid_hi + 1)
+    SLICE_HEART = int(mid_range[np.argmin(lung_area[mid_range])])
+
+    # Carina: 25% from apex toward bases
+    direction = 1 if apex_first else -1
+    SLICE_CARINA = SLICE_APEX + int(direction * lung_extent * 0.25)
+
+print(f"Detected landmarks:  apex={SLICE_APEX}  carina={SLICE_CARINA}  "
+      f"heart={SLICE_HEART}  bases={SLICE_BASES}")`}
+        lang="python"
+        filename="landmarks.py"
+      />
+      <CodeBlock
+        code={`Detected landmarks:  apex=6  carina=27  heart=55  bases=90`}
+        lang="text"
+        filename="Output"
+      />
+
+      <div class="mb-8">
+        <img
+          src="/HoneyBee/images/radiology/lung-area-profile.png"
+          alt="Lung area profile with detected anatomical landmarks"
+          class="rounded-lg shadow-md w-full mb-4"
+        />
+      </div>
+
+      <p class="mb-4">
+        Three-view overview at mid-chest level (axial, coronal, sagittal):
+      </p>
+      <div class="mb-8">
+        <img
+          src="/HoneyBee/images/radiology/three-view-overview.png"
+          alt="Axial, coronal, and sagittal views at mid-chest"
+          class="rounded-lg shadow-md w-full mb-4"
+        />
+      </div>
+    </div>
+  </details>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">HU Verification and Windowing</h2>
   <p class="mb-4">
-    Improve image quality through denoising and artifact reduction:
+    <code>verify_hounsfield_units()</code> checks whether the volume is in
+    proper HU scale and reports statistics. <code>apply_window()</code>
+    accepts named presets or custom (window, level) tuples.
   </p>
   <CodeBlock
-    code={`
-from honeybee.processors import RadiologyProcessor
+    code={`hu_results = processor.verify_hounsfield_units(image, metadata)
 
-processor = RadiologyProcessor()
-image, metadata = processor.load_dicom("path/to/ct_scan/")
-
-# Non-local means denoising for CT
-denoised_ct = processor.denoise(image, method="nlm")
-
-# Deep learning-based denoising
-denoised_ct_dl = processor.denoise(image, method="deep")
-
-# Metal artifact reduction
-mar_ct = processor.reduce_metal_artifacts(image)
-
-# MRI-specific denoising
-mri_image, _ = processor.load_dicom("path/to/mri_scan/")
-denoised_mri = processor.denoise(mri_image, method="rician")  # Rician noise model for MRI
-
-# PET denoising
-pet_image, _ = processor.load_dicom("path/to/pet_scan/")
-denoised_pet = processor.denoise(pet_image, method="pet_specific")`}
+print(f"Is HU:          {hu_results['is_hu']}")
+print(f"Min value:      {hu_results['min_value']:.1f}")
+print(f"Max value:      {hu_results['max_value']:.1f}")
+print(f"Mean value:     {hu_results['mean_value']:.1f}")
+print(f"Air present:    {hu_results['likely_air_present']}")
+print(f"Bone present:   {hu_results['likely_bone_present']}")`}
     lang="python"
-    filename="optional_filename.py"
+    filename="hu_verification.py"
   />
-
-  <h2 class="text-2xl font-bold mt-8 mb-4">
-    Spatial Standardization and Resampling
-  </h2>
-  <p class="mb-4">Standardize spatial resolution and orientation:</p>
   <CodeBlock
-    code={`
-from honeybee.processors import RadiologyProcessor
-
-processor = RadiologyProcessor()
-image, metadata = processor.load_dicom("path/to/ct_scan/")
-
-# Isotropic resampling (requires metadata for current spacing)
-resampled_ct = processor.resample(image, metadata, new_spacing=(1.0, 1.0, 1.0))
-
-# Reorient to standard orientation (RAS: Right-Anterior-Superior)
-standardized_ct, new_metadata = processor.reorient(resampled_ct, metadata, target_orientation="RAS")
-
-# Registration to atlas
-atlas_image, atlas_metadata = processor.load_atlas("path/to/atlas.nii.gz")
-registered_ct = processor.register(standardized_ct, atlas_image)
-
-# Crop to region of interest
-lung_mask = processor.segment_lungs(registered_ct)
-cropped_ct = processor.crop_to_roi(registered_ct, lung_mask)`}
-    lang="python"
-    filename="optional_filename.py"
+    code={`Is HU:          True
+Min value:      -2048.0
+Max value:      3072.0
+Mean value:     -893.7
+Air present:    True
+Bone present:   True`}
+    lang="text"
+    filename="Output"
   />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Intensity Normalization</h2>
+  <h3 class="text-xl font-bold mt-4 mb-2">Window Preset Comparison</h3>
   <p class="mb-4">
-    Standardize signal intensities across different scanners and protocols:
+    Different window/level settings reveal different anatomical structures. Each
+    preset is shown on the axial slice where that anatomy is most visible:
   </p>
   <CodeBlock
-    code={`
-from honeybee.processors import RadiologyProcessor
+    code={`# Built-in presets: lung, mediastinum, soft_tissue, bone, abdomen, liver
+preset_slices = {
+    "lung":        SLICE_HEART,
+    "mediastinum": SLICE_CARINA,
+    "soft_tissue": SLICE_BASES,
+    "bone":        SLICE_APEX,
+    "abdomen":     SLICE_LIVER,
+    "liver":       SLICE_LIVER,
+}
 
-processor = RadiologyProcessor()
-
-# CT Hounsfield unit verification
-image, metadata = processor.load_dicom("path/to/ct_scan/")
-hu_info = processor.verify_hounsfield_units(image, metadata)
-
-# CT window/level adjustment
-windowed_ct = processor.apply_window(image, window=400, level=50)  # Soft tissue window
-
-# MRI intensity normalization
-mri_image, mri_metadata = processor.load_dicom("path/to/mri_scan/")
-normalized_mri = processor.normalize_intensity(mri_image, method="z_score")
-
-# Bias field correction for MRI
-bias_corrected_mri = processor.correct_bias_field(mri_image)
-
-# PET SUV calculation
-pet_image, pet_metadata = processor.load_dicom("path/to/pet_scan/")
-suv_pet = processor.calculate_suv(
-    pet_image,
-    patient_weight=70,  # in kg
-    injected_dose=10,   # in mCi
-    injection_time="20220101T120000"  # ISO format
-)`}
+fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+for ax, (preset, slice_idx) in zip(axes.flat, preset_slices.items()):
+    windowed = processor.apply_window(image[slice_idx], window=preset)
+    ax.imshow(windowed, cmap="gray")
+    ax.set_title(f"{preset.replace('_', ' ').title()} (slice {slice_idx})")
+    ax.axis("off")`}
     lang="python"
-    filename="optional_filename.py"
+    filename="window_presets.py"
   />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/radiology/window-presets.png"
+      alt="Six window presets showing different anatomical structures"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Preprocessing Pipeline</h2>
+  <p class="mb-4">
+    The preprocessing pipeline provides denoising, intensity normalization, and
+    a combined <code>preprocess()</code> method that chains all steps based on modality.
+  </p>
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Denoising Methods</h3>
+  <p class="mb-4">
+    Compare non-local means and bilateral denoising on a single slice,
+    viewed through the soft-tissue window:
+  </p>
+  <CodeBlock
+    code={`tissue_slice = image[SLICE_CARINA]
+nlm_denoised = processor.denoise(tissue_slice, method="nlm")
+bilateral_denoised = processor.denoise(tissue_slice, method="bilateral")
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+for ax, img, title in zip(
+    axes,
+    [tissue_slice, nlm_denoised, bilateral_denoised],
+    ["Original", "Non-Local Means", "Bilateral"],
+):
+    windowed = processor.apply_window(img, window="soft_tissue")
+    ax.imshow(windowed, cmap="gray")
+    ax.set_title(title)
+    ax.axis("off")`}
+    lang="python"
+    filename="denoising.py"
+  />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/radiology/denoising-comparison.png"
+      alt="Original vs non-local means vs bilateral denoising"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Intensity Normalization</h3>
+  <p class="mb-4">
+    Three normalization methods are available: z-score, min-max, and percentile.
+  </p>
+  <CodeBlock
+    code={`methods = ["zscore", "minmax", "percentile"]
+norm_slice = image[SLICE_HEART]
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+for ax, method in zip(axes, methods):
+    normalized = processor.normalize_intensity(norm_slice, method=method)
+    ax.imshow(normalized, cmap="gray")
+    ax.set_title(f"{method} — range [{normalized.min():.2f}, {normalized.max():.2f}]")
+    ax.axis("off")`}
+    lang="python"
+    filename="normalization.py"
+  />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/radiology/normalization-comparison.png"
+      alt="Z-score, min-max, and percentile normalization comparison"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Full Pipeline</h3>
+  <p class="mb-4">
+    <code>preprocess()</code> chains denoising, windowing, and normalization in
+    a single call, configured by modality:
+  </p>
+  <CodeBlock
+    code={`preprocessed = processor.preprocess(image, metadata)
+
+print(f"Original shape:      {image.shape}")
+print(f"Preprocessed shape:  {preprocessed.shape}")
+print(f"Original range:      [{image.min():.1f}, {image.max():.1f}]")
+print(f"Preprocessed range:  [{preprocessed.min():.3f}, {preprocessed.max():.3f}]")`}
+    lang="python"
+    filename="preprocess.py"
+  />
+  <CodeBlock
+    code={`Original shape:      (104, 512, 512)
+Preprocessed shape:  (104, 512, 512)
+Original range:      [-2048.0, 3072.0]
+Preprocessed range:  [0.000, 1.000]`}
+    lang="text"
+    filename="Output"
+  />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/radiology/preprocessing-pipeline.png"
+      alt="Original vs preprocessed at lung and abdomen levels"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Spatial Operations</h2>
+  <p class="mb-4">
+    Standardize spatial resolution with isotropic resampling, and remove
+    surrounding air with bounding-box cropping.
+  </p>
+
+  <CodeBlock
+    code={`# Resample to isotropic 1mm spacing
+resampled = processor.resample(image, metadata, new_spacing=(1.0, 1.0, 1.0))
+
+print(f"Original shape:    {image.shape}")
+print(f"Original spacing:  {metadata.pixel_spacing}")
+print(f"Resampled shape:   {resampled.shape}")
+print("Target spacing:    (1.0, 1.0, 1.0)")`}
+    lang="python"
+    filename="resampling.py"
+  />
+  <CodeBlock
+    code={`Original shape:    (104, 512, 512)
+Original spacing:  (4.952378796116505, 0.976562, 0.976562)
+Resampled shape:   (516, 500, 500)
+Target spacing:    (1.0, 1.0, 1.0)`}
+    lang="text"
+    filename="Output"
+  />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/radiology/resampling.png"
+      alt="Original vs resampled volume"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <CodeBlock
+    code={`# Crop to body ROI (remove surrounding air)
+body_mask = (image > -500).astype(np.uint8)
+cropped = processor.crop_to_roi(image, body_mask)
+
+print(f"Original shape:  {image.shape}")
+print(f"Cropped shape:   {cropped.shape}")`}
+    lang="python"
+    filename="crop_to_roi.py"
+  />
+  <CodeBlock
+    code={`Original shape:  (104, 512, 512)
+Cropped shape:   (97, 340, 370)`}
+    lang="text"
+    filename="Output"
+  />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/radiology/crop-to-roi.png"
+      alt="Original vs cropped volume"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Lung Segmentation</h2>
+  <p class="mb-4">
+    <code>segment_lungs()</code> uses the
+    <a href="https://github.com/JohannesBuchner/lungmask" class="text-primary hover:underline" target="_blank">lungmask</a>
+    library for automatic lung segmentation. The resulting binary mask can be
+    applied with <code>apply_mask()</code> to isolate lung parenchyma before
+    embedding generation.
+  </p>
+  <CodeBlock
+    code={`lung_mask = processor.segment_lungs(image, spacing=metadata.pixel_spacing)
+
+print(f"Mask shape:     {lung_mask.shape}")
+print(f"Mask dtype:     {lung_mask.dtype}")
+print(f"Lung voxels:    {lung_mask.sum():,} ({lung_mask.mean():.2%} of volume)")`}
+    lang="python"
+    filename="lung_segmentation.py"
+  />
+  <CodeBlock
+    code={`Mask shape:     (104, 512, 512)
+Mask dtype:     uint8
+Lung voxels:    3,498,265 (12.83% of volume)`}
+    lang="text"
+    filename="Output"
+  />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/radiology/lung-segmentation-overlay.png"
+      alt="Lung segmentation overlay on upper, mid, and lower lung zones"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
+
+  <CodeBlock
+    code={`# Apply mask to isolate lung parenchyma
+lung_only = processor.apply_mask(image, lung_mask)`}
+    lang="python"
+    filename="apply_mask.py"
+  />
+
+  <div class="mb-8">
+    <img
+      src="/HoneyBee/images/radiology/lung-masked.png"
+      alt="Full volume vs lung-masked volume"
+      class="rounded-lg shadow-md w-full mb-4"
+    />
+  </div>
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Embedding Generation</h2>
   <p class="mb-4">
-    Generate embeddings from medical images using specialized models:
+    <code>RadiologyProcessor</code> wraps the model registry to generate
+    embeddings from CT volumes using radiology-specific foundation models.
+  </p>
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Available Models</h3>
+  <p class="mb-4">
+    HoneyBee ships with 7 radiology model presets. Use <code>list_models()</code>
+    to see all available presets:
+  </p>
+
+  <div class="overflow-x-auto mb-6">
+    <table class="min-w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-gray-600">
+          <th class="text-left py-2 px-3">Alias</th>
+          <th class="text-left py-2 px-3">Embedding Dim</th>
+          <th class="text-left py-2 px-3">Provider</th>
+          <th class="text-left py-2 px-3">Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>rad-dino</code></td>
+          <td class="py-2 px-3">768</td>
+          <td class="py-2 px-3">huggingface</td>
+          <td class="py-2 px-3">RAD-DINO radiology foundation model (Microsoft)</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>medsiglip</code></td>
+          <td class="py-2 px-3">1152</td>
+          <td class="py-2 px-3">huggingface</td>
+          <td class="py-2 px-3">MedSigLIP medical image-text model (Google) - 448x448</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>remedis</code></td>
+          <td class="py-2 px-3">2048</td>
+          <td class="py-2 px-3">onnx</td>
+          <td class="py-2 px-3">REMEDIS CXR model (Google) - requires ONNX model_path</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>radimagenet-resnet50</code></td>
+          <td class="py-2 px-3">2048</td>
+          <td class="py-2 px-3">torch</td>
+          <td class="py-2 px-3">RadImageNet ResNet50 pretrained model</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>radimagenet-densenet121</code></td>
+          <td class="py-2 px-3">1024</td>
+          <td class="py-2 px-3">torch</td>
+          <td class="py-2 px-3">RadImageNet DenseNet121 pretrained model</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>torchxrayvision-densenet</code></td>
+          <td class="py-2 px-3">1024</td>
+          <td class="py-2 px-3">torchxrayvision</td>
+          <td class="py-2 px-3">TorchXRayVision DenseNet121 (all datasets, 224px)</td>
+        </tr>
+        <tr class="border-b border-gray-700">
+          <td class="py-2 px-3"><code>torchxrayvision-resnet</code></td>
+          <td class="py-2 px-3">2048</td>
+          <td class="py-2 px-3">torchxrayvision</td>
+          <td class="py-2 px-3">TorchXRayVision ResNet50 (all datasets, 512px)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="text-xl font-bold mt-4 mb-2">Generate Embeddings</h3>
+  <p class="mb-4">
+    Initialize <code>RadiologyProcessor</code> with a model alias, then call
+    <code>generate_embeddings()</code>. For 3-D volumes, specify
+    <code>mode="2d"</code> and <code>n_slices</code> to sample and aggregate
+    across the volume:
   </p>
   <CodeBlock
-    code={`
-from honeybee.processors import RadiologyProcessor
+    code={`processor_rd = RadiologyProcessor(model="rad-dino", device=DEVICE)
+embeddings = processor_rd.generate_embeddings(image, mode="2d", n_slices=16)
 
-# Initialize processor with specific model
-processor = RadiologyProcessor(model="remedis")  # Options: remedis, radimagenet
-
-# Load and preprocess image
-image, metadata = processor.load_dicom("path/to/ct_scan/")
-preprocessed_ct = processor.preprocess(image, metadata)
-
-# Generate embeddings
-embeddings = processor.generate_embeddings(preprocessed_ct)
-
-# For 3D volumes, you might get embeddings per slice
-volume, vol_metadata = processor.load_dicom("path/to/ct_volume/")
-preprocessed_volume = processor.preprocess(volume, vol_metadata)
-volume_embeddings = processor.generate_embeddings(preprocessed_volume, mode="3d")
-
-# Aggregate slice embeddings to volume-level
-volume_embedding = processor.aggregate_embeddings(volume_embeddings, method="mean")`}
+print(f"Embeddings shape: {embeddings.shape}")
+print(f"Embeddings norm:  {np.linalg.norm(embeddings):.4f}")`}
     lang="python"
-    filename="optional_filename.py"
+    filename="generate_embeddings.py"
+  />
+  <CodeBlock
+    code={`Embeddings shape: (768,)
+Embeddings norm:  14.1231`}
+    lang="text"
+    filename="Output"
   />
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">Complete Example</h2>
-  <p class="mb-4">Full pipeline from image loading to embedding generation:</p>
+  <h2 class="text-2xl font-bold mt-8 mb-4">Slice-Level Aggregation</h2>
+  <p class="mb-4">
+    Generate per-slice embeddings and aggregate them into a volume-level
+    representation using one of five methods:
+  </p>
   <CodeBlock
-    code={`
-from honeybee.processors import RadiologyProcessor
+    code={`# Generate per-slice embeddings
+slice_indices = np.linspace(0, image.shape[0] - 1, 16, dtype=int)
+slice_embeddings = np.stack(
+    [processor_rd.generate_embeddings(image[i], mode="2d") for i in slice_indices]
+)
+print(f"Per-slice embeddings: {slice_embeddings.shape}")
 
-# Initialize processor with specific model
-processor = RadiologyProcessor(model="remedis")
+# Available methods: mean, max, median, std, concat
+for method in ["mean", "max", "median", "std", "concat"]:
+    agg = processor_rd.aggregate_embeddings(slice_embeddings, method=method)
+    print(f"  {method:>8s}: shape={agg.shape}, norm={np.linalg.norm(agg):.2f}")`}
+    lang="python"
+    filename="aggregation.py"
+  />
+  <CodeBlock
+    code={`Per-slice embeddings: (16, 768)
+      mean: shape=(768,), norm=14.27
+       max: shape=(768,), norm=18.86
+    median: shape=(768,), norm=14.85
+       std: shape=(768,), norm=6.69
+    concat: shape=(1536,), norm=15.76`}
+    lang="text"
+    filename="Output"
+  />
 
-# Load CT scan
-image, metadata = processor.load_dicom("path/to/ct_scan/")
+  <h2 class="text-2xl font-bold mt-8 mb-4">HoneyBee High-Level API</h2>
+  <p class="mb-4">
+    <code>process_radiology()</code> runs the entire pipeline &mdash; DICOM
+    loading, preprocessing, and embedding generation &mdash; in a single call:
+  </p>
+  <CodeBlock
+    code={`from honeybee import HoneyBee
 
-# Preprocess
-preprocessed_ct = processor.preprocess(
-    image,
-    metadata,
-    denoise=True,
-    reduce_artifacts=True,
-    resample_spacing=(1.0, 1.0, 1.0),
-    normalize=True
+honeybee = HoneyBee(config={"radiology": {"model": "rad-dino", "device": DEVICE}})
+result = honeybee.process_radiology(
+    dicom_path=dicom_dir, preprocess=True, generate_embeddings=True
 )
 
-# Segment lungs (if chest CT)
-lung_mask = processor.segment_lungs(preprocessed_ct)
-
-# Apply mask
-masked_ct = processor.apply_mask(preprocessed_ct, lung_mask)
-
-# Generate embeddings
-embeddings = processor.generate_embeddings(masked_ct)`}
+print(f"Result keys:       {list(result.keys())}")
+print(f"Image shape:       {result['image'].shape}")
+print(f"Metadata modality: {result['metadata'].modality}")
+if "embeddings" in result:
+    print(f"Embeddings shape:  {result['embeddings'].shape}")`}
     lang="python"
-    filename="optional_filename.py"
+    filename="honeybee_api.py"
+  />
+  <CodeBlock
+    code={`Result keys:       ['image', 'metadata', 'embeddings']
+Image shape:       (104, 512, 512)
+Metadata modality: unknown
+Embeddings shape:  (768,)`}
+    lang="text"
+    filename="Output"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Complete Pipeline Example</h2>
+  <p class="mb-4">
+    Full end-to-end workflow from DICOM loading to volume-level embeddings:
+  </p>
+  <CodeBlock
+    code={`import glob
+import os
+
+import numpy as np
+import torch
+from huggingface_hub import snapshot_download
+
+from honeybee.processors.radiology import RadiologyProcessor
+
+# 1. Download and locate DICOM series
+data_dir = snapshot_download(
+    repo_id="Lab-Rasool/honeybee-samples",
+    repo_type="dataset",
+    allow_patterns="CT/**",
+)
+dcm_files = glob.glob(os.path.join(data_dir, "CT", "**", "*.dcm"), recursive=True)
+dicom_dir = os.path.dirname(dcm_files[0])
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+# 2. Load DICOM
+processor = RadiologyProcessor(device=device)
+image, metadata = processor.load_dicom(dicom_dir)
+
+# 3. Verify HU scale
+hu = processor.verify_hounsfield_units(image, metadata)
+print(f"HU verified: {hu['is_hu']}")
+
+# 4. Preprocess (denoise + normalize)
+preprocessed = processor.preprocess(image, metadata)
+
+# 5. Resample to isotropic spacing
+resampled = processor.resample(preprocessed, metadata, new_spacing=(1.0, 1.0, 1.0))
+
+# 6. Segment lungs and apply mask
+lung_mask = processor.segment_lungs(image, spacing=metadata.pixel_spacing)
+masked = processor.apply_mask(resampled, lung_mask)
+
+# 7. Generate embeddings
+processor_rd = RadiologyProcessor(model="rad-dino", device=device)
+embeddings = processor_rd.generate_embeddings(masked, mode="2d", n_slices=16)
+
+# 8. Aggregate to volume level
+volume_embedding = processor_rd.aggregate_embeddings(
+    embeddings.reshape(1, -1) if embeddings.ndim == 1
+    else embeddings,
+    method="mean",
+)
+print(f"Volume embedding: {volume_embedding.shape}")`}
+    lang="python"
+    filename="complete_pipeline.py"
   />
 
   <h2 class="text-2xl font-bold mt-8 mb-4">Performance Considerations</h2>
-  <p class="mb-4">
-    When processing large volumetric data, consider the following:
-  </p>
+  <p class="mb-4">When processing CT volumes, consider the following:</p>
   <ul class="list-disc pl-5 space-y-2 mb-6">
-    <li>Use memory-efficient loading strategies through lazy evaluation</li>
-    <li>Process volumes slice by slice when memory is limited</li>
-    <li>Downsample high-resolution volumes for initial analysis</li>
-    <li>Leverage GPU acceleration for computationally intensive operations</li>
-    <li>Cache intermediate results for repeated processing</li>
+    <li>
+      <strong>GPU acceleration:</strong> Set <code>device="cuda"</code> on
+      <code>RadiologyProcessor</code> to run model inference on GPU
+    </li>
+    <li>
+      <strong>Slice sampling:</strong> Use <code>n_slices</code> in
+      <code>generate_embeddings()</code> to sample a representative subset
+      rather than processing every slice
+    </li>
+    <li>
+      <strong>Preprocessing before embedding:</strong> Apply windowing and
+      normalization to bring values into the expected model input range
+    </li>
+    <li>
+      <strong>Lung masking:</strong> Segment and mask lungs before embedding
+      to focus on relevant parenchyma and reduce noise from surrounding tissue
+    </li>
+    <li>
+      <strong>Isotropic resampling:</strong> Resample to uniform spacing
+      (e.g., 1mm isotropic) for consistent spatial representation across scans
+    </li>
+    <li>
+      <strong>Memory management:</strong> CT volumes can be large; process
+      slice-by-slice when memory is limited
+    </li>
   </ul>
 
-  <h2 class="text-2xl font-bold mt-8 mb-4">References</h2>
-  <ul class="list-disc pl-5 space-y-2">
-    <li>
-      REMEDIS: <a
-        href="https://arxiv.org/abs/2308.16184"
-        class="text-primary hover:underline"
-        target="_blank">https://arxiv.org/abs/2308.16184</a
-      >
-    </li>
-    <li>
-      RadImageNet: <a
-        href="https://arxiv.org/abs/2201.12520"
-        class="text-primary hover:underline"
-        target="_blank">https://arxiv.org/abs/2201.12520</a
-      >
-    </li>
-    <li>
-      MedSigLIP: <a
-        href="https://huggingface.co/google/medsiglip-448"
-        class="text-primary hover:underline"
-        target="_blank">https://huggingface.co/google/medsiglip-448</a
-      >
-    </li>
-  </ul>
 </DocsLayout>

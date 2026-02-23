@@ -155,6 +155,69 @@ def sample_embeddings():
     return np.random.randn(10, 768).astype(np.float32)
 
 
+@pytest.fixture
+def sample_dicom_metadata():
+    """Sample CT DICOM metadata"""
+    from honeybee.processors.radiology.metadata import ImageMetadata
+
+    return ImageMetadata(
+        modality="CT",
+        patient_id="TEST001",
+        study_date="20240115",
+        series_description="CHEST CT",
+        pixel_spacing=(1.0, 1.0, 2.5),
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=[1, 0, 0, 0, 1, 0],
+        window_center=-600.0,
+        window_width=1500.0,
+        rescale_intercept=-1024.0,
+        rescale_slope=1.0,
+        manufacturer="GE MEDICAL SYSTEMS",
+        rows=512,
+        columns=512,
+        number_of_slices=64,
+    )
+
+
+@pytest.fixture
+def sample_mri_metadata():
+    """Sample MRI metadata"""
+    from honeybee.processors.radiology.metadata import ImageMetadata
+
+    return ImageMetadata(
+        modality="MR",
+        patient_id="TEST002",
+        study_date="20240115",
+        series_description="BRAIN MRI T1",
+        pixel_spacing=(1.0, 1.0, 1.0),
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=[1, 0, 0, 0, 1, 0],
+        manufacturer="SIEMENS",
+        rows=256,
+        columns=256,
+        number_of_slices=176,
+    )
+
+
+@pytest.fixture
+def sample_pet_metadata():
+    """Sample PET metadata"""
+    from honeybee.processors.radiology.metadata import ImageMetadata
+
+    return ImageMetadata(
+        modality="PT",
+        patient_id="TEST003",
+        study_date="20240115",
+        series_description="FDG PET",
+        pixel_spacing=(4.0, 4.0, 3.0),
+        image_position=(0.0, 0.0, 0.0),
+        image_orientation=[1, 0, 0, 0, 1, 0],
+        rows=128,
+        columns=128,
+        number_of_slices=90,
+    )
+
+
 # ============================================================================
 # Mock Model Fixtures
 # ============================================================================
@@ -192,15 +255,6 @@ def mock_uni_model():
     model.load_model_and_predict.return_value = MagicMock(
         cpu=lambda: MagicMock(numpy=lambda: np.random.randn(10, 1024).astype(np.float32))
     )
-    return model
-
-
-@pytest.fixture
-def mock_radimagenet_model():
-    """Mock RadImageNet model"""
-    model = MagicMock()
-    model.generate_embeddings.return_value = np.random.randn(1, 2048).astype(np.float32)
-    model.process_batch.return_value = np.random.randn(10, 2048).astype(np.float32)
     return model
 
 
@@ -273,66 +327,6 @@ def honeybee_config():
             "entity_recognition": {"use_rules": True},
         }
     }
-
-
-# ============================================================================
-# Metadata Fixtures
-# ============================================================================
-
-
-@pytest.fixture
-def sample_dicom_metadata():
-    """Sample DICOM metadata with all required fields"""
-    from honeybee.loaders.Radiology.metadata import ImageMetadata
-
-    return ImageMetadata(
-        modality="CT",
-        patient_id="TEST001",
-        study_date="20240115",
-        series_description="Chest CT with contrast",
-        pixel_spacing=(0.7, 0.7, 2.5),
-        image_position=(0.0, 0.0, 0.0),
-        image_orientation=[1, 0, 0, 0, 1, 0],
-        window_center=40,
-        window_width=400,
-        rescale_intercept=-1024,
-        rescale_slope=1.0,
-        rows=128,
-        columns=128,
-        number_of_slices=64,
-    )
-
-
-@pytest.fixture
-def sample_mri_metadata():
-    """Sample MRI metadata"""
-    from honeybee.loaders.Radiology.metadata import ImageMetadata
-
-    return ImageMetadata(
-        modality="MR",
-        patient_id="TEST002",
-        study_date="20240115",
-        series_description="Brain MRI T1",
-        pixel_spacing=(1.0, 1.0, 3.0),
-        image_position=(0.0, 0.0, 0.0),
-        image_orientation=[1, 0, 0, 0, 1, 0],
-    )
-
-
-@pytest.fixture
-def sample_pet_metadata():
-    """Sample PET metadata"""
-    from honeybee.loaders.Radiology.metadata import ImageMetadata
-
-    return ImageMetadata(
-        modality="PT",
-        patient_id="TEST003",
-        study_date="20240115",
-        series_description="PET CT Fusion",
-        pixel_spacing=(2.0, 2.0, 2.0),
-        image_position=(0.0, 0.0, 0.0),
-        image_orientation=[1, 0, 0, 0, 1, 0],
-    )
 
 
 # ============================================================================

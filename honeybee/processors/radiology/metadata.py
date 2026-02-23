@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 @dataclass
 class ImageMetadata:
-    """Container for medical image metadata
+    """Container for medical image metadata.
 
     Attributes:
         modality: Imaging modality (CT, MR, PT, etc.)
@@ -59,29 +59,29 @@ class ImageMetadata:
     extra_metadata: Dict[str, Any] = field(default_factory=dict)
 
     def get_voxel_spacing(self) -> Tuple[float, float, float]:
-        """Get voxel spacing as tuple"""
+        """Get voxel spacing as tuple."""
         return self.pixel_spacing
 
     def get_image_size(self) -> Tuple[int, int, int]:
-        """Get image dimensions"""
+        """Get image dimensions."""
         return (self.rows or 0, self.columns or 0, self.number_of_slices or 1)
 
     def get_window_settings(self) -> Tuple[Optional[float], Optional[float]]:
-        """Get window center and width"""
+        """Get window center and width."""
         return self.window_center, self.window_width
 
     def is_ct(self) -> bool:
-        """Check if modality is CT"""
+        """Check if modality is CT."""
         return self.modality.upper() == "CT"
 
     def is_mri(self) -> bool:
-        """Check if modality is MRI"""
+        """Check if modality is MRI."""
         return self.modality.upper() in ["MR", "MRI"]
 
     def is_pet(self) -> bool:
-        """Check if modality is PET"""
+        """Check if modality is PET."""
         return self.modality.upper() in ["PT", "PET"]
 
     def has_window_settings(self) -> bool:
-        """Check if window settings are available"""
+        """Check if window settings are available."""
         return self.window_center is not None and self.window_width is not None

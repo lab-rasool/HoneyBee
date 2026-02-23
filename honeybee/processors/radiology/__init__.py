@@ -1,9 +1,11 @@
 """
-Radiology Processing Components
+HoneyBee Radiology Processing Module
 
-Modular preprocessing utilities for medical imaging.
+Provides comprehensive radiology image processing including loading,
+preprocessing, segmentation, and embedding generation.
 """
 
+from .metadata import ImageMetadata
 from .preprocessing import (
     ArtifactReducer,
     Denoiser,
@@ -16,20 +18,29 @@ from .preprocessing import (
     preprocess_pet,
 )
 from .processor import RadiologyProcessor
-from .segmentation import NNUNetSegmenter, PETSegmenter, detect_nodules
+from .segmentation import (
+    LungmaskSegmenter,
+    NNUNetSegmenter,
+    PETSegmenter,
+    TotalSegmentatorWrapper,
+    detect_nodules,
+)
 
 __all__ = [
     "RadiologyProcessor",
+    "ImageMetadata",
     "Denoiser",
     "IntensityNormalizer",
     "WindowLevelAdjuster",
     "ArtifactReducer",
     "HUClipper",
     "VoxelResampler",
-    "NNUNetSegmenter",
-    "PETSegmenter",
-    "detect_nodules",
     "preprocess_ct",
     "preprocess_mri",
     "preprocess_pet",
+    "LungmaskSegmenter",
+    "TotalSegmentatorWrapper",
+    "NNUNetSegmenter",
+    "PETSegmenter",
+    "detect_nodules",
 ]

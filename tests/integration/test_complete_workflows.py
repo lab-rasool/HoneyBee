@@ -2,7 +2,7 @@
 Integration tests for complete HoneyBee workflows
 
 Tests end-to-end pipelines that integrate multiple components across
-clinical, pathology, and radiology modalities.
+clinical and pathology modalities.
 """
 
 from unittest.mock import MagicMock, patch
@@ -11,8 +11,7 @@ import numpy as np
 import pytest
 
 from honeybee import HoneyBee
-from honeybee.processors import ClinicalProcessor, PathologyProcessor
-from honeybee.processors.radiology import RadiologyProcessor
+from honeybee.processors import ClinicalProcessor, PathologyProcessor, RadiologyProcessor
 
 
 @pytest.mark.integration
@@ -145,68 +144,13 @@ class TestPathologyWorkflow:
 
 
 @pytest.mark.integration
-class TestRadiologyWorkflow:
-    """Integration tests for radiology processing workflow"""
-
-    @patch("honeybee.processors.radiology.processor.load_medical_image")
-    @patch("honeybee.models.RadImageNet.radimagenet.RadImageNet")
-    def test_dicom_to_embeddings(self, mock_model, mock_load, sample_dicom_metadata):
-        """Test complete workflow: DICOM → preprocessing → embeddings"""
-        # Setup mocks
-        mock_image = np.random.randint(-1000, 1000, (64, 128, 128), dtype=np.int16)
-        mock_load.return_value = (mock_image, sample_dicom_metadata)
-
-        mock_model_instance = MagicMock()
-        mock_model_instance.generate_embeddings.return_value = np.random.randn(2048)
-        mock_model.return_value = mock_model_instance
-
-        processor = RadiologyProcessor()
-        processor.model = mock_model_instance
-
-        # Step 1: Load image
-        image, metadata = processor.load_image("/fake/ct.dcm")
-        assert image is not None
-        assert metadata == sample_dicom_metadata
-
-        # Step 2: Preprocess
-        processed = processor.preprocess(
-            image, metadata, denoise=True, normalize=True, window="lung"
-        )
-        assert processed is not None
-
-        # Step 3: Generate embeddings
-        embeddings = processor.generate_embeddings(processed, mode="3d")
-        assert embeddings is not None
-
-    def test_radiology_segmentation_pipeline(self):
-        """Test segmentation pipeline"""
-        # Create CT image
-        ct_image = np.full((32, 128, 128), -800, dtype=np.int16)
-
-        processor = RadiologyProcessor()
-
-        # Step 1: Verify HU
-        hu_check = processor.verify_hounsfield_units(ct_image)
-        assert hu_check["is_hu"]
-
-        # Step 2: Apply window
-        windowed = processor.apply_window(ct_image, window="lung")
-        assert windowed is not None
-
-        # Step 3: Segment lungs
-        lung_mask = processor.segment_lungs(ct_image)
-        assert lung_mask is not None
-
-
-@pytest.mark.integration
 @pytest.mark.slow
 class TestMultimodalIntegration:
     """Integration tests for multimodal data integration"""
 
     @patch("honeybee.processors.ClinicalProcessor.generate_embeddings")
     @patch("honeybee.models.UNI.uni.UNI")
-    @patch("honeybee.models.RadImageNet.radimagenet.RadImageNet")
-    def test_complete_multimodal_workflow(self, mock_rad, mock_uni, mock_clinical):
+    def test_complete_multimodal_workflow(self, mock_uni, mock_clinical):
         """Test complete multimodal integration workflow"""
         # Setup mocks
         mock_clinical.return_value = np.random.randn(1, 768)
@@ -216,10 +160,6 @@ class TestMultimodalIntegration:
         mock_tensor.cpu.return_value.numpy.return_value = np.random.randn(1, 1024)
         mock_uni_instance.load_model_and_predict.return_value = mock_tensor
         mock_uni.return_value = mock_uni_instance
-
-        mock_rad_instance = MagicMock()
-        mock_rad_instance.generate_embeddings.return_value = np.random.randn(2048)
-        mock_rad.return_value = mock_rad_instance
 
         honeybee = HoneyBee()
 
@@ -232,14 +172,11 @@ class TestMultimodalIntegration:
         pathology_emb = honeybee.generate_embeddings(np.ones((224, 224, 3)), modality="pathology")
         assert pathology_emb.shape == (1, 768)  # Placeholder
 
-        radiology_emb = honeybee.generate_embeddings(np.ones((64, 128, 128)), modality="radiology")
-        assert radiology_emb.shape == (1, 768)  # Placeholder
-
         # Integrate multimodal embeddings
-        integrated = honeybee.integrate_embeddings([clinical_emb, pathology_emb, radiology_emb])
+        integrated = honeybee.integrate_embeddings([clinical_emb, pathology_emb])
 
         assert integrated is not None
-        assert integrated.shape == (1, 768 * 3)
+        assert integrated.shape == (1, 768 * 2)
 
         # Predict survival
         survival = honeybee.predict_survival(integrated)
@@ -256,13 +193,90 @@ class TestMultimodalIntegration:
         # Generate embeddings with different dimensions
         emb1 = np.random.randn(5, 768)  # Clinical
         emb2 = np.random.randn(5, 1024)  # Pathology
-        emb3 = np.random.randn(5, 2048)  # Radiology
 
         # Test concatenation fusion
-        integrated = honeybee.integrate_embeddings([emb1, emb2, emb3])
+        integrated = honeybee.integrate_embeddings([emb1, emb2])
 
         assert integrated is not None
-        assert integrated.shape == (5, 768 + 1024 + 2048)
+        assert integrated.shape == (5, 768 + 1024)
+
+
+@pytest.mark.integration
+class TestRadiologyWorkflow:
+    """Integration tests for radiology processing workflow"""
+
+    @patch("honeybee.processors.radiology.processor.preprocess_ct")
+    def test_ct_preprocess_to_embeddings(self, mock_preprocess_ct):
+        """Test CT preprocessing -> embedding generation pipeline"""
+        mock_preprocess_ct.return_value = np.random.rand(64, 128, 128).astype(np.float32)
+
+        processor = RadiologyProcessor(model="remedis", device="cpu")
+
+        # Mock embedding model
+        mock_model = MagicMock()
+        mock_model.generate_embeddings.return_value = np.random.randn(1, 2048).astype(np.float32)
+        processor.embedding_model = mock_model
+
+        # Step 1: Preprocess
+        from honeybee.processors.radiology.metadata import ImageMetadata
+
+        metadata = ImageMetadata(
+            modality="CT",
+            patient_id="INT001",
+            study_date="20240115",
+            series_description="CHEST CT",
+            pixel_spacing=(1.0, 1.0, 2.5),
+            image_position=(0.0, 0.0, 0.0),
+            image_orientation=[1, 0, 0, 0, 1, 0],
+        )
+        image = np.random.randint(-1000, 1000, (64, 128, 128), dtype=np.int16)
+        preprocessed = processor.preprocess(image, metadata)
+        assert preprocessed is not None
+
+        # Step 2: Generate embeddings
+        embeddings = processor.generate_embeddings(preprocessed)
+        assert embeddings is not None
+        mock_model.generate_embeddings.assert_called_once()
+
+    def test_radiology_segment_and_crop(self):
+        """Test segmentation -> crop pipeline"""
+        processor = RadiologyProcessor(device="cpu")
+
+        image = np.random.randint(-1000, 1000, (64, 128, 128), dtype=np.int16)
+        mask = np.zeros((64, 128, 128), dtype=np.uint8)
+        mask[20:40, 40:90, 40:90] = 1
+
+        # Crop to ROI
+        cropped = processor.crop_to_roi(image, mask)
+        assert cropped.shape == (20, 50, 50)
+
+        # Apply mask
+        masked = processor.apply_mask(image, mask)
+        assert np.all(masked[mask == 0] == 0)
+
+    @patch("honeybee.processors.radiology.processor.RadiologyProcessor.generate_embeddings")
+    @patch("honeybee.processors.ClinicalProcessor.generate_embeddings")
+    def test_honeybee_radiology_modality(self, mock_clinical_gen, mock_rad_gen):
+        """Test HoneyBee API with radiology modality"""
+        mock_clinical_gen.return_value = np.random.randn(1, 768)
+        mock_rad_gen.return_value = np.random.randn(2048)
+
+        honeybee = HoneyBee()
+
+        # Clinical embeddings
+        clinical_emb = honeybee.generate_embeddings("Patient with lung cancer", modality="clinical")
+        assert clinical_emb.shape == (1, 768)
+
+        # Radiology embeddings
+        rad_image = np.random.randn(64, 128, 128)
+        rad_emb = honeybee.generate_embeddings(rad_image, modality="radiology")
+        assert rad_emb is not None
+
+        # Integrate
+        integrated = honeybee.integrate_embeddings(
+            [clinical_emb, rad_emb.reshape(1, -1)]
+        )
+        assert integrated is not None
 
 
 @pytest.mark.integration
@@ -304,7 +318,7 @@ class TestEndToEndScenarios:
         assert clinical_emb is not None
 
         # Simulate multimodal analysis
-        # (Would include pathology and radiology in real scenario)
+        # (Would include pathology in real scenario)
         survival = honeybee.predict_survival(clinical_emb)
         assert "survival_probability" in survival
 

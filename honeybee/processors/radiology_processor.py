@@ -1,21 +1,19 @@
 """
-Radiology Processor - Legacy Compatibility Layer
+Backward-compatible wrapper for RadiologyProcessor.
 
-This module provides backward compatibility for existing code using RadiologyProcessor.
-It imports from the new modular structure while maintaining the original API.
+This module re-exports RadiologyProcessor from its new location.
+It will be removed in a future version.
 """
 
 import warnings
 
-from .radiology import RadiologyProcessor
-
-# Show deprecation warning
 warnings.warn(
-    "Importing from 'radiology_processor' is deprecated. "
-    "Please import from 'honeybee.processors.radiology' instead.",
+    "Importing from honeybee.processors.radiology_processor is deprecated. "
+    "Use honeybee.processors.radiology instead.",
     DeprecationWarning,
     stacklevel=2,
 )
 
-# Export for backward compatibility
+from .radiology import RadiologyProcessor  # noqa: E402, F401
+
 __all__ = ["RadiologyProcessor"]

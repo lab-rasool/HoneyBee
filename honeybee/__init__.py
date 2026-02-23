@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 
 # Import processors
-from .processors import ClinicalProcessor
+from .processors import ClinicalProcessor, RadiologyProcessor
 
 
 class HoneyBee:
@@ -45,6 +45,9 @@ class HoneyBee:
         clinical_config = self.config.get("clinical", {})
         self.clinical_processor = ClinicalProcessor(config=clinical_config)
 
+        # Radiology processor (lazy — created on first use)
+        self._radiology_processor = None
+
     def generate_embeddings(
         self, data: Union[str, List[str], np.ndarray], modality: str = "clinical", **kwargs
     ) -> np.ndarray:
@@ -53,7 +56,7 @@ class HoneyBee:
 
         Args:
             data: Input data (text/list of texts for clinical, array for other modalities)
-            modality: Data modality ("clinical", "pathology", "radiology", "molecular")
+            modality: Data modality ("clinical", "pathology", "molecular")
             **kwargs: Additional arguments passed to the modality-specific processor
                      For clinical modality:
                          - model_name: Model to use. Can be preset name ("bioclinicalbert",
@@ -101,9 +104,15 @@ class HoneyBee:
                 return self.clinical_processor.generate_embeddings(data, **kwargs)
             else:
                 raise ValueError("Clinical modality requires text input (str or list of str)")
+        elif modality == "radiology":
+            if not isinstance(data, np.ndarray):
+                raise ValueError("Radiology modality requires numpy array input")
+            if self._radiology_processor is None:
+                rad_config = self.config.get("radiology", {})
+                self._radiology_processor = RadiologyProcessor(**rad_config)
+            return self._radiology_processor.generate_embeddings(data, **kwargs)
         else:
             # For other modalities, return placeholder embeddings
-            # In a real implementation, you would have dedicated processors
             self.logger.warning(f"Modality {modality} not fully implemented, returning placeholder")
             return np.random.randn(1, 768)  # Placeholder embedding
 
@@ -183,6 +192,63 @@ class HoneyBee:
         else:
             raise ValueError("Either document_path or text must be provided")
 
+    def process_radiology(
+        self,
+        dicom_path: Optional[Union[str, Path]] = None,
+        nifti_path: Optional[Union[str, Path]] = None,
+        image: Optional[np.ndarray] = None,
+        preprocess: bool = True,
+        generate_embeddings: bool = False,
+        **kwargs,
+    ) -> Dict:
+        """
+        Process radiology images.
+
+        Convenience method that wraps RadiologyProcessor functionality.
+
+        Args:
+            dicom_path: Path to DICOM file or directory
+            nifti_path: Path to NIfTI file
+            image: Pre-loaded image array
+            preprocess: Whether to run preprocessing pipeline
+            generate_embeddings: Whether to generate embeddings
+            **kwargs: Additional arguments passed to processor methods
+
+        Returns:
+            Dictionary with processed image, metadata, and optional embeddings
+        """
+        if self._radiology_processor is None:
+            rad_config = self.config.get("radiology", {})
+            self._radiology_processor = RadiologyProcessor(**rad_config)
+
+        result = {}
+
+        if dicom_path is not None:
+            img, metadata = self._radiology_processor.load_dicom(str(dicom_path))
+            result["image"] = img
+            result["metadata"] = metadata
+        elif nifti_path is not None:
+            img, metadata = self._radiology_processor.load_nifti(str(nifti_path))
+            result["image"] = img
+            result["metadata"] = metadata
+        elif image is not None:
+            img = image
+            metadata = None
+            result["image"] = img
+            result["metadata"] = metadata
+        else:
+            raise ValueError("One of dicom_path, nifti_path, or image must be provided")
+
+        if preprocess and metadata is not None:
+            img = self._radiology_processor.preprocess(img, metadata, **kwargs)
+            result["image"] = img
+
+        if generate_embeddings:
+            emb = self._radiology_processor.generate_embeddings(img, **kwargs)
+            result["embeddings"] = emb
+
+        return result
+
     def process_clinical_batch(
         self,
         input_dir: Union[str, Path],
@@ -221,4 +287,4 @@ class HoneyBee:
 
 # Re-export commonly used classes
 
-__all__ = ["HoneyBee", "ClinicalProcessor"]
+__all__ = ["HoneyBee", "ClinicalProcessor", "RadiologyProcessor"]

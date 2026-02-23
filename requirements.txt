@@ -15,7 +15,6 @@ pdf2image
 PyPDF2
 pyarrow
 fastparquet
-pydicom
 opencv-python
 matplotlib
 langchain
@@ -29,6 +28,15 @@ colour-science
 scipy
 pytesseract
 onnxruntime
-SimpleITK
-nibabel
 timm
+SimpleITK
+monai
+torchio
+pydicom
+nibabel
+lungmask
+TotalSegmentator
+dipy
+intensity-normalization
+neuroCombat
+nnunetv2
