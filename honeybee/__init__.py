@@ -202,30 +202,46 @@ class HoneyBee:
     def process_molecular(
         self,
         features: Optional[Union[np.ndarray, "torch.Tensor"]] = None,  # type: ignore[name-defined]
+        features_pkl: Optional[Union[str, Path]] = None,
+        raw: Optional[Dict[str, Any]] = None,
+        seed: int = 42,
     ) -> MolecularResult:
-        """Process a multi-omics feature vector through SeNMo.
+        """Process multi-omics data through SeNMo.
+
+        Exactly one of ``features``, ``features_pkl``, or ``raw`` must
+        be provided.
 
         Args:
-            features: Preprocessed 80,697-dim multi-omics vector
-                (gene expression + DNA methylation + miRNA + protein +
-                mutation + clinical, concatenated). Shape ``(80697,)``
-                or ``(N, 80697)`` for batched input.
+            features: Preprocessed 80,697-dim multi-omics vector.
+                Shape ``(80697,)`` or ``(N, 80697)``.
+            features_pkl: Path to a pkl produced by upstream
+                ``SeNMo/combine_features.py``.
+            raw: Mapping of modality name to raw per-modality data
+                (TSV/MAF path or DataFrame). Allowed keys:
+                ``clinical``, ``dna_mutation``, ``protein``,
+                ``gene_expression``, ``dna_methylation``, ``mirna``.
+                Omitted modalities are zero-padded.
+            seed: RNG seed for the DNA mutation preprocessor. Only
+                applies when ``raw`` includes ``'dna_mutation'``.
 
         Returns:
             :class:`MolecularResult` with the 48-dim embedding, hazard
-            score, and input vector.
+            score, and resolved 80,697-dim input vector.
 
         Note:
             First call triggers a HuggingFace Hub download of the
             10-checkpoint pan-cancer ensemble (~80 GB, cached).
             Subsequent calls reuse the cache.
         """
-        if features is None:
-            raise ValueError("features must be provided")
         if self._molecular_processor is None:
             mol_config = self.config.get("molecular", {})
             self._molecular_processor = MolecularProcessor(**mol_config)
-        return self._molecular_processor.process(features=features)
+        return self._molecular_processor.process(
+            features=features,
+            features_pkl=features_pkl,
+            raw=raw,
+            seed=seed,
+        )
 
 
 # Re-export commonly used classes
