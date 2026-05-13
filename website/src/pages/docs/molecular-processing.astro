@@ -6,11 +6,20 @@ import CodeBlock from "../../components/CodeBlock.astro";
 <DocsLayout title="Molecular Processing">
   <h2 class="text-2xl font-bold mb-4">Overview</h2>
   <p class="mb-6">
-    The molecular processing pipeline in HoneyBee handles various types of
-    molecular data, including DNA methylation, gene expression, protein
-    expression, DNA mutation, and miRNA expression. The pipeline preprocesses,
-    integrates, and generates embeddings from these diverse molecular profiles
-    for downstream machine learning applications.
+    The molecular processing pipeline in HoneyBee is backed by
+    <a
+      href="https://www.mdpi.com/1422-0067/26/15/7358"
+      class="text-primary hover:underline"
+      target="_blank">SeNMo</a
+    >
+    (Self-Normalizing Multi-Omics Neural Network), a pretrained pan-cancer model
+    that consumes six concatenated molecular modalities &mdash; gene expression,
+    DNA methylation, miRNA expression, protein expression, somatic mutations, and
+    clinical covariates &mdash; and produces a 48-dimensional patient embedding
+    plus a Cox-style hazard score for survival prediction. The
+    <code>MolecularProcessor</code> class exposes the full pipeline through
+    <code>HoneyBee.process_molecular()</code> and accepts three input modes so
+    it slots into existing TCGA workflows without restructuring.
   </p>
 
   <div class="mb-8">
@@ -21,8 +30,280 @@ import CodeBlock from "../../components/CodeBlock.astro";
     />
   </div>
 
-  <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
-    <p class="text-blue-800">
-      <strong>Note:</strong> The molecular processing capabilities described below are currently implemented through the SeNMo framework and operate as an independent component. We are actively working to integrate these functionalities directly into the HoneyBee ecosystem in upcoming releases to provide a more unified and streamlined experience.
-    </p>
+  <h2 class="text-2xl font-bold mb-4">Key Features</h2>
+  <ul class="list-disc pl-5 space-y-2 mb-6">
+    <li>
+      Pretrained 10-checkpoint ensemble from
+      <code>Lab-Rasool/SeNMo</code> on HuggingFace Hub, auto-downloaded on first
+      use
+    </li>
+    <li>
+      Six per-modality preprocessing helpers ported faithfully from SeNMo's
+      <code>package_classes/</code>
+    </li>
+    <li>
+      Concatenates to the published 80,697-dim feature vector; missing
+      modalities are zero-padded for their slice
+    </li>
+    <li>48-dim patient embedding and scalar hazard score per patient</li>
+    <li>
+      Three input modes covering raw TCGA TSVs, pre-combined pkls, and direct
+      vectors
+    </li>
+    <li>
+      Reproducible &mdash; the DNA mutation preprocessor takes an explicit
+      <code>seed</code> (upstream's
+      <code>random.sample</code> is unseeded)
+    </li>
+    <li>
+      High-level <code>HoneyBee.process_molecular()</code> one-call API
+    </li>
+  </ul>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Installation</h2>
+  <p class="mb-4">
+    The molecular pillar's runtime dependencies (PyTorch, NumPy, pandas) are
+    already part of HoneyBee's core install. The 10-checkpoint ensemble
+    (~80 GB) is downloaded lazily on first use and cached locally via the
+    standard HuggingFace Hub cache.
+  </p>
+  <CodeBlock code={`pip install honeybee-ml`} lang="bash" />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Quick Start</h2>
+  <p class="mb-4">
+    Pass a preprocessed 80,697-dim multi-omics feature vector to
+    <code>process_molecular()</code> and get back a
+    <code>MolecularResult</code> with the embedding and hazard score:
+  </p>
+  <CodeBlock
+    code={`from honeybee import HoneyBee
+import numpy as np
+
+hb = HoneyBee()
+
+# Placeholder: in practice, build this from real per-modality TSVs (see below)
+features = np.random.randn(80697).astype(np.float32)
+
+result = hb.process_molecular(features=features)
+
+print(f"Embedding shape: {result.embedding.shape}")
+print(f"Hazard score:    {result.hazard_score:.4f}")`}
+    lang="python"
+    filename="quickstart.py"
+  />
+  <CodeBlock
+    code={`Embedding shape: (48,)
+Hazard score:    -0.1223`}
+    lang="text"
+    filename="Output"
+  />
+  <p class="mt-4 mb-6">
+    The first call downloads the 10 published SeNMo checkpoints from
+    HuggingFace Hub. Subsequent calls reuse the local cache. The default cache
+    lives at <code>~/.cache/huggingface/hub/</code> and respects the standard
+    <code>HF_HOME</code> override.
+  </p>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Three Input Modes</h2>
+  <p class="mb-4">
+    <code>process_molecular()</code> accepts input in any of three forms.
+    Exactly one of <code>features=</code>, <code>features_pkl=</code>, or
+    <code>raw=</code> must be provided.
+  </p>
+
+  <h3 class="text-xl font-bold mt-6 mb-3">Mode A &mdash; pre-combined pkl</h3>
+  <p class="mb-4">
+    Load a pickle in the format produced by SeNMo's
+    <code>combine_features.py</code> (a dict with
+    <code>data['cv_splits'][1]['test']['x_omic'][0]</code> holding the
+    80,697-dim vector). Useful if you've already run the upstream SeNMo
+    preprocessing pipeline and just want the embedding.
+  </p>
+  <CodeBlock
+    code={`result = hb.process_molecular(features_pkl="multiomic_features.pkl")
+print(result.embedding.shape, result.hazard_score)`}
+    lang="python"
+    filename="mode_a_pkl.py"
+  />
+
+  <h3 class="text-xl font-bold mt-6 mb-3">
+    Mode B &mdash; raw per-modality data
+  </h3>
+  <p class="mb-4">
+    Pass a dict mapping modality name to either a TSV/MAF path or a DataFrame.
+    HoneyBee runs each per-modality preprocessor, concatenates the outputs to
+    the 80,697-dim vector, and runs inference. Any omitted modality is
+    zero-padded for its slice.
+  </p>
+  <CodeBlock
+    code={`result = hb.process_molecular(raw={
+    "gene_expression":  "gene-expr-RNAhtseq_fpkm.tsv",
+    "dna_methylation":  "methylation450.tsv",
+    "mirna":            "mirna.tsv",
+    "protein":          "rppa.tsv",
+    "dna_mutation":     "wxs.maf",
+    "clinical":         "phenotype.tsv",
+    # Any modality may be omitted; its slice is zero-padded.
+})`}
+    lang="python"
+    filename="mode_b_raw.py"
+  />
+  <p class="mb-4">
+    The <code>seed</code> keyword on <code>process_molecular()</code> (default
+    <code>42</code>) controls the DNA mutation preprocessor's random row-drop
+    so results are reproducible across runs. The DNA mutation source is a
+    standard TCGA MAF; the bundled Hugo symbols list is used by default.
+  </p>
+
+  <h3 class="text-xl font-bold mt-6 mb-3">
+    Mode C &mdash; preprocessed vector
+  </h3>
+  <p class="mb-4">
+    Pass the 80,697-dim vector directly. Useful for batch inference where
+    feature vectors are built offline, or for unit testing.
+  </p>
+  <CodeBlock
+    code={`# Single sample
+result = hb.process_molecular(features=features_80697)
+
+# Batched (N samples)
+result = hb.process_molecular(features=features_N_x_80697)
+# result.embedding.shape    -> (N, 48)
+# result.hazard_score.shape -> (N,)`}
+    lang="python"
+    filename="mode_c_features.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Per-Modality Preprocessing</h2>
+  <p class="mb-4">
+    All six preprocessing helpers live under
+    <code>honeybee.processors.molecular.preprocessing</code> and accept either
+    a path to a TSV (or MAF, for DNA mutation) or an already-loaded DataFrame.
+    Each returns a pandas DataFrame in the shape
+    <code>combine_modalities()</code> expects. Function names and target
+    feature counts match the SeNMo paper:
+  </p>
+  <div class="overflow-x-auto mb-6">
+    <table class="table-auto border-collapse w-full">
+      <thead>
+        <tr class="border-b bg-gray-50">
+          <th class="text-left px-3 py-2">Modality</th>
+          <th class="text-left px-3 py-2">Function</th>
+          <th class="text-left px-3 py-2">Output features</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-b">
+          <td class="px-3 py-2">Gene expression (RNA-seq)</td>
+          <td class="px-3 py-2"><code>preprocess_gene_expression</code></td>
+          <td class="px-3 py-2">8,794</td>
+        </tr>
+        <tr class="border-b">
+          <td class="px-3 py-2">DNA methylation</td>
+          <td class="px-3 py-2"><code>preprocess_dna_methylation</code></td>
+          <td class="px-3 py-2">52,396</td>
+        </tr>
+        <tr class="border-b">
+          <td class="px-3 py-2">miRNA expression</td>
+          <td class="px-3 py-2"><code>preprocess_mirna</code></td>
+          <td class="px-3 py-2">1,730</td>
+        </tr>
+        <tr class="border-b">
+          <td class="px-3 py-2">Protein expression (RPPA)</td>
+          <td class="px-3 py-2"><code>preprocess_protein</code></td>
+          <td class="px-3 py-2">472</td>
+        </tr>
+        <tr class="border-b">
+          <td class="px-3 py-2">DNA mutation</td>
+          <td class="px-3 py-2"><code>preprocess_dna_mutation</code></td>
+          <td class="px-3 py-2">17,301</td>
+        </tr>
+        <tr class="border-b">
+          <td class="px-3 py-2">Clinical covariates</td>
+          <td class="px-3 py-2"><code>preprocess_clinical_covariates</code></td
+          >
+          <td class="px-3 py-2">4</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
+  <CodeBlock
+    code={`from honeybee.processors.molecular.preprocessing import (
+    preprocess_gene_expression,
+    preprocess_dna_methylation,
+    preprocess_mirna,
+    preprocess_protein,
+    preprocess_dna_mutation,
+    preprocess_clinical_covariates,
+)
+
+gene_df = preprocess_gene_expression("gene-expr-RNAhtseq_fpkm.tsv")
+print(gene_df.shape)  # (N_samples, 8795) - sample col + 8794 features`}
+    lang="python"
+    filename="preprocessing.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Combine Modalities</h2>
+  <p class="mb-4">
+    <code>combine_modalities()</code> concatenates per-modality DataFrames
+    (or CSV paths) into the 80,697-dim SeNMo input vector. Use it if you want
+    to inspect or save the combined features before inference, or if your
+    workflow already has per-modality outputs but no upstream pkl.
+  </p>
+  <CodeBlock
+    code={`from honeybee.processors.molecular.preprocessing import combine_modalities
+
+vector = combine_modalities({
+    "gene_expression":  gene_df,
+    "dna_methylation":  methyl_df,
+    "mirna":            mirna_df,
+    "protein":          protein_df,
+    "dna_mutation":     mutation_df,
+    "clinical":         clinical_df,
+})
+print(vector.shape, vector.dtype)  # (80697,) float32
+
+# Then run inference
+result = hb.process_molecular(features=vector)`}
+    lang="python"
+    filename="combine.py"
+  />
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">Result Schema</h2>
+  <p class="mb-4">
+    <code>MolecularResult</code> is a dataclass with three fields:
+  </p>
+  <ul class="list-disc pl-5 space-y-2 mb-4">
+    <li>
+      <code>embedding</code> &mdash; 48-dim ndarray for single-patient input,
+      shape <code>(N, 48)</code> for batches. The encoder output from SeNMo's
+      penultimate layer.
+    </li>
+    <li>
+      <code>hazard_score</code> &mdash; Python <code>float</code> for
+      single-patient input, ndarray of shape <code>(N,)</code> for batches.
+      Cox-style continuous risk score; higher means worse prognosis.
+    </li>
+    <li>
+      <code>input_features</code> &mdash; the resolved 80,697-dim vector that
+      was fed to SeNMo, useful for caching or downstream analysis.
+    </li>
+  </ul>
+  <p class="mb-4">
+    Call <code>result.to_dict()</code> to get a JSON-serializable
+    representation.
+  </p>
+
+  <h2 class="text-2xl font-bold mt-8 mb-4">About SeNMo</h2>
+  <p class="mb-4">
+    SeNMo is a 7-layer MLP with ELU activations and AlphaDropout (~83.3 M
+    parameters) trained on over 10,000 patient profiles across 33 TCGA tumor
+    types. The pretrained weights HoneyBee downloads are the 10-fold
+    cross-validation ensemble from the published pan-cancer model. See
+    <a
+      href="https://www.mdpi.com/1422-0067/26/15/7358"
+      class="text-primary hover:underline"
+      target="_blank">Waqas et al. 2025 (Int. J. Mol. Sci. 26:7358)</a
+    > for the full architecture, training procedure, and benchmark results.
+  </p>
+</DocsLayout>
