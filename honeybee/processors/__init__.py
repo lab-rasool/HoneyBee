@@ -5,12 +5,14 @@ Provides unified interfaces for different data modality processors.
 """
 
 from .clinical import ClinicalProcessor
+from .molecular import MolecularProcessor
 from .pathology_processor import PathologyProcessor
 from .radiology import RadiologyProcessor
 
 
 __all__ = [
     "ClinicalProcessor",
+    "MolecularProcessor",
     "PathologyProcessor",
     "RadiologyProcessor",
 ]

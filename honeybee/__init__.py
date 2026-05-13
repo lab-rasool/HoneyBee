@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 
 # Import processors
-from .processors import ClinicalProcessor, RadiologyProcessor
+from .processors import ClinicalProcessor, MolecularProcessor, RadiologyProcessor
 from .processors.clinical import (
     ClinicalDocument,
     ClinicalEntity,
@@ -24,6 +24,7 @@ from .processors.clinical import (
     TimelineEvent,
     TimelineExtractor,
 )
+from .processors.molecular import MolecularResult
 
 
 class HoneyBee:
@@ -46,6 +47,9 @@ class HoneyBee:
 
         # Radiology processor (lazy — created on first use)
         self._radiology_processor = None
+
+        # Molecular processor (lazy — first use triggers HF Hub checkpoint download)
+        self._molecular_processor = None
 
     def generate_embeddings(
         self, data: Union[str, List[str], np.ndarray], modality: str = "clinical", **kwargs
@@ -73,6 +77,9 @@ class HoneyBee:
                 rad_config = self.config.get("radiology", {})
                 self._radiology_processor = RadiologyProcessor(**rad_config)
             return self._radiology_processor.generate_embeddings(data, **kwargs)
+        elif modality == "molecular":
+            result = self.process_molecular(features=data, **kwargs)
+            return result.embedding
         else:
             # For other modalities, return placeholder embeddings
             self.logger.warning(f"Modality {modality} not fully implemented, returning placeholder")
@@ -192,16 +199,46 @@ class HoneyBee:
             output_dir=output_dir,
         )
 
+    def process_molecular(
+        self,
+        features: Optional[Union[np.ndarray, "torch.Tensor"]] = None,  # type: ignore[name-defined]
+    ) -> MolecularResult:
+        """Process a multi-omics feature vector through SeNMo.
+
+        Args:
+            features: Preprocessed 80,697-dim multi-omics vector
+                (gene expression + DNA methylation + miRNA + protein +
+                mutation + clinical, concatenated). Shape ``(80697,)``
+                or ``(N, 80697)`` for batched input.
+
+        Returns:
+            :class:`MolecularResult` with the 48-dim embedding, hazard
+            score, and input vector.
+
+        Note:
+            First call triggers a HuggingFace Hub download of the
+            10-checkpoint pan-cancer ensemble (~80 GB, cached).
+            Subsequent calls reuse the cache.
+        """
+        if features is None:
+            raise ValueError("features must be provided")
+        if self._molecular_processor is None:
+            mol_config = self.config.get("molecular", {})
+            self._molecular_processor = MolecularProcessor(**mol_config)
+        return self._molecular_processor.process(features=features)
+
 
 # Re-export commonly used classes
 
 __all__ = [
     "HoneyBee",
     "ClinicalProcessor",
+    "MolecularProcessor",
     "RadiologyProcessor",
     "ClinicalDocument",
     "ClinicalEntity",
     "ClinicalResult",
+    "MolecularResult",
     "OntologyCode",
     "TimelineEvent",
     "DocumentIngester",
