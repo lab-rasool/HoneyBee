@@ -152,7 +152,12 @@ print(result.embedding.shape, result.hazard_score)`}
     The <code>seed</code> keyword on <code>process_molecular()</code> (default
     <code>42</code>) controls the DNA mutation preprocessor's random row-drop
     so results are reproducible across runs. The DNA mutation source is a
-    standard TCGA MAF; the bundled Hugo symbols list is used by default.
+    standard TCGA MAF; the Hugo symbol vocabulary is fetched from the
+    <a
+      href="https://huggingface.co/datasets/Lab-Rasool/honeybee-samples"
+      class="text-primary hover:underline"
+      target="_blank">Lab-Rasool/honeybee-samples</a
+    > HuggingFace dataset on first use (cached afterwards).
   </p>
 
   <h3 class="text-xl font-bold mt-6 mb-3">

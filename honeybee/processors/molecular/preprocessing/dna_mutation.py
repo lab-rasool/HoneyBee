@@ -6,6 +6,11 @@ TCGA MAF (mutation annotation format) file, binarizes per-Hugo-symbol
 HIGH-impact mutations, and trims to 17,301 features by randomly
 dropping a deterministic subset of zero-valued rows.
 
+The Hugo symbol vocabulary is fetched from the
+``Lab-Rasool/honeybee-samples`` HuggingFace dataset on first use
+(cached afterwards) so the file doesn't have to ship in the wheel.
+Pass ``hugo_symbols=<path>`` to override with a local copy.
+
 Important: upstream's ``random.sample(...)`` is called against the
 unseeded global random state, so identical inputs produce different
 outputs run-to-run. This port introduces a ``seed`` parameter
@@ -21,6 +26,7 @@ from pathlib import Path
 from typing import Union
 
 import pandas as pd
+from huggingface_hub import hf_hub_download
 
 # Number of mutation features after preprocessing. Matches
 # DNAMut_preprocess.py:55 and combine_features.py:20 (both 17301).
@@ -28,10 +34,20 @@ import pandas as pd
 # code is internally consistent at 17,301.
 _DNAMUT_TARGET_ROWS: int = 17301
 
+# Hugo symbol vocabulary lives on HF Hub instead of bundled in the wheel.
+_HUGO_HF_REPO_ID: str = "Lab-Rasool/honeybee-samples"
+_HUGO_HF_FILENAME: str = "Hugo_symbols.tsv"
 
-def _bundled_hugo_symbols_path() -> Path:
-    """Return the package-bundled Hugo_symbols.tsv path."""
-    return Path(__file__).resolve().parent.parent / "data" / "Hugo_symbols.tsv"
+
+def _fetch_hugo_symbols() -> Path:
+    """Download (or hit the local HF cache for) the Hugo symbols vocabulary."""
+    return Path(
+        hf_hub_download(
+            repo_id=_HUGO_HF_REPO_ID,
+            filename=_HUGO_HF_FILENAME,
+            repo_type="dataset",
+        )
+    )
 
 
 def preprocess_dna_mutation(
@@ -46,9 +62,9 @@ def preprocess_dna_mutation(
             allowed) with ``Hugo_Symbol`` and ``IMPACT`` columns, or
             an already-loaded DataFrame in the same shape.
         hugo_symbols: Path to a one-symbol-per-line TSV used as the
-            feature vocabulary. Defaults to the file bundled with
-            HoneyBee at
-            ``honeybee/processors/molecular/data/Hugo_symbols.tsv``.
+            feature vocabulary. Defaults to the file downloaded from
+            ``Lab-Rasool/honeybee-samples`` on HuggingFace Hub
+            (cached locally after first use).
         seed: Seed for the random row-drop step. Same seed produces
             same output across runs; upstream omits this and is
             non-deterministic.
@@ -69,7 +85,9 @@ def preprocess_dna_mutation(
             "DNA mutation input must contain 'Hugo_Symbol' and 'IMPACT' columns."
         )
 
-    labels_path = Path(hugo_symbols) if hugo_symbols is not None else _bundled_hugo_symbols_path()
+    labels_path = (
+        Path(hugo_symbols) if hugo_symbols is not None else _fetch_hugo_symbols()
+    )
     if not labels_path.is_file():
         raise FileNotFoundError(f"Hugo symbols file not found: {labels_path}")
     labels = pd.read_csv(labels_path, sep="\t", header=None)

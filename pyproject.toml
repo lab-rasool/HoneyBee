@@ -170,7 +170,7 @@ include = ["honeybee*"]
 exclude = ["tests*", "docs*", "website*", "results*", "BACKUP*", "to_delete*", "paper*"]
 
 [tool.setuptools.package-data]
-honeybee = ["py.typed", "processors/molecular/data/*.tsv"]
+honeybee = ["py.typed"]
 
 [tool.black]
 line-length = 100
