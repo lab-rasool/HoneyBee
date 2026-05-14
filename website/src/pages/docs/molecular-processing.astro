@@ -64,7 +64,7 @@ import CodeBlock from "../../components/CodeBlock.astro";
   <p class="mb-4">
     The molecular pillar's runtime dependencies (PyTorch, NumPy, pandas) are
     already part of HoneyBee's core install. The 10-checkpoint ensemble
-    (~80 GB) is downloaded lazily on first use and cached locally via the
+    (several GB) is downloaded lazily on first use and cached locally via the
     standard HuggingFace Hub cache.
   </p>
   <CodeBlock code={`pip install honeybee-ml`} lang="bash" />
