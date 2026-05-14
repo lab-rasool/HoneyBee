@@ -64,7 +64,7 @@ import CodeBlock from "../../components/CodeBlock.astro";
   <p class="mb-4">
     The molecular pillar's runtime dependencies (PyTorch, NumPy, pandas) are
     already part of HoneyBee's core install. The 10-checkpoint ensemble
-    (~80 GB) is downloaded lazily on first use and cached locally via the
+    (several GB) is downloaded lazily on first use and cached locally via the
     standard HuggingFace Hub cache.
   </p>
   <CodeBlock code={`pip install honeybee-ml`} lang="bash" />
@@ -243,7 +243,7 @@ result = hb.process_molecular(features=features_N_x_80697)
 )
 
 gene_df = preprocess_gene_expression("gene-expr-RNAhtseq_fpkm.tsv")
-print(gene_df.shape)  # (N_samples, 8795) - sample col + 8794 features`}
+print(gene_df.shape)  # (1, 8795) for a single sample, or (N_samples, 8795) if multiple samples are present; sample col + 8794 features`}
     lang="python"
     filename="preprocessing.py"
   />
