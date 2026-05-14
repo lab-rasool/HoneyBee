@@ -243,7 +243,7 @@ result = hb.process_molecular(features=features_N_x_80697)
 )
 
 gene_df = preprocess_gene_expression("gene-expr-RNAhtseq_fpkm.tsv")
-print(gene_df.shape)  # (N_samples, 8795) - sample col + 8794 features`}
+print(gene_df.shape)  # (1, 8795) for a single sample, or (N_samples, 8795) if multiple samples are present; sample col + 8794 features`}
     lang="python"
     filename="preprocessing.py"
   />
